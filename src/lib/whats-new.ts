@@ -12,6 +12,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.53.0',
+    date: 'Oct 28',
+    items: [
+      'The fortifying recipe names your formula and gives the grams beside the spoons, for a kitchen scale.',
+      'Logging a fortified bottle you mixed yourself says how much powder goes into that amount.',
+    ],
+  },
+  {
     version: '1.52.0',
     date: 'Oct 28',
     items: [

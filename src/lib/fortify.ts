@@ -128,6 +128,10 @@ export interface PowderStep {
   /** "1 scoop" when whole scoops come within a few percent of it, else null. */
   scoops: string | null
   grams: number
+  /** The exact amount for a kitchen scale, to 0.1 g (Bobbie, for one, advises weighing powder on a gram scale). */
+  scaleGrams: number
+  /** "Bobbie", or "powder" for the standard figures and a can typed in. */
+  powderName: string
   /** What the spoons really make. */
   kcalPerOz: number
   ml: number
@@ -167,6 +171,8 @@ export function recipeFor(milkMl: number, f: FortifySettings, milkKcal = MILK_KC
     spoons: quarters ? spoonText(quarters) : 'less than ¼ teaspoon',
     scoops,
     grams,
+    scaleGrams: Math.round(exact * 10) / 10,
+    powderName: f.powder === 'standard' || f.powder === 'custom' ? 'powder' : powder.name,
     kcalPerOz: mixed.kcalPerOz,
     ml: mixed.ml,
     tooSmall: quarters === 0 || Math.abs(mixed.kcalPerOz - f.kcalPerOz) > MEASURE_TOLERANCE,
@@ -179,11 +185,14 @@ export function smallestBatchOz(f: FortifySettings): number | null {
   return null
 }
 
-/** One line of what to add: "1 teaspoon + ¼ teaspoon of powder" / "15 mL of liquid concentrate". */
+/** One line of what to add: "½ teaspoon (0.9 g) of Bobbie" / "15 mL of liquid concentrate". */
 export function recipeText(r: Recipe): string {
   if (r.with === 'concentrate') return `${r.addMl} mL of liquid concentrate`
-  return `${r.spoons} of powder${r.scoops ? ` (or ${r.scoops})` : ''}`
+  return `${r.spoons} (${gramsText(r.scaleGrams)}) of ${r.powderName}${r.scoops ? `, or ${r.scoops}` : ''}`
 }
+
+/** "0.9 g", "12 g". */
+export const gramsText = (g: number) => `${g < 10 ? Math.round(g * 10) / 10 : Math.round(g)} g`
 
 /** "24 kcal/oz", whole when it is whole. */
 export const strengthText = (kcal: number) => `${Math.round(kcal * 10) / 10} kcal/oz`

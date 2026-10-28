@@ -42,7 +42,7 @@ describe('fortifying with powder', () => {
     expect(r.with === 'powder' && r.scoops).toBe('1 scoop')
     expect(r.tooSmall).toBe(false)
     expect(Math.abs(r.kcalPerOz - 24)).toBeLessThan(0.6)
-    expect(recipeText(recipeFor(oz(5), f))).toBe('2 teaspoons of powder')
+    expect(recipeText(recipeFor(oz(5), f))).toBe('2 teaspoons (4.5 g) of powder')
   })
 
   it('says when a batch is too small to measure, and how small it can go', () => {
@@ -59,6 +59,9 @@ describe('fortifying with powder', () => {
     const r = recipeFor(oz(4), { kcalPerOz: 22, with: 'powder', powder: 'bobbie' })
     expect(r.tooSmall).toBe(false)
     expect(Math.abs(r.kcalPerOz - 22)).toBeLessThan(0.6)
+    // Children's Wisconsin's home recipe lists Bobbie: ½ teaspoon to 60 mL for 22 kcal/oz
+    expect(recipeText(recipeFor(60, { kcalPerOz: 22, with: 'powder', powder: 'bobbie' }))).toBe('½ teaspoon (0.9 g) of Bobbie')
+    expect(recipeText(recipeFor(60, { kcalPerOz: 24, with: 'powder', powder: 'bobbie' }))).toBe('1 teaspoon (1.8 g) of Bobbie')
   })
 
   it('takes the powder from the can when it is typed in', () => {

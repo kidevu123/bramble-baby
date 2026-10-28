@@ -20,7 +20,7 @@ import { encodeNursing, freshNursing, parseSideNote } from '../../lib/nursing'
 import type { QuickPrefill } from '../../lib/quick-text'
 import { parseDate, parseDuration, toIso } from '../../lib/time'
 import { useTimers } from '../../hooks/useEvents'
-import { convertVolume, type VolumeUnit } from '../../lib/units'
+import { convertVolume, formatVolume, type VolumeUnit } from '../../lib/units'
 import { bottleCheck } from './plausible'
 import { SheetFooter } from './SheetFooter'
 import { useSaver } from './useSaver'
@@ -28,7 +28,7 @@ import { useUnitBoundary } from '../../hooks/useStorageUnits'
 import { timerKind, useTimerActions } from '../timer/useTimerActions'
 import { useChildSettings } from '../../hooks/useChildSettings'
 import { calorieTracking, feedKcal, kcalOf, kcalTag, strengthToSave, withKcalTag } from '../../lib/calories'
-import { strengthText } from '../../lib/fortify'
+import { recipeFor, recipeText, strengthText, type FortifySettings } from '../../lib/fortify'
 
 type Mode = 'nursing' | 'bottle'
 
@@ -444,7 +444,7 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
               <span>{sliderMax}</span>
             </div>
           </section>
-          {tracking ? <CaloriesLine milk={milk} amount={Number(amount) || 0} unit={unit} strength={strength} /> : null}
+          {tracking ? <CaloriesLine milk={milk} amount={Number(amount) || 0} unit={unit} strength={strength} mix={!editing && !pickedKcal ? tracking.fortify : null} /> : null}
           {/* A bottle is a moment: its chips set the time itself. */}
           <TimeField label="Time:" value={start} onChange={setStart} quick={editing ? undefined : setStart} />
         </>
@@ -478,7 +478,7 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
 }
 
 /** Under the amount: what the bottle is worth in calories, at the strength it is counted at. */
-function CaloriesLine({ milk, amount, unit, strength }: { milk: FeedingType; amount: number; unit: VolumeUnit; strength: number | null }) {
+function CaloriesLine({ milk, amount, unit, strength, mix }: { milk: FeedingType; amount: number; unit: VolumeUnit; strength: number | null; /** A new fortified bottle not from a premade one: say how to mix this amount. */ mix: FortifySettings | null }) {
   if (milk === 'fortified breast milk' && !strength) {
     return <p className="xs muted calories-line">Set the strength in Settings › Calories &amp; fortifying to count this bottle&apos;s calories.</p>
   }
@@ -487,9 +487,24 @@ function CaloriesLine({ milk, amount, unit, strength }: { milk: FeedingType; amo
   const kcal = feedKcal({ type: milk, method: 'bottle', amount, tags }, unit)
   if (kcal === null) return null
   const per = strength ?? 20
+  const ml = convertVolume(amount, unit, 'ml')
+  const recipe = milk === 'fortified breast milk' && mix ? recipeFor(ml, mix) : null
   return (
-    <p className="xs muted calories-line" data-testid="bottle-kcal">
-      About <span className="strong">{Math.round(kcal)} kcal</span> · {strengthText(per)}
-    </p>
+    <>
+      <p className="xs muted calories-line" data-testid="bottle-kcal">
+        About <span className="strong">{Math.round(kcal)} kcal</span> · {strengthText(per)}
+      </p>
+      {recipe ? (
+        <p className="small calories-line" data-testid="bottle-mix">
+          {recipe.tooSmall ? (
+            `Too little milk to measure ${strengthText(mix!.kcalPerOz)} for; mix a bigger batch (the Stash tab has the recipe).`
+          ) : (
+            <>
+              To mix {formatVolume(amount, unit)}: add <span className="strong">{recipeText(recipe)}</span>
+            </>
+          )}
+        </p>
+      ) : null}
+    </>
   )
 }

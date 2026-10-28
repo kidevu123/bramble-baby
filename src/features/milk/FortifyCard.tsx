@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { About } from '../../components/ui/About'
 import { ValueField } from '../log/LogFields'
-import { FORTIFIED_KEEP_HOURS, recipeFor, recipeText, smallestBatchOz, strengthText, type FortifySettings } from '../../lib/fortify'
+import { FORTIFIED_KEEP_HOURS, gramsText, powderOf, recipeFor, recipeText, smallestBatchOz, strengthText, type FortifySettings } from '../../lib/fortify'
 import { convertVolume, formatVolume, volumeLabel, type VolumeUnit } from '../../lib/units'
 
 const AMOUNTS: Record<VolumeUnit, number[]> = { oz: [2, 3, 4, 5, 6, 8], ml: [60, 90, 120, 150, 180, 240] }
@@ -16,11 +16,13 @@ export function FortifyCard({ fortify, unit }: { fortify: FortifySettings; unit:
   const recipe = milkMl > 0 ? recipeFor(milkMl, fortify) : null
   const least = recipe?.tooSmall ? smallestBatchOz(fortify) : null
   const vol = (ml: number) => formatVolume(convertVolume(ml, 'ml', unit), unit)
+  const powder = powderOf(fortify)
+  const brand = powder.id === 'standard' || powder.id === 'custom' ? 'formula' : powder.name
   return (
     <section className="card card-pad stack fortify-card" data-testid="fortify-card" aria-label="Fortify recipe">
       <header className="row fortify-head">
         <h3 className="grow">Fortify to {strengthText(fortify.kcalPerOz)}</h3>
-        <span className="xs muted">{fortify.with === 'concentrate' ? 'liquid concentrate' : 'level, unpacked'}</span>
+        <span className="xs muted">{fortify.with === 'concentrate' ? 'liquid concentrate' : `${brand} · level, unpacked`}</span>
       </header>
       <div className="row fortify-calc">
         <ValueField label="Milk" unit={volumeLabel(unit)} name={`Breast milk in ${volumeLabel(unit)}`} type="number" inputMode="decimal" min={0} value={amount} onChange={(e) => setAmount(e.target.value)} />
@@ -43,7 +45,7 @@ export function FortifyCard({ fortify, unit }: { fortify: FortifySettings; unit:
         <thead>
           <tr>
             <th scope="col">Breast milk</th>
-            <th scope="col">{fortify.with === 'concentrate' ? 'Concentrate' : 'Powder'}</th>
+            <th scope="col">{fortify.with === 'concentrate' ? 'Concentrate' : 'Powder · or weigh it'}</th>
           </tr>
         </thead>
         <tbody>
@@ -52,7 +54,7 @@ export function FortifyCard({ fortify, unit }: { fortify: FortifySettings; unit:
             return (
               <tr key={a}>
                 <td>{formatVolume(a, unit)}</td>
-                <td>{r.tooSmall ? <span className="muted">too little to measure</span> : r.with === 'concentrate' ? `${r.addMl} mL` : `${r.spoons}${r.scoops ? ` · ${r.scoops}` : ''}`}</td>
+                <td>{r.tooSmall ? <span className="muted">too little to measure</span> : r.with === 'concentrate' ? `${r.addMl} mL` : `${r.spoons} · ${gramsText(r.scaleGrams)}${r.scoops ? ` · ${r.scoops}` : ''}`}</td>
               </tr>
             )
           })}
@@ -60,6 +62,7 @@ export function FortifyCard({ fortify, unit }: { fortify: FortifySettings; unit:
       </table>
       <About label="How to mix it">
         <p>Wash your hands and the top of the can. Warm the milk to room temperature (powder clumps in cold milk), measure it in a clear cup at eye level, add level, unpacked spoons and shake gently.</p>
+        <p>A kitchen scale that reads 0.1 g is more exact than spoons (Bobbie advises weighing its powder): set the cup on it, zero it, and add the grams shown. With scoops, use only the scoop from the can.</p>
         <p>Keep it in the fridge and throw it away {FORTIFIED_KEEP_HOURS} hours after mixing; throw away what is left in a bottle after a feed. Do not freeze it, and warm it in water, never the microwave.</p>
         <p>Never mix it stronger than the doctor asked. The recipe counts breast milk at 20 kcal/oz, as hospital charts do; set the strength in Settings › Calories & fortifying.</p>
       </About>
