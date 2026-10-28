@@ -1,0 +1,15 @@
+.customize-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.customize-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 56px;
+  font-size: var(--text-lg);
+  font-weight: var(--w-body);
+  color: var(--text);
+  border-bottom: 1px solid var(--line);
+}

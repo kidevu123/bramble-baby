@@ -1,0 +1,215 @@
+/* Settings › Household › People. Own file so the shared settings styles stay untouched. */
+.people-sheet {
+  gap: var(--space-4);
+}
+
+/* Status band: how many people, and whether anyone still needs a role */
+.people-band {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.people-band.on {
+  background: var(--green-soft);
+}
+.people-band-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: var(--surface);
+  color: var(--teal-ink);
+}
+.people-band.on .people-band-icon {
+  color: var(--green-text);
+}
+.people-band-icon svg {
+  width: 24px;
+  height: 24px;
+}
+.people-band-title {
+  display: block;
+  font-size: var(--text-lg);
+  font-weight: var(--w-head);
+  color: var(--text-strong);
+}
+.people-band-line {
+  display: block;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* The server cannot create logins: say what to set, in the words of the server */
+.people-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  border-left: 4px solid var(--yellow);
+  background: var(--yellow-soft);
+  color: var(--text-strong);
+}
+.people-notice-title {
+  font-weight: var(--w-head);
+}
+.people-notice .small {
+  overflow-wrap: anywhere;
+}
+
+/* The list */
+.people-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.people-list li + li {
+  border-top: 1px solid var(--line);
+}
+.people-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 64px;
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  color: var(--text);
+}
+.people-row:not(.static):active {
+  background: var(--surface-2);
+}
+.people-row-off .people-row {
+  opacity: 0.6;
+}
+.people-avatar {
+  font-weight: var(--w-head);
+  font-size: var(--text-lg);
+  color: var(--on-tile);
+}
+.people-avatar.tone-sleep,
+.people-avatar.tone-growth,
+.people-avatar.tone-pumping,
+.people-avatar.tone-note {
+  color: var(--on-accent);
+}
+.people-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.people-row-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-weight: var(--w-label);
+  color: var(--text-strong);
+}
+.people-row .chev {
+  width: 20px;
+  height: 20px;
+  color: var(--text-muted);
+  flex: none;
+}
+.people-pill {
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--w-label);
+  line-height: 1.5;
+}
+.people-pill.you {
+  background: var(--teal-soft);
+  color: color-mix(in srgb, var(--teal-ink) 80%, var(--text-strong));
+}
+.people-pill.ask {
+  background: var(--yellow-soft);
+  color: var(--diaper-text);
+}
+.people-pill.off {
+  background: var(--red-soft);
+  color: var(--red-text);
+}
+
+/* Forms (add / edit) */
+.people-form {
+  gap: var(--space-4);
+}
+.people-field {
+  gap: var(--space-2);
+}
+.people-form .text-input[aria-invalid='true'] {
+  border-color: var(--red);
+}
+.people-form .text-input[aria-invalid='true']:focus {
+  box-shadow: 0 0 0 3px var(--red-soft);
+}
+.people-form .text-input[aria-invalid='true'] + .xs {
+  color: var(--red-text);
+}
+.people-password {
+  position: relative;
+}
+.people-show {
+  position: absolute;
+  right: 6px;
+  top: 26px;
+  min-height: 40px;
+  padding: 0 10px;
+  color: var(--teal-ink);
+  font-weight: var(--w-label);
+  font-size: var(--text-sm);
+}
+.people-password .text-input {
+  padding-right: 64px;
+}
+.people-section {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.people-error {
+  color: var(--red-text);
+  font-weight: var(--w-label);
+  overflow-wrap: anywhere;
+}
+.people-saved {
+  color: var(--green-text);
+  font-weight: var(--w-label);
+}
+
+/* Remove, two taps */
+.people-remove {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.people-remove-btn {
+  color: var(--red-text);
+}
+.people-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  background: var(--red-soft);
+  color: var(--text-strong);
+}
+/* Their phone shows: one switch per simple-screen button. */
+.screen-action {
+  min-height: 48px;
+  font-size: var(--text-md, 16px);
+  font-weight: 600;
+}

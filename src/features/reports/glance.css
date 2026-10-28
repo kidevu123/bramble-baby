@@ -1,0 +1,206 @@
+/* ---- Day view: the day at a glance, four tiles ---- */
+.glance-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.glance-cell {
+  display: flex;
+  min-width: 0;
+}
+.glance-cell > .glance-tile {
+  flex: 1;
+  width: 100%;
+}
+.glance-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  text-align: left;
+  color: var(--text);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+.glance-tile:active {
+  transform: scale(0.98);
+}
+.glance-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+/* The total and what it is made of on one line ("4h 24m  1 nap"), wrapping only when the tile is narrow. */
+.glance-figure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--space-2);
+}
+.glance-label {
+  font-size: var(--text-sm);
+  font-weight: var(--w-label);
+  color: var(--text-strong);
+  line-height: 1.2;
+}
+.glance-value {
+  font-size: var(--text-2xl);
+  font-weight: var(--w-head);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-strong);
+  line-height: 1.1;
+}
+.glance-detail {
+  font-size: var(--text-sm);
+  color: var(--text);
+}
+.glance-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.glance-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: var(--w-label);
+  color: var(--text);
+}
+.glance-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+}
+.status-low .glance-dot,
+.status-high .glance-dot {
+  background: var(--yellow);
+}
+
+/* ---- Summary: the overview scorecard ---- */
+.overview {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.overview-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  color: var(--text);
+}
+.overview-row + .overview-row {
+  border-top: 1px solid var(--line);
+}
+.overview-row:active {
+  background: var(--surface-2);
+}
+.overview-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.overview-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.overview-label {
+  font-weight: var(--w-label);
+  color: var(--text-strong);
+}
+.overview-figure {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.overview-avg {
+  font-size: var(--text-xl);
+  font-weight: var(--w-head);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-strong);
+  line-height: 1.15;
+}
+.overview-unit {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+.overview-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.extra-row {
+  min-height: 60px;
+}
+.extra-row .overview-figure {
+  justify-content: space-between;
+  align-items: baseline;
+}
+.extra-value {
+  font-size: var(--text-lg);
+}
+.overview-row .chev {
+  width: 20px;
+  height: 20px;
+  color: var(--text-muted);
+  flex: none;
+}
+
+/* ---- Day view: everything logged that day, by kind ---- */
+.day-log {
+  gap: var(--space-3);
+}
+.day-log-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-top: var(--space-2);
+}
+.day-log-head h3,
+.day-log-empty,
+.day-log-gap {
+  margin: 0;
+}
+.day-log-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.day-log-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.day-log-name {
+  font-size: var(--text-lg);
+  font-weight: var(--w-label);
+  color: var(--text-strong);
+}
+.day-log-count {
+  font-size: var(--text-lg);
+  font-weight: var(--w-label);
+  color: var(--text-muted);
+}

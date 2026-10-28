@@ -1,0 +1,13 @@
+node_modules
+dist
+dev-dist
+coverage
+e2e/out
+*.log
+.DS_Store
+server/.venv
+server/*.db
+server/vapid*.pem
+server/.env
+__pycache__/
+

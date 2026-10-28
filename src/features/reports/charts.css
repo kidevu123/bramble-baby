@@ -1,0 +1,289 @@
+.donut {
+  position: relative;
+  width: 150px;
+  height: 150px;
+  flex-shrink: 0;
+}
+.donut svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.donut-track {
+  fill: none;
+  stroke: var(--surface-2);
+  stroke-width: 12;
+}
+.donut-seg {
+  fill: none;
+  stroke-width: 12;
+}
+.donut-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.donut-sub {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-weight: var(--w-body);
+}
+.donut-label {
+  font-size: var(--text-xl);
+  font-weight: var(--w-head);
+  color: var(--text-strong);
+}
+.bars {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.bars-grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.bars-tick {
+  font-size: 9px;
+  font-weight: 700;
+  fill: var(--text-muted);
+  font-family: var(--font);
+}
+.bars-avg {
+  stroke: var(--text-muted);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+}
+.bars-avg-label {
+  font-size: 9px;
+  font-weight: 700;
+  fill: var(--text-muted);
+  font-family: var(--font);
+}
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.legend-item {
+  display: flex;
+  flex-direction: column;
+}
+.legend-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.legend-value {
+  font-size: var(--text-lg);
+  font-weight: var(--w-head);
+  color: var(--text-strong);
+}
+.spark {
+  width: 96px;
+  height: 28px;
+  flex: none;
+  display: block;
+}
+
+
+/* Line chart: a tap or a slide picks the nearest point; its value floats beside it. */
+.line-chart {
+  position: relative;
+}
+.lc-live {
+  touch-action: pan-y;
+  cursor: crosshair;
+  -webkit-tap-highlight-color: transparent;
+}
+.lc-live:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+.lc-cursor {
+  stroke: var(--text-muted);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+.lc-dot-on {
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+.lc-tip {
+  --tx: -50%;
+  --ty: calc(-100% - 12px);
+  position: absolute;
+  transform: translate(var(--tx), var(--ty));
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--text-strong);
+  color: var(--surface);
+  box-shadow: var(--shadow-card);
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 1;
+}
+.lc-tip-left {
+  --tx: -14px;
+}
+.lc-tip-right {
+  --tx: calc(-100% + 14px);
+}
+.lc-tip-below {
+  --ty: 12px;
+}
+.lc-tip-value {
+  font-size: var(--text-base);
+  font-weight: var(--w-head);
+}
+.lc-tip-when,
+.lc-tip-change {
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+.chart-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.chart-key-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.chart-key-mark {
+  width: 20px;
+  height: 10px;
+  flex: none;
+}
+/* A check's target: a dashed step in the goal's colour from the last check, a short bar where it ends. */
+.lc-target {
+  stroke: var(--orange);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 3;
+  stroke-linecap: round;
+  opacity: 0.85;
+}
+.lc-target-end {
+  stroke: var(--orange);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.lc-dot-missed {
+  stroke: var(--surface, #fff);
+  stroke-width: 1.5;
+}
+.lc-tip-check {
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+.lc-tip-check.is-met::before {
+  content: '✓ ';
+}
+.lc-tip-check.is-missed::before {
+  content: '✗ ';
+}
+/* The growth chart by age: WHO percentile bands like the pediatrician's card. */
+.ga-band {
+  stroke: none;
+}
+.ga-mid {
+  fill: var(--green);
+  opacity: 0.2;
+}
+.ga-edge {
+  fill: var(--yellow);
+  opacity: 0.22;
+}
+.ga-out {
+  fill: var(--red);
+  opacity: 0.08;
+}
+.ga-line {
+  stroke: var(--text-muted);
+  stroke-width: 0.6;
+  opacity: 0.55;
+}
+.ga-line-strong {
+  stroke-width: 1;
+  opacity: 0.75;
+}
+.ga-line-50 {
+  stroke-width: 1.4;
+  opacity: 0.9;
+}
+.ga-label {
+  font-weight: 700;
+}
+.ga-child-line {
+  stroke: var(--text-strong);
+  stroke-width: 1.5;
+  opacity: 0.6;
+}
+.ga-dot {
+  fill: var(--text-strong);
+  stroke: var(--surface);
+  stroke-width: 1.2;
+}
+.ga-label-in {
+  font-size: 8px;
+  opacity: 0.85;
+}
+/* The growth chart's zoom: a quiet button above the plot, right-aligned. */
+.ga-tools {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: -4px;
+}
+.ga-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-strong);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+.ga-zoom svg {
+  width: 18px;
+  height: 18px;
+}
+.ga-zoom[aria-pressed='true'] {
+  background: var(--surface-2);
+}
+
+/* Bar charts answer a tap like the line chart: the picked bar stays, the rest step back, a readout above it. */
+.bar-chart {
+  position: relative;
+}
+.bars-live {
+  touch-action: pan-y;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.bars-live.has-pick .bar-col:not(.bar-on) rect {
+  opacity: 0.35;
+}

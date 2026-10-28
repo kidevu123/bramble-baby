@@ -1,0 +1,233 @@
+.cat-tabs {
+  display: flex;
+  gap: var(--space-4);
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+  scrollbar-width: none;
+  mask-image: linear-gradient(90deg, #000 calc(100% - 32px), transparent);
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 32px), transparent);
+}
+.cat-tab {
+  /* Never narrower than its name: the row scrolls instead. Shrinking let the 1.27-size names overlap ("Pumping"
+     ran into "Activities", the underline shorter than the word). */
+  flex: none;
+  /* 44 px each way, so a short name ("Tips") is still a full target. */
+  min-width: 44px;
+  min-height: 44px;
+  padding: var(--space-2) 2px var(--space-3);
+  font-weight: var(--w-body);
+  font-size: var(--text-lg);
+  color: var(--text-muted);
+  border-bottom: 3px solid transparent;
+  white-space: nowrap;
+}
+.cat-tab.active {
+  color: var(--text-strong);
+  font-weight: var(--w-label);
+  border-bottom-color: var(--green);
+}
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--space-3);
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-3);
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+.stat-name {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-weight: var(--w-body);
+}
+.stat-value {
+  font-size: var(--text-lg);
+  font-weight: var(--w-head);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-strong);
+}
+/* Which weighings a step compares ("6:13 PM vs 10:36 AM yesterday"), under its number. */
+.stat-detail {
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.range-pills {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: space-between;
+}
+.range-pill {
+  flex: 1;
+  min-height: 44px;
+  border-radius: var(--radius-pill);
+  font-weight: var(--w-label);
+  color: var(--teal-ink);
+  letter-spacing: 0.04em;
+}
+.range-pill.active {
+  background: var(--teal-soft);
+  /* The teal ink is 4.45:1 on its own soft teal; a touch of the strong text colour takes it past AA. */
+  color: color-mix(in srgb, var(--teal-ink) 80%, var(--text-strong));
+}
+.plain-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.plain-row {
+  display: flex;
+  gap: var(--space-3);
+  align-items: baseline;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--line);
+}
+.food-selected-chip.static {
+  cursor: default;
+}
+.typical-line {
+  font-size: var(--text-sm);
+  color: var(--text);
+  background: var(--surface-2);
+  border-left: 3px solid var(--green);
+  padding: var(--space-2) var(--space-3);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+.typical-line.is-low {
+  border-left-color: var(--orange);
+}
+
+/* Growth: the gain in grams a day */
+.gain {
+  gap: var(--space-3);
+}
+.gain .stat-value {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Summary › Overview: the way to the pediatrician report */
+.doctor-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--text-strong);
+  text-decoration: none;
+}
+.doctor-link-sub {
+  display: block;
+  margin-top: 2px;
+}
+.doctor-link .chev {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  color: var(--text-muted);
+}
+
+/* Pump: this week against the week before */
+.supply-rows {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+.supply-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--line);
+}
+.supply-row dt {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.supply-row dd {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--w-head);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-strong);
+}
+.supply-verdict {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text);
+  background: var(--surface-2);
+  border-left: 3px solid var(--text-muted);
+  padding: var(--space-2) var(--space-3);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+.supply-verdict.up {
+  border-left-color: var(--green);
+}
+.supply-verdict.down {
+  border-left-color: var(--orange);
+}
+.supply-verdict.steady {
+  border-left-color: var(--teal);
+}
+
+/* A stat grid of two columns on a phone never leaves one tile alone with an empty cell beside it. */
+@media (max-width: 520px) {
+  .stat-grid > .stat:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+}
+/* Food and activity chips: the darker green ink, AA on the soft green in both themes. */
+.food-selected-chip.static:not(.muted):not(.text-medicine) {
+  color: color-mix(in srgb, var(--green-text) 80%, var(--text-strong));
+}
+/* "5 of 7 days logged" stays together instead of leaving "days logged" alone on a line. */
+.supply-row dd {
+  text-wrap: pretty;
+}
+.chart-legend {
+  padding-top: 0;
+}
+
+/* The goal still counts from the first weighing: the one line on the growth card a parent has to act on. */
+.goal-start-missing {
+  margin: 0;
+  color: var(--orange-text);
+  font-weight: 700;
+}
+/* The last weight check: met or missed, at a glance. */
+.stat.is-met {
+  box-shadow: inset 3px 0 0 var(--green);
+}
+.stat.is-missed {
+  box-shadow: inset 3px 0 0 var(--red);
+}
+/* Feeding by weight: the band her weight suggests, and where the bottles sit. */
+.bw-gauge {
+  position: relative;
+  height: 14px;
+  border-radius: 7px;
+  background: var(--surface-2);
+}
+.bw-band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--green) 55%, transparent);
+}
+.bw-mark {
+  position: absolute;
+  top: -4px;
+  width: 6px;
+  height: 22px;
+  margin-left: -3px;
+  border-radius: 3px;
+  background: var(--text-strong);
+  border: 1.5px solid var(--surface);
+}
+.bw-mark.is-low,
+.bw-mark.is-high {
+  background: var(--red);
+}

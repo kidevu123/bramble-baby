@@ -1,0 +1,205 @@
+.band {
+  position: relative;
+  margin: 0 calc(-1 * var(--space-4));
+  background: var(--band-bg, #f1f1f1);
+  overflow: hidden;
+}
+.band-main {
+  padding: var(--space-4) var(--space-4) var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  position: relative;
+  z-index: 1;
+}
+.band-pillrow {
+  display: inline-flex;
+  align-items: center;
+  background: var(--band-foot, #e4e7ea);
+  border-radius: var(--radius-pill);
+  align-self: flex-start;
+  padding-right: 6px;
+  margin-left: calc(-1 * var(--space-4));
+  /* It bleeds off the left edge like a tab, so the end at the screen edge is square, not a clipped pill. */
+  border-radius: 0 var(--radius-pill) var(--radius-pill) 0;
+}
+.band-pill {
+  background: var(--lime);
+  color: var(--navy);
+  font-weight: var(--w-head);
+  font-size: var(--text-lg);
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 22px 0 26px;
+  border-radius: 0 var(--radius-pill) var(--radius-pill) 0;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
+}
+.band-pill sup {
+  font-size: 0.55em;
+  align-self: flex-start;
+  margin-top: 9px;
+}
+.band-pill-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  color: var(--orange);
+}
+.band-pill-icon svg {
+  width: 26px;
+  height: 26px;
+}
+.band-copy {
+  max-width: 60%;
+  font-size: var(--text-base);
+  font-weight: var(--w-body);
+  color: var(--text);
+  line-height: 1.35;
+}
+.band-pred {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--text);
+}
+.band-headline {
+  display: block;
+  text-wrap: balance;
+  font-size: var(--text-xl);
+  font-weight: var(--w-head);
+  color: var(--text-strong);
+  line-height: 1.15;
+}
+.band-sub {
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.band-ring {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  flex-shrink: 0;
+}
+.band-ring svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.band-ring-track {
+  fill: none;
+  stroke: var(--surface-3);
+  stroke-width: 6;
+}
+.band-ring-fill {
+  fill: none;
+  stroke: var(--teal);
+  stroke-width: 6;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1s linear;
+}
+.state-overdue .band-ring-fill {
+  stroke: var(--orange);
+}
+.state-asleep .band-ring-fill {
+  stroke: var(--purple);
+}
+.band-ring-icon {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--teal-dark);
+}
+.state-overdue .band-ring-icon {
+  color: var(--orange);
+}
+.state-asleep .band-ring-icon {
+  color: var(--purple);
+}
+.band-ring-icon svg {
+  width: 24px;
+  height: 24px;
+}
+.band-foot {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--band-foot, #e4e7ea);
+  font-weight: var(--w-label);
+  color: var(--text-strong);
+}
+.band-heart {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--surface);
+  display: grid;
+  place-items: center;
+  color: var(--pink);
+  flex-shrink: 0;
+}
+.band-heart svg {
+  width: 18px;
+  height: 18px;
+}
+.band-foot-text {
+  font-size: var(--text-lg);
+}
+.band-illo {
+  position: absolute;
+  right: 4px;
+  bottom: 0;
+  width: 150px;
+  height: auto;
+  z-index: 0;
+}
+@media (min-width: 720px) {
+  .band {
+    border-radius: var(--radius);
+    margin: 0;
+  }
+}
+
+/* ---- The live band (born child) ----
+   The 1.27 pieces at their 1.27 sizes (the lime nap window tab, the 72 px ring, the big headline), arranged so the
+   ring sits on the right beside both the tab and the prediction instead of taking a row of its own. */
+.band-live {
+  /* Flush under the top bar: the page's top padding was a pale strip above the grey band. */
+  margin-top: calc(-1 * var(--space-4));
+}
+.band-live .band-main {
+  /* Even top and bottom, so the ring sits on the true middle of the tab and the prediction. */
+  padding-bottom: var(--space-4);
+  min-height: calc(72px + 2 * var(--space-4));
+}
+.band-live .band-pred {
+  display: block;
+  /* The text keeps clear of the ring on the right. */
+  padding-right: calc(72px + var(--space-3));
+}
+.band-live .band-ring {
+  position: absolute;
+  right: var(--space-4);
+  top: 50%;
+  transform: translateY(-50%);
+}
+.band-live span.band-pill {
+  cursor: default;
+}
+/* "Best window 5:40 – 6:00 PM · learned from 19 naps" breaks at the dot, never inside a piece unless a piece alone
+   is wider than the line (320 px). */
+.band-foot-piece {
+  display: inline-block;
+}
+@media (min-width: 720px) {
+  .band-live {
+    margin-top: 0;
+  }
+}

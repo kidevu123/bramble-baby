@@ -1,0 +1,215 @@
+/* The simple screen: one column, very large type and targets, nothing small enough to miss. */
+.simple {
+  min-height: 100dvh;
+  padding: calc(env(safe-area-inset-top, 0px) + 20px) 16px calc(env(safe-area-inset-bottom, 0px) + 24px);
+  background: var(--bg);
+  color: var(--text-strong);
+  display: flex;
+  flex-direction: column;
+}
+.simple-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 560px;
+  width: 100%;
+  margin: 0 auto;
+}
+.simple-head {
+  text-align: center;
+}
+.simple-name {
+  margin: 0;
+  font-size: 44px;
+  line-height: 1.1;
+  font-weight: 900;
+}
+.simple-clock {
+  margin: 4px 0 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.simple-prompt,
+.simple-hint {
+  margin: 4px 0 0;
+  font-size: 22px;
+  font-weight: 700;
+  text-align: center;
+  color: var(--text-muted);
+}
+.simple-title {
+  margin: 8px 0 4px;
+  font-size: 34px;
+  line-height: 1.15;
+  font-weight: 900;
+  text-align: center;
+}
+.simple-say {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.3;
+  font-weight: 700;
+  text-align: center;
+}
+/* The way out, quiet but a real target: it opens a screen whose big button is Back. */
+.simple-who {
+  align-self: center;
+  min-height: 48px;
+  margin-top: 12px;
+  padding: 8px 18px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  font: inherit;
+  font-size: 18px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+/* The big buttons: at least 112 px tall, the label 34 px. */
+.simple-big {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+  min-height: 112px;
+  padding: 18px 22px;
+  border: 3px solid transparent;
+  border-radius: 28px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: var(--surface);
+  color: var(--text-strong);
+  box-shadow: var(--shadow-card);
+}
+.simple-big:disabled {
+  opacity: 0.55;
+}
+.simple-big:active {
+  transform: scale(0.98);
+}
+.simple-big-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.28);
+}
+.simple-big-icon svg {
+  width: 44px;
+  height: 44px;
+}
+.simple-big-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.simple-big-label {
+  font-size: 34px;
+  line-height: 1.1;
+  font-weight: 900;
+}
+.simple-big-sub {
+  font-size: 19px;
+  line-height: 1.25;
+  font-weight: 700;
+}
+.simple-big.is-feed {
+  background: var(--tile-feed);
+  color: #fff;
+}
+.simple-big.is-diaper,
+.simple-big.is-pee {
+  background: var(--tile-diaper);
+  color: var(--tile-status);
+}
+.simple-big.is-poop {
+  background: var(--brown);
+  color: #fff;
+}
+.simple-big.is-both {
+  background: var(--tile-feed);
+  color: #fff;
+}
+.simple-big.is-plain {
+  border-color: var(--line-strong);
+}
+
+/* Which bottle: the fridge sticker's number, as large as the screen allows. */
+.simple-spots {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+.simple-spot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 150px;
+  border: 3px solid var(--line-strong);
+  border-radius: 28px;
+  background: var(--surface);
+  color: var(--text-strong);
+  font: inherit;
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+}
+.simple-spot-num {
+  font-size: 72px;
+  line-height: 1;
+  font-weight: 900;
+}
+.simple-spot-ml {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.simple-back,
+.simple-undo {
+  min-height: 64px;
+  margin-top: 6px;
+  border: 3px solid var(--line-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-strong);
+  font: inherit;
+  font-size: 24px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.simple-done {
+  align-items: stretch;
+  text-align: center;
+}
+.simple-check {
+  align-self: center;
+  display: grid;
+  place-items: center;
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  background: var(--green);
+  color: #fff;
+}
+.simple-check svg {
+  width: 64px;
+  height: 64px;
+}
+.simple-error {
+  max-width: 560px;
+  margin: 18px auto 0;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--red-soft);
+  color: var(--red-text);
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+}

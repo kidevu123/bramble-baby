@@ -1,0 +1,29 @@
+.ss-facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  margin: 0;
+}
+.ss-facts div {
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+}
+.ss-facts dt {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-weight: var(--w-body);
+}
+.ss-facts dd {
+  margin: 2px 0 0;
+  font-weight: var(--w-head);
+  color: var(--text-strong);
+}
+.ss-list {
+  margin: 0;
+  padding-left: 1.2em;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+}

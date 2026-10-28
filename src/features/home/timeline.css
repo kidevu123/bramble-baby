@@ -1,0 +1,70 @@
+.tl-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.tl-list li + li {
+  border-top: 1px solid var(--line);
+}
+.tl-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+}
+.tl-row:hover {
+  background: var(--surface-2);
+}
+.tl-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.tl-title {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-weight: var(--w-label);
+  color: var(--text-strong);
+}
+.tl-time {
+  font-weight: var(--w-body);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+.tl-detail {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+/* The detail gives way, never the caregiver chip: at 320 a long bottle line pushed "Admin" off the row. */
+.tl-detail-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tl-empty {
+  text-align: center;
+  padding: var(--space-4);
+}
+
+.tl-by {
+  display: inline-block;
+  flex: none;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--w-label);
+  vertical-align: 1px;
+}

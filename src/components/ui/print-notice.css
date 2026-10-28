@@ -1,0 +1,81 @@
+.print-notice {
+  /* Placed by .toast-stack (global.css), which stacks it with the update bar instead of on top of it. */
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  background: var(--text-strong);
+  color: var(--bg);
+  box-shadow: var(--shadow-float);
+  animation: print-notice-in var(--duration-normal) var(--ease-out);
+}
+@keyframes print-notice-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.print-notice-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--green);
+}
+.print-notice.tone-waiting .print-notice-dot {
+  background: var(--teal);
+  animation: print-notice-pulse 1.2s ease-in-out infinite;
+}
+.print-notice.tone-problem .print-notice-dot {
+  background: var(--yellow);
+}
+.print-notice.tone-failed .print-notice-dot {
+  background: var(--red);
+}
+@keyframes print-notice-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.print-notice-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.print-notice-head {
+  font-weight: var(--w-label);
+  line-height: 1.3;
+}
+.print-notice-detail {
+  font-size: var(--text-xs);
+  opacity: 0.85;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.print-notice.tone-failed .print-notice-detail {
+  -webkit-line-clamp: 4;
+}
+.print-notice button {
+  flex: none;
+  min-height: 44px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  /* Visible on the inverted bar in both themes (white in dark mode, navy in light). */
+  background: color-mix(in srgb, currentColor 16%, transparent);
+  color: var(--bg);
+  font-weight: 800;
+}

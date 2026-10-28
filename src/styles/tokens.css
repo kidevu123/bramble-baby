@@ -1,0 +1,208 @@
+:root {
+  color-scheme: light;
+  --bg: #f7fbfc;
+  --bg-deep: #c9eef5;
+  --surface: #ffffff;
+  --surface-2: #eaf5f8;
+  --surface-3: #dcedf2;
+  --text: #3b4859;
+  --text-strong: #2a3545;
+  --text-muted: #5c6876; /* 5.4:1 on white; the old #7b8795 was 3.7:1 */
+  --line: #e1ebef;
+  --line-strong: #c9d8de;
+
+  --green: #8dc63f;
+  --green-dark: #6ea32b;
+  --green-soft: #e9f5d8;
+  --teal: #2fc6e2;
+  --teal-dark: #2699b0;
+  --teal-soft: #d7f1f6;
+  --teal-light: #a9dcea;
+  --orange: #fd753f;
+  --orange-soft: #fde7db;
+  --yellow: #f2c21f;
+  --yellow-soft: #fcf3cc;
+  --purple: #9b7cff;
+  --purple-soft: #e9e4f5;
+  --brown: #8b5a2b;
+  --pink: #ef4f8f;
+  --pink-soft: #fce0ef;
+  --red: #e5473b;
+  --red-soft: #fbe0dd;
+  --coral: #ea6b4a;
+  --berry: #d0447f;
+  --berry-soft: #f6dce8;
+  --mint: #22bfa6;
+  --mint-dark: #2f9486;
+  --mint-soft: #d9f1ed;
+  --lime: #c9d22a;
+  --lime-dark: #9aa314;
+  --lime-soft: #f2f5cf;
+  --navy: #1e2a3a;
+  --on-accent: #ffffff;
+  /* Ink on the brand accents. White on lime/teal/yellow is ~2:1, so coloured surfaces use navy ink. */
+  --on-green: var(--navy);
+  --on-teal: var(--navy);
+  --on-tile: var(--navy);
+  /* Small text on a tile (the status line, split-tile labels): opaque and a shade darker than navy, so it
+     clears 4.5:1 on every tile colour (navy is 3.0–4.3:1 on berry/red/purple/pink, and a translucent navy
+     picked the tile colour up and fell to 2.3:1). Never translucent. */
+  --tile-status: #0b111a;
+  /* Solids tile: a hair lighter than --berry so the status line clears 4.5:1 (berry itself is 3.9:1). */
+  --berry-tile: #c65888;
+  /* Home tiles: saturated colours with white lettering (the owner's ask). */
+  --tile-sleep: #2fc9e4;
+  --tile-feed: #fd753f;
+  --tile-solids: #d0447f;
+  --tile-diaper: #f7c52a;
+  --tile-pumping: #9b7cff;
+  --tile-contractions: #ff4f97;
+  --tile-milestones: #22bfa6;
+  --tile-medicine: #f2463a;
+  --tile-activity: #b9cc00;
+  --tile-growth: #6cc234;
+  --tile-temperature: #ff6a45;
+  --tile-text: #ffffff;
+  /* Small coloured text (statuses, chips, links) at AA (≥ 4.5:1) on white, the page and the matching -soft fill */
+  --teal-ink: #166b7e;
+  --red-text: #a8301f;
+  --purple-text: #655399;
+  --orange-text: #a8470f;
+  --pink-text: #b02a60;
+  --diaper-text: #7a5e00;
+  --green-text: #4b7019;
+  --mint-text: #1f6e63;
+  --lime-text: #6b7210;
+
+  --shadow-card: 0 1px 2px rgba(42, 53, 69, 0.06), 0 6px 18px rgba(42, 53, 69, 0.06);
+  --shadow-float: 0 12px 32px rgba(42, 53, 69, 0.18);
+
+  --font: 'Nunito', ui-rounded, 'SF Pro Rounded', 'Avenir Next', system-ui, sans-serif;
+  /* Type scale (about 15–17px body, 20–22px headings, 22px tile labels) */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.0625rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-tile: 1.375rem;
+  --text-timer: clamp(2.75rem, 12vw, 4rem);
+  --w-body: 500;
+  --w-label: 600;
+  --w-head: 700;
+  --w-strong: 700;
+
+  --radius-sm: 10px;
+  --radius: 16px;
+  --radius-lg: 22px;
+  --radius-pill: 999px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  --tabbar-h: 64px;
+  --topbar-h: 56px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+
+  --duration-fast: 150ms;
+  --duration-normal: 280ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #172030;
+  --bg-deep: #111925;
+  --surface: #202c3e;
+  --surface-2: #283649;
+  --surface-3: #324258;
+  --text: #eef3f7;
+  --text-strong: #ffffff;
+  --text-muted: #98a6b7;
+  --line: #2f3d52;
+  --line-strong: #41526b;
+  --green-soft: #2b3d1f;
+  --teal-soft: #1e3a44;
+  --orange-soft: #47301f;
+  --yellow-soft: #45391a;
+  --purple-soft: #312c48;
+  --pink-soft: #45213a;
+  --red-soft: #47231f;
+  --berry-soft: #45233a;
+  --mint-soft: #1f3f3a;
+  --lime-soft: #3b3f1c;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 18px rgba(0, 0, 0, 0.25);
+  --shadow-float: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --bg: #172030;
+    --bg-deep: #111925;
+    --surface: #202c3e;
+    --surface-2: #283649;
+    --surface-3: #324258;
+    --text: #eef3f7;
+    --text-strong: #ffffff;
+    --text-muted: #98a6b7;
+    --line: #2f3d52;
+    --line-strong: #41526b;
+    --green-soft: #2b3d1f;
+    --teal-soft: #1e3a44;
+    --orange-soft: #47301f;
+    --yellow-soft: #45391a;
+    --purple-soft: #312c48;
+    --pink-soft: #45213a;
+    --red-soft: #47231f;
+    --berry-soft: #45233a;
+    --mint-soft: #1f3f3a;
+    --lime-soft: #3b3f1c;
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 18px rgba(0, 0, 0, 0.25);
+    --shadow-float: 0 12px 32px rgba(0, 0, 0, 0.5);
+  }
+}
+
+:root[data-theme='dark'] {
+  --band-bg: #202c3e;
+  --band-foot: #283649;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --band-bg: #202c3e;
+    --band-foot: #283649;
+  }
+}
+
+
+/* Dark theme: the same small-text tokens, lifted to pass AA on the dark surfaces. */
+:root[data-theme='dark'] {
+  --teal-ink: #8fdcea;
+  --red-text: #ff9b91;
+  --purple-text: #cdc2f3;
+  --orange-text: #ffb089;
+  --pink-text: #ff9ec6;
+  --diaper-text: #f5d46b;
+  --green-text: #b9e27a;
+  --mint-text: #7fd6c9;
+  --lime-text: #d6dd5a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --teal-ink: #8fdcea;
+    --red-text: #ff9b91;
+    --purple-text: #cdc2f3;
+    --orange-text: #ffb089;
+    --pink-text: #ff9ec6;
+    --diaper-text: #f5d46b;
+    --green-text: #b9e27a;
+    --mint-text: #7fd6c9;
+    --lime-text: #d6dd5a;
+  }
+}

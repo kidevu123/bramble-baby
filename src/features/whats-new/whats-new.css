@@ -1,0 +1,26 @@
+/* What's new: short dated sections, the items at reading size. */
+.whats-new {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.wn-head {
+  margin: 0 0 6px;
+  font-size: var(--text-lg);
+  font-weight: 800;
+  color: var(--text-strong);
+}
+.wn-version {
+  font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+.wn-items {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  line-height: 1.4;
+  color: var(--text-strong);
+}

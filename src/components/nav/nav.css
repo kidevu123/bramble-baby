@@ -1,0 +1,173 @@
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: grid;
+  /* The middle (logo or title) gives way first: it truncates before the sides overlap it. The left keeps
+     room for the avatar and the first letters of the child's name (it was squeezed to "O."). */
+  grid-template-columns: minmax(100px, 1fr) minmax(0, auto) 1fr;
+  align-items: center;
+  min-height: var(--topbar-h);
+  padding: var(--safe-t) var(--space-3) 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.topbar-left {
+  display: flex;
+  min-width: 0;
+}
+.topbar-center {
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+}
+/* A page title in the middle never squeezes the child's name to a letter: the title truncates first. */
+.topbar-center .topbar-title {
+  display: block;
+  min-width: 0;
+  max-width: 34vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The child's name keeps at least "Oscar"-width before anything else gives. */
+.child-switch-name {
+  min-width: 2.5em;
+}
+.topbar-right {
+  display: flex;
+  justify-content: flex-end;
+}
+.topbar-logo {
+  width: 30px;
+  height: 30px;
+}
+/* A Back page with nothing on the right: the title has the middle to itself ("Pediatrician report" was cut). */
+.topbar-wide .topbar-center .topbar-title {
+  max-width: 62vw;
+}
+.topbar-title {
+  font-weight: var(--w-head);
+  font-size: var(--text-lg);
+  color: var(--text-strong);
+}
+.topbar-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--text-strong);
+}
+.topbar-icon svg {
+  width: 22px;
+  height: 22px;
+}
+.child-switch {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 var(--space-2) 0 var(--space-1);
+  border-radius: var(--radius-pill);
+  color: var(--text-strong);
+  font-weight: var(--w-label);
+  font-size: var(--text-lg);
+  max-width: 100%;
+  cursor: pointer;
+}
+button.child-switch:hover,
+label.child-switch:hover {
+  background: var(--surface-2);
+}
+.child-switch.static {
+  cursor: default;
+}
+.child-switch-chev {
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+}
+.child-switch select {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  cursor: pointer;
+}
+
+.tabbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  max-width: 720px;
+  margin: 0 auto;
+  height: calc(var(--tabbar-h) + var(--safe-b));
+  padding-bottom: var(--safe-b);
+  display: flex;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
+.tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: var(--w-label);
+  transition: color var(--duration-fast);
+}
+.tab-icon {
+  width: 24px;
+  height: 24px;
+}
+.tab.active {
+  color: var(--green-text);
+}
+.tab.active .tab-icon {
+  color: var(--green);
+}
+.topbar-icon {
+  position: relative;
+}
+/* Back (BackButton): one round 44 px control on every page that has one. */
+.back-btn {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text-strong);
+  box-shadow: var(--shadow-card);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+.back-btn:active {
+  transform: scale(0.94);
+}
+.back-btn svg {
+  width: 22px;
+  height: 22px;
+}
+.topbar-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  background: var(--green);
+  color: var(--navy);
+  font-size: 10px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  padding: 0 4px;
+}

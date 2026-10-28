@@ -1,0 +1,98 @@
+.timer-contractions {
+  /* A deeper pink than the brand one, so the white "Start"/"Stop" on the big button reads at AA (5.4:1). */
+  --accent: #c22f6a;
+  --accent-soft: var(--pink-soft);
+}
+.timer-contractions .timer-kind {
+  color: color-mix(in srgb, var(--pink-text) 85%, var(--text-strong));
+}
+.c-main {
+  min-width: 0;
+}
+.c-line {
+  display: block;
+  white-space: nowrap;
+}
+.c-gap {
+  display: block;
+}
+.c-head {
+  padding: 0;
+  border-bottom: 0;
+}
+.c-head .c-intensity {
+  align-items: flex-end;
+}
+.c-head-label {
+  width: 44px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: var(--w-label);
+  color: var(--text-muted);
+}
+.c-head-spacer {
+  width: 44px;
+  flex: none;
+}
+.c-alert {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  background: var(--pink-soft);
+  color: var(--text-strong);
+  border: 1.5px solid var(--pink);
+}
+.c-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+}
+.c-stats div {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.c-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.c-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--line);
+}
+.c-time {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--w-label);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  width: 68px;
+}
+.c-intensity {
+  display: flex;
+}
+/* A 16 px dot to look at, a 44 px button to tap: the dot is drawn inside the padding box. */
+.c-dot {
+  width: 44px;
+  height: 44px;
+  padding: 14px;
+  border-radius: 50%;
+  border: 0;
+  background: transparent;
+}
+.c-dot::before {
+  content: '';
+  display: block;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2px solid var(--pink);
+}
+.c-dot.on::before {
+  background: var(--pink);
+}

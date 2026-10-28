@@ -1,0 +1,87 @@
+.sheet {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: 720px;
+  height: 100%;
+  max-height: 100%;
+  margin: 0 auto;
+  padding: 0;
+  border: 0;
+  background: var(--bg);
+  color: var(--text);
+  display: none;
+  flex-direction: column;
+}
+.sheet[open] {
+  display: flex;
+  animation: sheet-in var(--duration-normal) var(--ease-out);
+}
+.sheet::backdrop {
+  background: rgba(30, 42, 58, 0.4);
+}
+@keyframes sheet-in {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.sheet-head {
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  align-items: center;
+  padding: calc(var(--safe-t) + var(--space-2)) var(--space-3) var(--space-2);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.sheet-title {
+  text-align: center;
+  font-size: var(--text-lg);
+  font-weight: var(--w-head);
+}
+.sheet-action {
+  display: flex;
+  justify-content: flex-end;
+}
+.sheet-icon-btn {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--text-strong);
+}
+.sheet-icon-btn:hover {
+  background: var(--surface-2);
+}
+.sheet-icon-btn svg {
+  width: 22px;
+  height: 22px;
+}
+.sheet-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-4) var(--space-4) var(--space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+/* The body scrolls; its children never shrink to fit. A scrolling row (the diaper Pee/Poo/Mixed/Dry circles)
+   has no intrinsic min-height, so once the sheet overflowed it collapsed to a sliver. */
+.sheet-body > * {
+  flex-shrink: 0;
+}
+.sheet-foot {
+  padding: var(--space-3) var(--space-4) calc(var(--safe-b) + var(--space-4));
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  display: flex;
+  gap: var(--space-3);
+}
+.sheet-foot > * {
+  flex: 1;
+}

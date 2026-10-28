@@ -1,0 +1,26 @@
+.update-banner {
+  /* Placed by .toast-stack (global.css), stacked with the print notice. */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border-radius: var(--radius);
+  background: var(--text-strong);
+  color: var(--bg);
+  box-shadow: var(--shadow-float);
+  font-weight: var(--w-label);
+}
+/* A 44 px target with navy ink on green (white on green was 2:1). */
+.update-banner button {
+  flex: none;
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--green);
+  color: var(--on-green);
+  font-weight: 800;
+}
+.update-banner button:disabled {
+  opacity: 0.7;
+}

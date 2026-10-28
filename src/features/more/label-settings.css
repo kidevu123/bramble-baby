@@ -1,0 +1,153 @@
+/* Settings › Milk labels & printer: printer first, then a short form, the reasons in one disclosure. */
+.ls-sheet {
+  gap: var(--space-4);
+}
+.ls-printer {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-3) var(--space-4);
+}
+.ls-printer-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: 52px;
+}
+.ls-printer-head .strong {
+  font-size: var(--text-lg);
+}
+.ls-printer-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  color: var(--teal-ink);
+}
+.ls-printer-icon svg {
+  width: 24px;
+  height: 24px;
+}
+.ls-target {
+  overflow-wrap: anywhere;
+}
+.ls-row.ls-auto {
+  margin-top: var(--space-3);
+  border-top: 1px solid var(--line);
+  border-bottom: 0;
+  padding-top: var(--space-3);
+}
+.ls-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ls-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 56px;
+  padding: var(--space-2) 0;
+  font-size: var(--text-lg);
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+}
+.ls-list > :last-child {
+  border-bottom: 0;
+}
+.ls-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ls-row .segmented {
+  width: 11rem;
+  flex: none;
+}
+.ls-note {
+  margin: 0;
+}
+/* Moon from / Sun from: two short selects side by side under the switch they belong to. */
+.ls-hours {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  padding: var(--space-1) 0 var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+.ls-hour {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.ls-hour .text-input {
+  appearance: auto;
+}
+/* The storage window fields keep their labels whole at 320 px: the label may wrap, the field never widens the sheet. */
+.ls-sheet .label-window .text-field-label {
+  overflow-wrap: anywhere;
+}
+/* At 320 px "Freezer (months)" takes two lines: the three fields still line up along the bottom. */
+.ls-sheet .label-windows {
+  align-items: end;
+}
+.ls-about > summary {
+  padding: var(--space-3) 0;
+  cursor: pointer;
+  font-size: var(--text-base);
+  font-weight: var(--w-label);
+  color: var(--teal-ink);
+}
+.ls-about-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+}
+.ls-about-body p {
+  margin: 0;
+}
+
+/* Fridge spot stickers for premade bottles: a preview of sticker 1 beside what they are for. */
+.ls-spots {
+  padding: var(--space-3) var(--space-4);
+}
+.ls-spots-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.ls-spots-head .ls-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ls-spots-head .strong {
+  font-size: var(--text-lg);
+}
+.ls-spot-preview {
+  flex: none;
+  width: 88px;
+  height: auto;
+  border-radius: 6px;
+  border: 1px solid var(--line-strong);
+  background: #ffffff;
+}
+.ls-spots-done {
+  margin: 0;
+  color: var(--green-text);
+  font-weight: var(--w-label);
+}
+
+/* The printer itself, set from here by an admin (zebra / brother_ql / bridge / other). */
+.ls-printer-setup {
+  padding-top: var(--space-2);
+}
+.ls-printer-actions {
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

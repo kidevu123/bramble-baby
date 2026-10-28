@@ -1,0 +1,224 @@
+.tiles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.tile-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-2);
+}
+.tile-row.split {
+  grid-template-columns: 1fr 1fr;
+}
+.tile {
+  position: relative;
+  border-radius: var(--radius);
+  /* White lettering on saturated colours, with a soft shadow under it; yellow and
+     lime keep dark lettering (below). */
+  color: var(--tile-text);
+  overflow: hidden;
+  min-height: 84px;
+  --tile-ink: rgba(0, 0, 0, 0.13);
+  box-shadow: var(--shadow-card);
+  transition: transform var(--duration-fast) var(--ease-out), filter var(--duration-fast);
+}
+.tile:active {
+  transform: scale(0.985);
+  filter: brightness(0.96);
+}
+.tile-main {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 84px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3) var(--space-5);
+  color: inherit;
+  text-align: center;
+}
+.split .tile-main {
+  justify-content: flex-start;
+  padding-left: 58px;
+  text-align: left;
+}
+.tile-watermark {
+  position: absolute;
+  left: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 84px;
+  height: 84px;
+  color: var(--tile-ink);
+  opacity: 1;
+  stroke-width: 1.3;
+  pointer-events: none;
+}
+.split .tile-watermark {
+  width: 62px;
+  height: 62px;
+  left: 2px;
+}
+.tile-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+.split .tile-text {
+  align-items: flex-start;
+  /* Fill the row, so the label's room (and the alarm's reserve) is measured from the tile, not the text. */
+  flex: 1;
+}
+.tile-label {
+  font-size: var(--text-tile);
+  font-weight: var(--w-head);
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.28), 0 0 1px rgba(0, 0, 0, 0.2);
+}
+.tile-diaper,
+.tile-potty,
+.tile-activity {
+  --tile-ink: rgba(120, 80, 0, 0.3);
+}
+.tile-status {
+  font-size: var(--text-sm);
+  font-weight: var(--w-label);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--tile-text);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 0 1px rgba(0, 0, 0, 0.25);
+}
+/* Full-width tiles: the text stays centred but clear of the watermark on the left (and the alarm on the
+   right), and a long status ("1m ago · avocado, banana · loved it") wraps to a second line instead of
+   running over the icon. */
+.tile-row:not(.split) .tile-main {
+  padding-left: 76px;
+  padding-right: 76px;
+}
+.tile-row:not(.split) .tile-status-part {
+  white-space: nowrap;
+}
+.tile-row:not(.split) .tile-status {
+  white-space: normal;
+  text-wrap: balance;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.3;
+}
+.tile-alarm {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  color: var(--tile-text);
+}
+/* The visible circle is 36 px; the button around it is the full 44 px target in the tile's corner. */
+.tile-alarm::before {
+  content: '';
+  position: absolute;
+  inset: 6px 6px 2px 2px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.28);
+}
+.tile-alarm svg {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  transform: translate(-2px, 2px);
+}
+.tile-alarm.has::before {
+  background: rgba(255, 255, 255, 0.92);
+}
+.tile-alarm.has {
+  color: var(--navy); /* on the white circle in both themes (--text-strong is white in dark) */
+}
+.tile-alarm-count {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  background: #b3261e; /* white on --red was 4.0:1 at 11 px */
+  color: #fff;
+  font-size: 12px;
+  font-weight: var(--w-head);
+  display: grid;
+  place-items: center;
+  padding: 0 4px;
+}
+
+.tile-contractions { background: var(--tile-contractions); }
+.tile-sleep { background: var(--tile-sleep); }
+.tile-nursing,
+.tile-bottle { background: var(--tile-feed); }
+.tile-solids { background: var(--tile-solids); }
+.tile-diaper,
+.tile-potty { background: var(--tile-diaper); }
+.tile-pumping { background: var(--tile-pumping); }
+.tile-milestones { background: var(--tile-milestones); }
+.tile-medicine { background: var(--tile-medicine); }
+.tile-activity { background: var(--tile-activity); }
+.tile-growth { background: var(--tile-growth); }
+.tile-temperature { background: var(--tile-temperature); }
+
+/* Split tiles: the alarm sits in the top-right corner, so only the label (the line level with it) keeps
+   clear of it, and only on tiles that have one; the status line below runs the full width. */
+.split .tile-main {
+  padding-right: 10px;
+}
+.split .tile-label {
+  display: block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+  line-height: 1.15;
+  /* The size useFitLabels steps down from; split labels are one word on one line, never hyphenated. */
+  font-size: clamp(0.95rem, 4.4vw, 1.125rem);
+  color: var(--tile-text);
+}
+.split .has-alarm .tile-label {
+  max-width: calc(100% - 34px); /* ends where the alarm's 36 px circle begins */
+}
+@media (max-width: 360px) {
+  .split .tile-main {
+    padding-left: 40px;
+  }
+  .split .tile-watermark {
+    width: 42px;
+    height: 42px;
+    left: 0;
+  }
+}
+
+/* Yellow and lime stay dark-lettered: white there measured 1.6:1 and washed out ("41m ago" at 3 AM). The cyan
+   Sleep tile keeps white with a firmer shadow. */
+.tile-diaper,
+.tile-potty,
+.tile-activity {
+  --tile-text: var(--tile-status);
+}
+.tile-diaper .tile-label,
+.tile-potty .tile-label,
+.tile-activity .tile-label,
+.tile-diaper .tile-status,
+.tile-potty .tile-status,
+.tile-activity .tile-status {
+  text-shadow: none;
+}
+.tile-sleep .tile-label,
+.tile-sleep .tile-status {
+  text-shadow: 0 1px 2px rgba(0, 40, 60, 0.45), 0 0 2px rgba(0, 40, 60, 0.35);
+}

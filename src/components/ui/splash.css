@@ -1,0 +1,22 @@
+.splash {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  background: var(--bg);
+}
+.splash-logo {
+  width: 64px;
+  height: 64px;
+  animation: splash-bob 1.6s var(--ease-out) infinite alternate;
+}
+@keyframes splash-bob {
+  from {
+    transform: translateY(-4px);
+  }
+  to {
+    transform: translateY(4px);
+  }
+}

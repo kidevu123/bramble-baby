@@ -1,0 +1,283 @@
+/* The 1.27 hero at its 1.27 sizes (88 px avatar, the page-sized name, the age, Edit profile), laid sideways:
+   the avatar on the left, the text and the button stacked beside it. */
+.child-hero {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  align-items: center;
+  column-gap: var(--space-4);
+  padding: var(--space-6) var(--space-4);
+  background:
+    radial-gradient(70% 120% at 0% 50%, var(--teal-soft) 0%, transparent 70%),
+    var(--surface);
+}
+.child-hero-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.child-hero h1 {
+  overflow-wrap: anywhere;
+}
+.child-hero .btn {
+  margin-top: var(--space-2);
+}
+/* The age and the birth date: one line each beside the avatar. */
+.child-hero-piece {
+  display: block;
+}
+.growth-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+}
+.growth-stat {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.growth-stat .strong {
+  font-size: var(--text-base);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.child-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.child-list li + li {
+  border-top: 1px solid var(--line);
+}
+.child-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+}
+.child-row:hover {
+  background: var(--surface-2);
+}
+.child-check {
+  width: 22px;
+  height: 22px;
+  color: var(--green-dark);
+}
+.dn-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.dn-box {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-3) var(--space-4);
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.dn-box input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  cursor: pointer;
+}
+.dn-value {
+  font-size: var(--text-xl);
+  font-weight: var(--w-head);
+  color: var(--text-strong);
+}
+.dn-label {
+  font-size: var(--text-xs);
+  font-weight: var(--w-body);
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+}
+.dn-arrow {
+  font-size: var(--text-xl);
+  font-weight: var(--w-head);
+}
+.dn-track {
+  position: relative;
+  height: 56px;
+  border-radius: var(--radius-sm);
+  background: repeating-linear-gradient(90deg, var(--surface-2) 0 11%, var(--line) 11% 12%);
+  overflow: hidden;
+}
+.dn-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--teal);
+  color: var(--navy);
+  font-weight: var(--w-label);
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+}
+.dn-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-xs);
+  font-weight: var(--w-label);
+  color: var(--text-muted);
+}
+/* Nine tick labels do not fit a 320 px phone: show every other one. */
+@media (max-width: 360px) {
+  .dn-scale span:nth-child(even) {
+    visibility: hidden;
+  }
+}
+/* Schedule Creator: the time input needs its full width ("07:00 AM"); wrap the nap pills under it. */
+.schedule-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+.schedule-controls input[type='time'] {
+  min-width: 9.5rem;
+}
+/* Nap window settings and the Schedule Creator: two rows of one card, not two big cards. */
+.profile-links {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.profile-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  text-align: left;
+  color: var(--text);
+}
+.profile-link + .profile-link {
+  border-top: 1px solid var(--line);
+}
+.profile-link .icon-circle {
+  width: 56px;
+  height: 56px;
+}
+.profile-link .icon-circle svg {
+  width: 28px;
+  height: 28px;
+}
+.profile-link-title {
+  font-size: var(--text-lg);
+  font-weight: var(--w-label);
+  color: var(--text-strong);
+}
+.profile-link svg.chev {
+  width: 22px;
+  height: 22px;
+  color: var(--text-muted);
+}
+.growth-stat {
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+button.growth-stat {
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+button.growth-stat:active {
+  background: var(--surface-2);
+}
+.growth-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.growth-row {
+  display: grid;
+  grid-template-columns: 1fr auto 20px;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-2) 0;
+  text-align: left;
+  color: var(--text);
+  border-bottom: 1px solid var(--line);
+}
+.growth-row .chev {
+  width: 20px;
+  height: 20px;
+  color: var(--text-muted);
+}
+.growth-list li:last-child .growth-row {
+  border-bottom: 0;
+}
+
+.growth-history {
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+}
+
+/* Weight gain goal (grams a day the pediatrician asked for) */
+.goal-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.goal-input {
+  width: 110px;
+  font-variant-numeric: tabular-nums;
+}
+.goal-row > span {
+  white-space: nowrap;
+}
+/* The goal field keeps its 110 px; the general .text-input width rule must not stretch it. */
+.goal-row .text-input.goal-input {
+  width: 110px;
+  flex: none;
+}
+
+.goal-row .text-input.goal-date {
+  width: auto;
+  flex: 1;
+  min-width: 0;
+}
+
+/* "WHO percentiles for a [Boy] [Girl]": one line, the pills side by side. */
+.sex-row {
+  gap: var(--space-3);
+}
+.sex-row .pill-choice {
+  flex-wrap: nowrap;
+  flex: none;
+}
+
+/* Nap window settings: each choice row is five equal cells, never four plus an orphan. */
+.ss-pills .pill-choice {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.ss-pills .pill-opt {
+  padding: 0 var(--space-1);
+  min-width: 0;
+}
+/* Day/night cut-offs: "8:00 AM" stays on one line, a size smaller on a 320 px phone. */
+.dn-value {
+  white-space: nowrap;
+}
+@media (max-width: 360px) {
+  .dn-box {
+    padding: var(--space-3);
+  }
+  .dn-value {
+    font-size: var(--text-lg);
+  }
+}

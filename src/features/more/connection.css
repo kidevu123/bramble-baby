@@ -1,0 +1,308 @@
+/* Settings › Hatch scale: the shared look of a cloud connection (band, form, stats, problem, report, disconnect). */
+.conn-sheet {
+  gap: var(--space-4);
+}
+
+/* Status band: what the connection is doing, at a glance */
+.conn-band {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.conn-band.on {
+  background: var(--green-soft);
+}
+.conn-band.warn {
+  background: var(--yellow-soft);
+}
+.conn-band.error {
+  background: var(--red-soft);
+}
+.conn-band-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: var(--surface);
+  color: var(--teal-ink);
+}
+.conn-band.on .conn-band-icon {
+  color: var(--green-text);
+}
+.conn-band.warn .conn-band-icon {
+  color: var(--diaper-text);
+}
+.conn-band.error .conn-band-icon {
+  color: var(--red-text);
+}
+.conn-band-icon svg {
+  width: 24px;
+  height: 24px;
+}
+.conn-band-title {
+  display: block;
+  font-size: var(--text-lg);
+  font-weight: var(--w-head);
+  color: var(--text-strong);
+}
+.conn-band-line {
+  display: block;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* Sign-in form */
+.conn-form {
+  gap: var(--space-4);
+}
+.conn-form .text-input[aria-invalid='true'] {
+  border-color: var(--red);
+}
+.conn-form .text-input[aria-invalid='true']:focus {
+  box-shadow: 0 0 0 3px var(--red-soft);
+}
+.conn-error {
+  color: var(--red-text);
+  font-weight: var(--w-label);
+}
+
+/* Which child */
+.conn-map-line {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  color: var(--text);
+}
+.conn-map-check {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  margin-top: 1px;
+  color: var(--green-text);
+}
+.conn-baby {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+}
+.conn-baby-name {
+  font-weight: var(--w-label);
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+select.conn-select {
+  appearance: auto;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+}
+select.conn-select:disabled {
+  opacity: 0.55;
+}
+
+/* Counts: the numbers carry the weight, the words stay small */
+.conn-stats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  grid-auto-flow: column;
+  gap: var(--space-3);
+}
+.conn-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  min-width: 0;
+}
+.conn-stat-n {
+  font-size: var(--text-2xl);
+  font-weight: var(--w-head);
+  line-height: 1.1;
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+}
+.conn-stat-label {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+.conn-stat:first-child .conn-stat-n {
+  color: var(--green-text);
+}
+
+/* Problem line */
+.conn-problem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  border-left: 4px solid var(--yellow);
+  background: var(--yellow-soft);
+  color: var(--text-strong);
+}
+.conn-problem.error {
+  border-left-color: var(--red);
+  background: var(--red-soft);
+}
+.conn-problem-title {
+  font-weight: var(--w-head);
+}
+.conn-problem.error .conn-problem-title {
+  color: var(--red-text);
+}
+
+/* When it last checked, and the button to check now, on one line. */
+.conn-sync {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.conn-checked {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+.conn-sync > .btn {
+  flex: none;
+}
+
+/* The rarely read parts (readings, raw reports, export, connection report) as one quiet list of disclosures. */
+.conn-more {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  padding: 0 var(--space-4);
+}
+.conn-more > .conn-samples {
+  margin: 0;
+  padding: var(--space-3) 0;
+  text-align: left;
+}
+.conn-more > .conn-report {
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  padding: 0;
+}
+.conn-more > * + * {
+  border-top: 1px solid var(--line);
+}
+/* The camera's own switches, one tap down inside the live card. */
+.conn-switches > summary {
+  padding: var(--space-3) 0;
+  margin: calc(-1 * var(--space-3)) 0;
+  cursor: pointer;
+  font-size: var(--text-base);
+  font-weight: var(--w-label);
+  color: var(--teal-ink);
+}
+.conn-switches[open] > summary {
+  margin-bottom: 0;
+}
+
+/* Connection report */
+.conn-report {
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  padding: 0 var(--space-4);
+}
+.conn-report > summary {
+  cursor: pointer;
+  padding: var(--space-3) 0;
+  font-weight: var(--w-label);
+  color: var(--text-strong);
+}
+/* The browser lays <details> content out in its own slot, so the spacing lives on an inner wrapper. */
+.conn-report-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-bottom: var(--space-4);
+}
+.conn-report-text {
+  margin: 0;
+  max-height: 260px;
+  overflow: auto;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.6875rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  -webkit-user-select: text;
+  user-select: text;
+}
+/* Sleep from the monitor: one row per session, Add on the right when nobody logged it */
+.conn-sleeps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.conn-sleep {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--line);
+}
+.conn-sleep:first-child {
+  border-top: 0;
+}
+.conn-sleep .grow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.conn-sleep-logged {
+  color: var(--text);
+}
+
+/* Export: two share buttons side by side, stacked when the phone is narrow */
+.conn-export-row {
+  flex-wrap: wrap;
+}
+.conn-export-row > * {
+  flex: 1 1 9rem;
+}
+
+/* Disconnect: quiet until asked, then a clear either/or */
+.conn-disconnect {
+  display: flex;
+  justify-content: center;
+}
+.conn-disconnect-btn {
+  color: var(--red-text);
+}
+.conn-confirm {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+.conn-confirm .row > * {
+  flex: 1;
+}

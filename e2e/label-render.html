@@ -1,0 +1,52 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Label render harness</title>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800&family=Fraunces:wght@700;900&display=swap" rel="stylesheet" />
+    <style>
+      body { font-family: 'Nunito', sans-serif; background: #ddd; margin: 16px; }
+      canvas { display: block; background: #fff; margin: 8px 0 24px; box-shadow: 0 0 0 1px #999; }
+      h3 { margin: 0; font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <script type="module">
+      const mod = new URLSearchParams(location.search).get('mod') ?? 'labels'
+      const { drawLabel, DEFAULT_LABEL_PREFS, LABEL_SIZES } = await import(`/src/lib/${mod}.ts`)
+      // Every preset × a few inputs: rendered 1:1 at 203 dpi, then saved by e2e/label-shots.mjs.
+      const pumpedAt = new Date(2026, 9, 7, 21, 9) // Wed Oct 7, 9:09 PM
+      const CASES = [
+        { id: 'ml-60', input: { childName: 'Ada', pumpedAt, amount: 60, unit: 'ml', code: 'J23PFX' }, prefs: {} },
+        { id: 'ml-120', input: { childName: 'Ada', pumpedAt, amount: 120, unit: 'ml', code: 'K7M2QP' }, prefs: {} },
+        { id: 'oz-4.25', input: { childName: 'Ada', pumpedAt, amount: 4.25, unit: 'oz', code: 'K7M2QP' }, prefs: {} },
+        { id: 'one-unit', input: { childName: 'Ada', pumpedAt, amount: 120, unit: 'ml', code: 'K7M2QP' }, prefs: { bothUnits: false } },
+        { id: 'thawed', input: { childName: 'Ada', pumpedAt, amount: 90, unit: 'ml', code: 'K7M2QP', thawedAt: new Date(2026, 9, 9, 8, 30) }, prefs: {} },
+        { id: 'no-bag', input: { childName: 'Ada', pumpedAt, amount: null, unit: 'ml', code: null }, prefs: {} },
+        { id: 'long-name', input: { childName: 'Alexandra-Josephine', pumpedAt, amount: 150, unit: 'ml', code: 'K7M2QP' }, prefs: {} },
+        { id: 'no-storage', input: { childName: 'Ada', pumpedAt, amount: 60, unit: 'ml', code: 'J23PFX' }, prefs: { showStorage: false } },
+        { id: 'notes', input: { childName: 'Ada', pumpedAt, amount: 60, unit: 'ml', code: 'J23PFX', notes: 'left side only\nsecond line' }, prefs: { showNotes: true } },
+        { id: 'day', input: { childName: 'Ada', pumpedAt: new Date(2026, 9, 8, 10, 15), amount: 120, unit: 'ml', code: 'K7M2QP' }, prefs: {} },
+        { id: 'no-mark', input: { childName: 'Ada', pumpedAt, amount: 60, unit: 'ml', code: 'J23PFX' }, prefs: { dayNight: false } },
+      ]
+      const only = new URLSearchParams(location.search).get('sizes')
+      const sizes = only ? LABEL_SIZES.filter((s) => only.split(',').includes(s.id)) : LABEL_SIZES
+      await document.fonts.load("800 32px 'Nunito'")
+      await document.fonts.load("700 32px 'Nunito'")
+      await document.fonts.load("600 32px 'Nunito'")
+      await document.fonts.load("900 32px 'Fraunces'")
+      await document.fonts.ready
+      for (const size of sizes) {
+        for (const c of CASES) {
+          const h = document.createElement('h3')
+          h.textContent = `${size.id} · ${c.id}`
+          const canvas = document.createElement('canvas')
+          canvas.dataset.name = `${size.id}-${c.id}`
+          document.body.append(h, canvas)
+          drawLabel(canvas, c.input, { ...DEFAULT_LABEL_PREFS, ...c.prefs, size: size.id })
+        }
+      }
+      document.body.dataset.ready = String(document.fonts.check("800 32px 'Nunito'") && document.fonts.check("900 32px 'Fraunces'"))
+    </script>
+  </body>
+</html>

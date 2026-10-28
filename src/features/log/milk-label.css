@@ -1,0 +1,340 @@
+.milk-label .label-preview {
+  padding: var(--space-4);
+  display: grid;
+  place-items: center;
+  background: var(--surface-2);
+}
+.milk-label .label-canvas {
+  width: 100%;
+  max-width: 360px;
+  height: auto;
+  background: #fff;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  box-shadow: var(--shadow-card);
+  image-rendering: auto;
+}
+.milk-label .label-status {
+  text-align: center;
+}
+
+/* ---- Print label: sending → sent (what the printer answered) → print again, or could not print ---- */
+.print-label {
+  gap: var(--space-3);
+}
+.print-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  border-left: 5px solid var(--green-dark);
+  background: var(--green-soft);
+  color: var(--text-strong);
+  box-shadow: var(--shadow-card);
+  animation: print-card-in var(--duration-normal) var(--ease-out);
+}
+.print-card.tone-waiting {
+  border-left-color: var(--teal);
+  background: var(--teal-soft);
+}
+.print-card.tone-problem {
+  border-left-color: var(--yellow);
+  background: var(--yellow-soft);
+}
+.print-card.state-failed {
+  border-left-color: var(--red);
+  background: var(--red-soft);
+}
+.print-mark {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--green-dark);
+  color: #fff;
+}
+.tone-waiting .print-mark {
+  background: var(--teal-dark);
+}
+.tone-problem .print-mark {
+  background: var(--yellow);
+  color: var(--navy);
+}
+.state-failed .print-mark {
+  background: var(--red);
+}
+.print-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.print-card-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--w-head);
+  line-height: 1.25;
+}
+.print-card-title time {
+  margin-left: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--w-body);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.print-card-detail {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text);
+}
+.state-failed .print-card-detail {
+  color: var(--red-text);
+}
+.print-pulse {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin: 0 var(--space-2) 1px 0;
+  border-radius: 50%;
+  background: var(--teal-dark);
+  animation: print-pulse 1.2s ease-in-out infinite;
+}
+/* The Button wraps its children in one inline span; these two states lay that span out themselves. */
+.btn.print-sending:disabled {
+  opacity: 0.85;
+}
+.btn.print-sending > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.print-spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2.5px solid currentColor;
+  border-right-color: transparent;
+  animation: spin 0.8s linear infinite;
+}
+.btn.print-again > span {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.15;
+}
+.print-again-when {
+  font-size: var(--text-xs);
+  font-weight: var(--w-body);
+  color: var(--text-muted);
+}
+@keyframes print-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes print-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.milk-label .label-text {
+  margin: var(--space-2) 0 0;
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  color: var(--text-strong);
+}
+select.label-size {
+  width: 100%;
+  appearance: auto;
+}
+.label-launch {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  text-align: left;
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+.label-launch:active {
+  transform: scale(0.98);
+}
+.label-launch:disabled {
+  opacity: 0.55;
+}
+.label-toggles {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.label-settings-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  min-height: 48px;
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--teal-ink);
+  text-align: center;
+}
+
+/* ---- Adding milk that already exists (label sheet opened from the Stash tab) ---- */
+.intake-form .time-field {
+  padding: var(--space-3) 0;
+}
+.intake-note {
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--yellow-soft);
+  color: var(--text-strong);
+}
+.intake-added {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--teal-soft);
+  color: var(--text-strong);
+}
+.intake-added ul {
+  display: contents;
+  list-style: none;
+}
+.intake-same {
+  align-self: flex-start;
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-sm);
+  border: 1.5px dashed var(--line-strong);
+  background: var(--surface);
+  color: var(--teal-ink);
+  font-size: var(--text-sm);
+  font-weight: var(--w-label);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+.intake-same:active {
+  transform: scale(0.98);
+}
+.intake-where {
+  gap: var(--space-2);
+}
+.intake-thawed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-height: 56px;
+  color: var(--text);
+}
+.intake-thawed-hint {
+  display: block;
+  margin-top: 2px;
+}
+.intake-outlook {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  border-left: 4px solid var(--teal);
+  background: var(--surface);
+  color: var(--text-strong);
+}
+.intake-outlook-why {
+  color: var(--text-muted);
+}
+.intake-outlook.state-soon {
+  border-left-color: var(--purple);
+}
+.intake-outlook.state-soon .strong {
+  color: var(--purple-text);
+}
+.intake-outlook.state-expired {
+  display: block;
+  border-left-color: var(--red);
+  background: var(--red-soft);
+  color: var(--red-text);
+}
+
+
+/* Storage windows: three equal columns across the row, each with room for its own hint. */
+.label-windows {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+.label-windows.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.label-toggle-hint {
+  display: block;
+  margin-top: 2px;
+}
+.label-window {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.label-window .text-input {
+  width: 100%;
+}
+
+/* The place pills (Fridge / Freezer / Room temp) share the row evenly. */
+.milk-label .stash-card .pill-opt {
+  flex: 1 1 auto;
+}
+
+/* A travel sticker scanned in the pumping sheet (printed ahead; the printer stays home). */
+.travel-link {
+  align-self: flex-start;
+}
+.travel-pick {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border-left: 4px solid var(--teal);
+}
+.travel-pick-icon {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  color: var(--teal-ink);
+}
+.travel-pick-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}

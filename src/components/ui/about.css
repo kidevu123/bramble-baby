@@ -1,0 +1,47 @@
+.about {
+  border-top: 1px solid var(--line);
+  margin-top: var(--space-1);
+}
+.about-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  list-style: none;
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--text-muted);
+  -webkit-tap-highlight-color: transparent;
+}
+.about-summary::-webkit-details-marker {
+  display: none;
+}
+.about-summary:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+.about-icon,
+.about-chev {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.about-chev {
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+.about[open] .about-chev {
+  transform: rotate(180deg);
+}
+.about-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text);
+}
+.about-body p {
+  margin: 0;
+}

@@ -1,0 +1,371 @@
+.log-error {
+  color: var(--red-text);
+  background: var(--red-soft);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+}
+/* ---- The log sheets' shared shapes (LogFields.tsx): the same kind of field looks the same in every sheet,
+   at the sizes the app had before the compact pass (1.27): 17 px labels and times, 14 px hints, 44 px targets. ---- */
+
+/* A tappable card (start a live timer, print the milk label): an icon, a strong line, a short muted one under it. */
+.sheet-body .launch-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 64px;
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  text-align: left;
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+.launch-row:active {
+  transform: scale(0.98);
+}
+.launch-row:disabled {
+  opacity: 0.55;
+}
+.launch-row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.launch-row-sub {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* The typed number: its label, the number and its unit in one box. */
+.value-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 56px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--line);
+  background: var(--surface);
+  cursor: text;
+}
+.value-field:focus-within {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px var(--teal-soft);
+}
+.value-field-label {
+  flex: none;
+  font-size: var(--text-lg);
+  font-weight: var(--w-label);
+  color: var(--text-strong);
+}
+.value-field .value-field-input {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  height: 48px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  outline: none;
+  text-align: right;
+  font-size: var(--text-xl);
+  font-weight: var(--w-head);
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+}
+.value-field-input::placeholder {
+  color: var(--text-muted);
+  font-weight: var(--w-body);
+}
+.value-field-unit {
+  flex: none;
+  font-size: var(--text-base);
+  color: var(--text-muted);
+  font-weight: var(--w-label);
+}
+/* Two short numbers side by side (nursing Left / Right minutes while editing). */
+.value-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-3);
+}
+.value-pair .value-field,
+.side-col .value-field {
+  padding: 0 var(--space-3);
+  gap: var(--space-2);
+}
+
+/* Started | length | Finished on one row; each half is the whole tap target of its picker, the chips under both.
+   The labels and times keep the single time row's size (17 px), stacked instead of side by side. */
+.time-pair-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.time-pair {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-auto-flow: row dense;
+  column-gap: var(--space-3);
+  row-gap: var(--space-3);
+}
+.time-pair .time-field-quick {
+  display: contents;
+}
+.time-pair .time-field {
+  position: relative;
+  grid-row: 1;
+  grid-column: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: 56px;
+  padding: 0;
+  border-bottom: 0;
+}
+.time-pair > .time-field:not(:first-child),
+.time-pair .time-field-quick > .time-field {
+  grid-column: 2;
+  align-items: flex-end;
+  text-align: right;
+}
+/* The picker's invisible input covers the whole half, label included, not only the value. */
+.time-pair .time-field-value {
+  position: static;
+}
+.time-pair .time-field-note,
+.time-pair .ago-chips,
+.time-pair > :not(.time-field):not(.time-field-quick):not(.time-pair-length) {
+  grid-column: 1 / -1;
+}
+.time-pair-length {
+  grid-row: 1;
+  grid-column: 1 / -1;
+  justify-self: center;
+  align-self: start;
+  padding: 2px var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-strong);
+  font-size: var(--text-sm);
+  font-weight: var(--w-label);
+  pointer-events: none;
+}
+/* One quiet line under a field: a fact someone needs, never a restatement of the control. */
+.log-hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/* Notes stay one line until there is something to write. */
+.note-add {
+  align-self: flex-start;
+  min-height: 44px;
+  padding: 0 var(--space-1);
+  color: var(--teal-ink);
+  font-weight: var(--w-label);
+  font-size: var(--text-base);
+}
+
+/* Nursing: each side is a column, its big start button over the minutes typed for it. */
+.side-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-3);
+}
+.side-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+}
+.side-col .value-field {
+  align-self: stretch;
+}
+.side-btn {
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  background: var(--orange);
+  /* Navy on orange (like the tiles): white was 2.7:1 on the biggest buttons in the app. */
+  color: var(--on-tile);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-weight: var(--w-head);
+  font-size: var(--text-sm);
+  letter-spacing: 0.04em;
+  box-shadow: 0 8px 20px rgba(245, 121, 58, 0.35);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+.side-btn:active {
+  transform: scale(0.95);
+}
+.side-btn:disabled {
+  opacity: 0.6;
+}
+.side-btn svg {
+  width: 28px;
+  height: 28px;
+}
+.tone-poo {
+  background: var(--brown);
+}
+/* Bottle amount: the typed amount, the slider with its scale right under it. */
+.amount-group {
+  display: flex;
+  flex-direction: column;
+}
+.amount-slider {
+  --fill: 0%;
+  width: 100%;
+  height: 44px;
+  margin: 0;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+.amount-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, var(--teal) var(--fill), var(--line-strong) var(--fill));
+}
+.amount-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line-strong);
+}
+.amount-slider::-moz-range-progress {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--teal);
+}
+.amount-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  margin-top: -11px;
+  border-radius: 50%;
+  background: var(--teal);
+  border: 3px solid var(--surface);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+.amount-slider::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--teal);
+  border: 3px solid var(--surface);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+.amount-slider:focus-visible {
+  outline: 3px solid var(--teal);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+.amount-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: -6px;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--w-label);
+  padding: 0 2px;
+}
+
+/* A number that looks like a slip (99999 mL, 9.86 °F): said above Save, never blocking it. */
+.plausible-note {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border-left: 4px solid var(--yellow);
+  background: var(--yellow-soft);
+  color: var(--text-strong);
+  font-size: var(--text-sm);
+}
+
+.dup-warning {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--yellow-soft);
+  color: var(--text-strong);
+  font-size: var(--text-sm);
+}
+
+/* Save stays reachable on long sheets (the pumping sheet's Save sat below the fold at 390×844). */
+.sheet-save {
+  position: sticky;
+  bottom: calc(-1 * var(--space-4));
+  margin: var(--space-2) calc(-1 * var(--space-4)) calc(-1 * var(--space-4));
+  padding: var(--space-3) var(--space-4) calc(var(--safe-b) + var(--space-4));
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+  /* Chrome and Safari inset the sticky edge by the sheet's bottom padding, which left a strip of scrolling
+     content showing under the bar; this paints that strip in the page colour. */
+  box-shadow: 0 var(--space-8) 0 var(--bg);
+  width: auto !important;
+  z-index: 2;
+}
+/* Delete beside Save: the same height, square, so the pair reads as one footer. */
+.sheet-save .sheet-delete {
+  flex: none;
+  width: 54px;
+  padding: 0;
+}
+
+/* A typed value with its one fact under it (decimal pounds), and the medicine dose with its unit choice. */
+.value-with-hint,
+.dose-row,
+.diaper-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.diaper-detail-label {
+  flex: none;
+  width: 56px;
+}
+
+/* The pumping sheet's milk label: the second action in the footer, as tall as Save, in the pumping tone. */
+.sheet-save .label-btn {
+  flex: none;
+  padding: 0 var(--space-5);
+}
+.sheet-save .label-btn svg {
+  width: 22px;
+  height: 22px;
+}
+/* What Save will also do (print the sticker), said right above it. */
+.label-auto-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--w-label);
+}
+.label-auto-note svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+/* Its tone stays put under a finger (the secondary button's grey hover would stick after a tap on iOS). */
+.sheet-save .label-btn.soft-pumping:hover:not(:disabled) {
+  background: var(--purple-soft);
+}
+
+/* At 320 px the four "when" chips do not fit one row: two by two reads as deliberate, three plus one does not. */
+@media (max-width: 360px) {
+  .sheet-body .ago-chips {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}

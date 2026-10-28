@@ -1,0 +1,34 @@
+/* The button is the 44 px target; the visible switch is the 32 px track inside it. */
+.toggle {
+  width: 56px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: 16px;
+}
+.toggle-track {
+  position: relative;
+  width: 56px;
+  height: 32px;
+  border-radius: 16px;
+  background: var(--line-strong);
+  transition: background-color var(--duration-fast);
+}
+.toggle.on .toggle-track {
+  background: linear-gradient(90deg, var(--teal-dark), var(--teal));
+}
+.toggle-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+.toggle.on .toggle-knob {
+  transform: translateX(24px);
+}

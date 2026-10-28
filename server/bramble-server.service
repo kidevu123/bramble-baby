@@ -1,0 +1,39 @@
+[Unit]
+Description=Bramble companion service (reminders, push, extra tracking)
+After=network.target uwsgi.service
+
+[Service]
+Type=simple
+User=bramble
+Group=bramble
+WorkingDirectory=/opt/bramble-server
+Environment=BRAMBLE_PORT=8100
+Environment=BRAMBLE_DB=/opt/bramble-server/data/bramble.db
+Environment=BRAMBLE_VAPID_DIR=/opt/bramble-server/data
+Environment=BABYBUDDY_URL=http://127.0.0.1
+# Host header for the token check. Set it to the name in Baby Buddy's ALLOWED_HOSTS if that list
+# does not include 127.0.0.1 / localhost, otherwise every request is answered 400 and Bramble sees 503.
+#Environment=BABYBUDDY_HOST=baby.yourdomain.example
+# Contact address in the VAPID JWT that push services (Apple, Google) receive. Use a real one.
+#Environment=BRAMBLE_VAPID_SUB=mailto:you@example.com
+# Direct milk-label printing from the server (no phone app). Set one in /opt/bramble-server/data/env:
+#   Niimbot B1 over the server's Bluetooth (pair once with bluetoothctl; the address with "UUID: Serial Port"):
+#   BRAMBLE_PRINTER=niimbot://bluetooth/AA:BB:CC:DD:EE:FF?model=b1&density=3
+#   Niimbot on a USB cable to the server:  BRAMBLE_PRINTER=niimbot://usb?model=b1
+#   Brother QL over the network:           BRAMBLE_PRINTER=brother_ql://tcp/192.0.2.50?model=QL-810W&label=29x62
+# People (Settings › Household): logins are created inside Baby Buddy's Django through
+# /usr/local/libexec/bramble/people-bridge, run with sudo as Baby Buddy's user (install.sh finds the layout and writes
+# /etc/sudoers.d/bramble-people plus a drop-in opening the database directory). Overrides when it cannot:
+# BABYBUDDY_HOME, BABYBUDDY_PYTHON, BABYBUDDY_USER, DJANGO_SETTINGS_MODULE in /opt/bramble-server/data/env.
+EnvironmentFile=-/opt/bramble-server/data/env
+ExecStart=/opt/bramble-server/.venv/bin/python /opt/bramble-server/bramble_server.py
+Restart=always
+RestartSec=3
+# No NoNewPrivileges: the people-bridge runs through sudo, a setuid binary. ProtectSystem stays strict; the paths
+# Django and sudo need are added by bramble-server.service.d/people.conf.
+ProtectSystem=strict
+ReadWritePaths=/opt/bramble-server/data
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

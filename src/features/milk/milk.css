@@ -1,0 +1,759 @@
+.stash-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+}
+.stash-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--space-3) var(--space-2);
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  text-align: center;
+}
+.stash-num {
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  line-height: 1;
+  color: var(--text-strong);
+}
+.stash-stat .stash-sub {
+  display: block;
+  line-height: 1.3;
+}
+
+/* How long the stash lasts, and the goal */
+.runway {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.runway-head {
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--text-strong);
+}
+.runway-line {
+  color: var(--text);
+}
+.runway-bar {
+  display: block;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.runway-fill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--purple);
+}
+.runway-goal {
+  display: block;
+}
+/* "· 1 out" wraps as one piece under "in fridge" on a narrow tile, never as "1" / "out". */
+.stash-out {
+  white-space: nowrap;
+}
+/* Scan and Add share one row; the labels stay whole at 320 px. */
+.stash-actions .btn {
+  white-space: nowrap;
+}
+/* The usable bag that expires first, marked in the list (it was a sentence above the list). */
+.bag-first-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 10px;
+  border-radius: 999px;
+  background: var(--green-soft);
+  color: var(--green-text);
+  font-size: var(--text-sm);
+  font-weight: var(--w-label);
+  vertical-align: 2px;
+}
+.bag-row:disabled,
+.bag-row.is-expired-pick {
+  opacity: 0.55;
+  box-shadow: none;
+}
+.bag-actions-ghosts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.bag-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.bag-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3);
+  text-align: left;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  color: var(--text);
+  border-left: 4px solid transparent;
+}
+.bag-row.state-soon {
+  border-left-color: var(--purple);
+}
+.bag-row.state-expired {
+  border-left-color: var(--red);
+}
+.bag-row.static {
+  box-shadow: none;
+  background: var(--surface-2);
+}
+.bag-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.bag-vol {
+  font-weight: var(--w-label);
+  color: var(--text-strong);
+}
+.bag-when {
+  font-weight: var(--w-label);
+}
+/* Second line: the sticker's sun or moon, then when it was pumped. */
+.bag-pumped {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bag-part {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+}
+.bag-part svg {
+  width: 17px;
+  height: 17px;
+}
+.bag-part.is-day {
+  color: var(--orange-text);
+}
+.bag-part.is-night {
+  color: var(--purple-text);
+}
+/* The deadline on the right, read down the list like a column. */
+.bag-due {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  text-align: right;
+}
+.bag-due .bag-when {
+  white-space: nowrap;
+  color: var(--text-strong);
+}
+.bag-due .bag-when.text-pumping {
+  color: var(--purple-text);
+}
+.bag-due .bag-when.text-health {
+  color: var(--red-text, var(--red));
+}
+.bag-due .bag-first-tag {
+  margin-left: 0;
+  vertical-align: 0;
+}
+
+/* ---- the stash in places: Room temp, Fridge, Freezer, Expired ---- */
+.stash-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.stash-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-top: var(--space-2);
+}
+.stash-section-head h3 {
+  margin: 0;
+}
+.stash-section-head .small {
+  white-space: nowrap;
+}
+.stash-section.is-expired .stash-section-head h3 {
+  color: var(--red-text, var(--red));
+}
+.stash-section-note {
+  margin: -4px 0 0;
+}
+/* "Show 9 more · 640 mL": a quiet full-width row under the section, not another card. */
+.stash-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--teal-ink);
+  font-weight: var(--w-label);
+}
+.stash-more-chev {
+  width: 18px;
+  height: 18px;
+  transition: transform 0.2s ease;
+}
+.stash-more-chev.is-open {
+  transform: rotate(180deg);
+}
+.btn-icon {
+  width: 20px;
+  height: 20px;
+  vertical-align: -4px;
+  margin-right: 6px;
+}
+.link-btn {
+  color: var(--teal-ink);
+  font-weight: var(--w-label);
+  text-decoration: underline;
+  /* A whole 44 px target, like every other control (sweep 2026-10-21: 32 px on the travel and stash links). */
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 4px 6px;
+}
+.milk-label .stash-card {
+  background: var(--surface-2);
+}
+
+/* ---- a bottle from the stash (bottle sheet): the bag it draws on ---- */
+.stash-pick {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border-left: 4px solid var(--teal);
+}
+.stash-pick-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.stash-pick-vol {
+  font-size: var(--text-lg);
+  color: var(--text-strong);
+}
+.stash-pick-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  align-self: center;
+  flex-shrink: 0;
+}
+/* The way in when the stash has milk: a card that is hard to miss, the quiet secondary button otherwise. */
+.stash-cta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  text-align: left;
+  color: var(--text-strong);
+  background: linear-gradient(135deg, var(--teal-soft), var(--surface) 70%);
+  border: 1.5px solid var(--teal-light);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast);
+}
+.stash-cta:hover {
+  box-shadow: var(--shadow-float);
+}
+.stash-cta:active {
+  transform: scale(0.98);
+}
+.stash-cta:focus-visible {
+  outline: 3px solid var(--teal);
+  outline-offset: 2px;
+}
+.stash-cta-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.stash-cta-title {
+  font-size: var(--text-lg);
+  font-weight: var(--w-head);
+  line-height: 1.2;
+}
+.stash-cta-sub {
+  font-size: var(--text-sm);
+  font-weight: var(--w-label);
+  color: var(--teal-ink);
+}
+.stash-cta-chevron {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  color: var(--teal-ink);
+}
+:root[data-theme='dark'] .stash-cta {
+  border-color: var(--teal-dark);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .stash-cta {
+    border-color: var(--teal-dark);
+  }
+}
+/* What saving will do: sits in the sticky footer right above Save, red when it cannot be saved. */
+.use-plan {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border-left: 4px solid var(--teal);
+  background: var(--surface);
+  color: var(--text-strong);
+  font-size: var(--text-sm);
+  font-weight: var(--w-label);
+}
+.use-plan.is-over {
+  border-left-color: var(--red);
+  background: var(--red-soft);
+  color: var(--red-text);
+}
+/* A second line of the same note: the bag the bottle is leaving. */
+.use-plan-more {
+  display: block;
+  margin-top: 2px;
+}
+/* A reminder, not a plan: a breast-milk bottle with no bag while the stash has milk. */
+.use-plan.is-hint {
+  border-left-color: var(--yellow);
+  color: var(--text);
+  font-weight: var(--w-body);
+}
+
+/* ---- part-used bags ---- */
+.bag-left-tag {
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--teal-soft);
+  color: var(--teal-ink);
+  font-size: var(--text-xs);
+  font-weight: var(--w-label);
+  vertical-align: 2px;
+}
+.bag-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.bag-head p {
+  margin: 0;
+}
+.bag-head-vol {
+  font-size: var(--text-xl);
+  line-height: 1.2;
+}
+.bag-head-left {
+  font-size: var(--text-base);
+  font-weight: var(--w-label);
+  color: var(--teal-ink);
+}
+.bag-gauge {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.bag-gauge-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--teal);
+}
+.bag-uses {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+}
+.bag-uses li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  align-items: baseline;
+}
+.bag-uses li span:first-child {
+  color: var(--text-strong);
+}
+.bag-adjust {
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  border-left: 4px solid var(--teal);
+}
+/* A bottle from several bags: one row per bag inside the stash card, the actions under them. */
+.stash-pick {
+  flex-direction: column;
+  align-items: stretch;
+}
+.stash-bags {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.stash-bag {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+.stash-bag .link-btn {
+  flex: none;
+  align-self: center;
+}
+.stash-pick-actions.row {
+  flex-direction: row;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  align-self: flex-end;
+}
+.bag-check {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--line-strong);
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--on-green);
+}
+.bag-check.on {
+  background: var(--green);
+  border-color: var(--green);
+  color: var(--navy);
+}
+.bag-row.is-picked {
+  box-shadow: 0 0 0 2px var(--green) inset, var(--shadow-card);
+}
+
+/* Bag card actions in the bottle sheet and the history list: small bordered buttons with a full tap
+   target, not underlined text links. Remove sits on the bag's title line. */
+.stash-pick .link-btn,
+.bag-list .link-btn {
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  text-decoration: none;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1.5px var(--line-strong);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+.stash-pick-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+/* An expired counter bag that went in the fridge in time: a quiet panel under Discard. */
+.in-time-move {
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.in-time-title,
+.in-time-note {
+  margin: 0;
+}
+.in-time-note {
+  margin-top: 4px;
+}
+
+/* ---- premade bottles: made ahead into numbered fridge spots (the stickers 1–5) ---- */
+.night-bottles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.spot-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.spot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+  min-height: 72px;
+  padding: var(--space-2) 2px;
+  border-radius: var(--radius);
+  text-align: center;
+}
+.spot.is-empty {
+  border: 1.5px dashed var(--line-strong);
+  color: var(--text-muted);
+}
+.spot.is-filled {
+  background: var(--purple-soft);
+  color: var(--text-strong);
+  border: 1.5px solid var(--purple);
+  box-shadow: var(--shadow-card);
+}
+.spot.is-filled.state-soon {
+  border-color: var(--orange);
+}
+.spot.is-filled.state-expired {
+  background: var(--red-soft);
+  border-color: var(--red);
+}
+.spot.is-filled:active {
+  transform: scale(0.97);
+}
+.spot-num {
+  font-size: var(--text-xl);
+  font-weight: var(--w-strong);
+  line-height: 1;
+}
+.spot-vol {
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+.spot.is-filled .spot-vol {
+  color: var(--purple-text);
+  font-weight: var(--w-label);
+}
+.spot.is-filled.state-expired .spot-vol {
+  color: var(--red-text, var(--red));
+}
+
+/* Rearrange: a small link beside the count; the picked bottle lifts, the spots it can go to light up. */
+.spot-head-right {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+.spot-rearrange {
+  min-height: 44px;
+}
+.spot-hint {
+  margin: -4px 0 0;
+}
+.spot.is-filled.is-rearranging {
+  border-style: dashed;
+}
+.spot.is-filled.is-moving {
+  border-style: solid;
+  border-width: 3px;
+  transform: translateY(-3px);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.18);
+}
+.spot.is-empty.is-target {
+  border-color: var(--purple);
+  color: var(--purple-text);
+  background: transparent;
+}
+
+/* the bottle sheet: one tap on the spot the bottle sits in */
+.night-pick {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  background: var(--purple-soft);
+}
+.night-pick-title {
+  font-size: var(--text-lg);
+  font-weight: var(--w-head);
+  color: var(--text-strong);
+}
+.night-pick-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: var(--space-2);
+}
+.night-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-height: 64px;
+  padding: var(--space-2) 2px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1.5px solid var(--purple);
+  color: var(--text-strong);
+}
+.night-pill:active {
+  transform: scale(0.97);
+}
+.night-pill-num {
+  font-size: var(--text-xl);
+  font-weight: var(--w-strong);
+  line-height: 1;
+}
+.night-pill-vol {
+  font-size: var(--text-sm);
+  color: var(--purple-text);
+  font-weight: var(--w-label);
+  white-space: nowrap;
+}
+.night-pick-other {
+  align-self: flex-start;
+}
+
+/* the sheet that makes them */
+.night-size .value-field {
+  max-width: 220px;
+}
+.night-plan,
+.night-sources {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.night-plan-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.night-plan-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.spot-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--purple);
+  color: var(--on-accent);
+  font-size: var(--text-lg);
+  font-weight: var(--w-strong);
+}
+.night-source {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 48px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--line);
+  text-align: left;
+  color: var(--text);
+}
+.night-source.is-out {
+  opacity: 0.6;
+  border-style: dashed;
+}
+.night-source-use {
+  white-space: nowrap;
+  color: var(--purple-text);
+  font-weight: var(--w-label);
+}
+.night-source.is-out .night-source-use {
+  color: var(--text-muted);
+}
+/* Undo a premade bottle: one confirm before the milk goes back on its bags. */
+.unmake-confirm {
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.unmake-confirm .row > * {
+  flex: 1;
+}
+
+/* The key above the list: each symbol as the rows draw it, a word beside it, small and out of the way. */
+.stash-key {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.stash-key-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.stash-key-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+}
+.icon-circle.stash-key-dot {
+  width: 22px;
+  height: 22px;
+}
+.icon-circle.stash-key-dot svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* Milk from the first days after the birth, on the NICU stash: it goes in first. */
+.bag-colostrum-tag {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--yellow-soft);
+  color: var(--text-strong);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  vertical-align: 2px;
+}
