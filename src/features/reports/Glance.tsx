@@ -87,8 +87,8 @@ export function Overview({ rows, onOpen }: { rows: OverviewRow[]; onOpen: (key: 
   )
 }
 
-const EXTRA_ICON: Record<ExtraKey, typeof MoonIcon> = { weight: ScaleIcon, height: RulerIcon, head: RulerIcon, temperature: ThermoIcon, medicine: PillIcon, tummy: TummyIcon, solids: SpoonIcon, activity: PlayBlocksIcon }
-const EXTRA_TONE: Record<ExtraKey, string> = { weight: 'growth', height: 'growth', head: 'growth', temperature: 'temperature', medicine: 'medicine', tummy: 'activity', solids: 'solids', activity: 'activity' }
+const EXTRA_ICON: Record<ExtraKey, typeof MoonIcon> = { calories: BottleTiltIcon, weight: ScaleIcon, height: RulerIcon, head: RulerIcon, temperature: ThermoIcon, medicine: PillIcon, tummy: TummyIcon, solids: SpoonIcon, activity: PlayBlocksIcon }
+const EXTRA_TONE: Record<ExtraKey, string> = { calories: 'feeding', weight: 'growth', height: 'growth', head: 'growth', temperature: 'temperature', medicine: 'medicine', tummy: 'activity', solids: 'solids', activity: 'activity' }
 
 /** Under the glance tiles: the latest growth and whatever else the day held, each a tap into its Summary category. */
 export function DayExtras({ rows, onOpen }: { rows: ExtraStat[]; onOpen: (cat: ExtraStat['cat']) => void }) {
@@ -98,7 +98,7 @@ export function DayExtras({ rows, onOpen }: { rows: ExtraStat[]; onOpen: (cat: E
       {rows.map((r) => {
         const Icon = EXTRA_ICON[r.key]
         return (
-          <button key={r.key} type="button" className="overview-row extra-row" onClick={() => onOpen(r.cat)}>
+          <button key={r.key} type="button" className="overview-row extra-row" onClick={() => onOpen(r.cat)} data-testid={`extra-${r.key}`}>
             <span className={`icon-circle sm tone-${EXTRA_TONE[r.key]}`} aria-hidden>
               <Icon />
             </span>

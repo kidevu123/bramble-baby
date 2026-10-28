@@ -53,6 +53,14 @@ describe('fortifying with powder', () => {
     expect(recipeFor(oz(least!), f).tooSmall).toBe(false)
   })
 
+  it("has Bobbie's own figures: one scoop to 2 fl oz of water is its 20 kcal/oz", () => {
+    const bobbie = POWDERS.find((p) => p.id === 'bobbie')!
+    expect(Math.abs(mixWithPowder(oz(2), bobbie.gPerScoop, bobbie, 0).kcalPerOz - 20)).toBeLessThan(0.3)
+    const r = recipeFor(oz(4), { kcalPerOz: 22, with: 'powder', powder: 'bobbie' })
+    expect(r.tooSmall).toBe(false)
+    expect(Math.abs(r.kcalPerOz - 22)).toBeLessThan(0.6)
+  })
+
   it('takes the powder from the can when it is typed in', () => {
     const p = powderOf({ powder: 'custom', custom: { kcalPerScoop: 49.3, gPerScoop: 9.6 } })
     expect(p.kcalPerG).toBeCloseTo(5.135, 2)

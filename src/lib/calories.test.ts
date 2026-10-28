@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dayCalories, feedKcal, feedStrength, judgeCalories, kcalOf, mlForGoal, weightForDay, withKcalTag } from './calories'
+import { calorieTracking, dayCalories, feedKcal, feedStrength, judgeCalories, kcalOf, mlForGoal, strengthToSave, weightForDay, withKcalTag } from './calories'
 import type { FortifySettings } from './fortify'
 
 const fortify: FortifySettings = { kcalPerOz: 24, with: 'powder', powder: 'standard' }
@@ -44,5 +44,27 @@ describe('calories', () => {
     expect(weightForDay(w, new Date(2026, 9, 12))).toBe(2.7)
     // 120 kcal/kg for 2.7 kg at 24 kcal/oz: about 399 mL a day.
     expect(mlForGoal(120, 2.7, 24)).toBeCloseTo(399, 0)
+  })
+
+  it('is off unless switched on (a household that set a goal or a recipe before the switch counts as on)', () => {
+    expect(calorieTracking({})).toBeNull()
+    expect(calorieTracking({ caloriesOn: false, calorieGoal: 150, fortify })).toBeNull()
+    expect(calorieTracking({ calorieGoal: 150 })).toEqual({ goal: 150, fortify: null, formulaKcal: 20 })
+    expect(calorieTracking({ caloriesOn: true, formulaKcalPerOz: 24 })?.formulaKcal).toBe(24)
+    expect(calorieTracking({ caloriesOn: true, formulaKcalPerOz: 99 })?.formulaKcal).toBe(20)
+  })
+
+  it('tags a bottle with the strength it was mixed at, and never rewrites an edited one', () => {
+    const on = calorieTracking({ caloriesOn: true, fortify, formulaKcalPerOz: 22 })
+    const plainFormula = calorieTracking({ caloriesOn: true })
+    expect(strengthToSave('fortified breast milk', { tracking: on, picked: null, edited: null })).toBe(24)
+    expect(strengthToSave('fortified breast milk', { tracking: on, picked: 26, edited: null })).toBe(26)
+    expect(strengthToSave('formula', { tracking: on, picked: null, edited: null })).toBe(22)
+    expect(strengthToSave('formula', { tracking: plainFormula, picked: null, edited: null })).toBeNull()
+    // an old 20 kcal/oz formula bottle edited after the recipe went to 22 stays 20 (untagged)
+    expect(strengthToSave('formula', { tracking: on, picked: null, edited: { type: 'formula', tags: [] } })).toBeNull()
+    expect(strengthToSave('fortified breast milk', { tracking: on, picked: null, edited: { type: 'fortified breast milk', tags: ['kcal:22'] } })).toBe(22)
+    expect(strengthToSave('breast milk', { tracking: on, picked: null, edited: null })).toBeNull()
+    expect(strengthToSave('fortified breast milk', { tracking: null, picked: null, edited: null })).toBeNull()
   })
 })

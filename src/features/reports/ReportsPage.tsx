@@ -20,6 +20,7 @@ import { CalendarView } from './CalendarView'
 import { ReportSettingsSheet } from './ReportSettingsSheet'
 import { SummaryView } from './SummaryView'
 import { CAT_OF_GLANCE, type Cat } from './categories'
+import { calorieTracking } from '../../lib/calories'
 import { DayExtras, DayGlance, DayLog } from './Glance'
 import { DayStrip } from './DayStrip'
 import { dayExtras, dayGlance, dayLog, type GlanceKey } from '../../lib/reports'
@@ -58,6 +59,7 @@ function ReportsBody({ child }: { child: Child }) {
   const navigate = useNavigate()
   const { prefs } = usePrefs()
   const { settings } = useChildSettings(child.id)
+  const tracking = useMemo(() => calorieTracking(settings), [settings])
   const age = useAgeBasis(child)
   const { names } = usePeople()
   // The view, category, range and paged day survive a trip to the pediatrician report, Settings or Insights
@@ -108,8 +110,8 @@ function ReportsBody({ child }: { child: Child }) {
     [events, child, prefs.units, day, now, view, filters, loading, dayStartHour, age],
   )
   const extras = useMemo(
-    () => (view === 'day' && !loading ? dayExtras(events, growth.data, child, prefs.units, settings.sex ?? null, day, now, dayStartHour, age).filter((e) => filters[e.cat] !== false) : []),
-    [events, growth.data, child, prefs.units, settings.sex, day, now, view, filters, loading, dayStartHour, age],
+    () => (view === 'day' && !loading ? dayExtras(events, growth.data, child, prefs.units, settings.sex ?? null, day, now, dayStartHour, age, tracking).filter((e) => filters[e.cat === 'feed' ? 'feeding' : e.cat] !== false) : []),
+    [events, growth.data, child, prefs.units, settings.sex, day, now, view, filters, loading, dayStartHour, age, tracking],
   )
   // Everything logged that day, by kind, in the same window and through the same filters as the tiles: the way to
   // check a day was logged in full.

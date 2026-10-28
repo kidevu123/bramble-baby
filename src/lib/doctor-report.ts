@@ -54,7 +54,7 @@ export interface ReportDay {
   kcalPerKg: number | null
 }
 
-/** The doctor's calorie goal and the household's fortification (Settings › Calories & fortifying). */
+/** The doctor's calorie goal and the household's fortification (Settings › Calories & fortifying); null while calories are off. */
 export interface ReportCalories {
   goal: number | null
   fortify: FortifySettings | null
@@ -87,7 +87,7 @@ function avgOf<T>(rows: T[], value: (r: T) => number, logged: (r: T) => boolean 
   return { value: active.length ? active.reduce((s, r) => s + value(r), 0) / active.length : 0, days: active.length }
 }
 
-export function buildDoctorReport(events: EventSets, growth: GrowthSets | undefined, child: Child, units: UnitPrefs, sex: Sex | null, goal: number | null | undefined, days: number, now: Date = new Date(), goalSince?: string | null, age: AgeFrom = child.birth_date, calories: ReportCalories = { goal: null, fortify: null }): DoctorReport {
+export function buildDoctorReport(events: EventSets, growth: GrowthSets | undefined, child: Child, units: UnitPrefs, sex: Sex | null, goal: number | null | undefined, days: number, now: Date = new Date(), goalSince?: string | null, age: AgeFrom = child.birth_date, calories: ReportCalories | null = null): DoctorReport {
   const to = startOfDay(now)
   const from = addDays(to, -(days - 1))
   const dayList = Array.from({ length: days }, (_, i) => addDays(from, i))
@@ -134,7 +134,7 @@ export function buildDoctorReport(events: EventSets, growth: GrowthSets | undefi
   const dayRows: ReportDay[] = dayList.map((d) => {
     const s = summarizeDay(events, d)
     const nursing = events.feedings.filter((f) => isSameDay(parseDate(f.start), d) && f.type !== 'solid food' && f.method !== 'bottle').reduce((sum, f) => sum + parseDuration(f.duration) / 60, 0)
-    const kcal = dayCalories(events.feedings.filter((f) => isSameDay(parseDate(f.start), d)), units.volume, calories.fortify).kcal
+    const kcal = calories ? dayCalories(events.feedings.filter((f) => isSameDay(parseDate(f.start), d)), units.volume, calories.fortify).kcal : 0
     const kg = weightForDay(weighings, addDays(d, 1))
     return { date: d, feeds: s.feedCount, bottle: s.bottleVolume, nursingMinutes: nursing, diaperCount: s.diaperCount, wet: s.wetCount, dirty: s.solidCount, sleepHours: s.sleepSeconds / 3600, naps: s.napCount, pumped: s.pumpVolume, kcal, kcalPerKg: kg && kcal > 0 ? kcal / kg : null }
   })
@@ -159,7 +159,7 @@ export function buildDoctorReport(events: EventSets, growth: GrowthSets | undefi
     const kcal = avgOf(whole, (d) => d.kcal)
     if (kcal.days) averages.push({ key: 'kcal', label: 'Calories by bottle a day', value: `${Math.round(kcal.value)} kcal`, typical: null, loggedDays: kcal.days })
     const perKg = avgOf(whole, (d) => d.kcalPerKg ?? 0)
-    if (perKg.days) averages.push({ key: 'kcalkg', label: calories.goal ? `kcal per kg a day (goal ${calories.goal})` : 'kcal per kg a day', value: String(Math.round(perKg.value)), typical: ctx.hold || ctx.ageMonths >= 6 ? null : band(TYPICAL_KCAL_PER_KG[0], TYPICAL_KCAL_PER_KG[1]), loggedDays: perKg.days })
+    if (perKg.days && calories) averages.push({ key: 'kcalkg', label: calories.goal ? `kcal per kg a day (goal ${calories.goal})` : 'kcal per kg a day', value: String(Math.round(perKg.value)), typical: ctx.hold || ctx.ageMonths >= 6 ? null : band(TYPICAL_KCAL_PER_KG[0], TYPICAL_KCAL_PER_KG[1]), loggedDays: perKg.days })
     const nursing = avgOf(whole, (d) => d.nursingMinutes)
     // A day's total minutes has no band: the science gives minutes a side per feed, which beside a day's
     // total would read as six times over.

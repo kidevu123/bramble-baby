@@ -39,7 +39,8 @@ import { LabelSettingsSheet } from './LabelSettingsSheet'
 import { PeopleSheet } from './PeopleSheet'
 import { PretermSheet } from './PretermSheet'
 import { CaloriesSheet } from './CaloriesSheet'
-import { powderOf, type FortifySettings } from '../../lib/fortify'
+import { powderOf } from '../../lib/fortify'
+import { calorieTracking, type CalorieTracking } from '../../lib/calories'
 import { PumpsSheet } from './PumpsSheet'
 import { useChildSettings } from '../../hooks/useChildSettings'
 import { ageBasis, pretermState } from '../../lib/preterm'
@@ -192,7 +193,7 @@ export function MorePage() {
           <SettingsRow icon={<BellIcon />} title="Notifications" value={notificationSummary(notifications.state, nudges.settings)} onClick={() => setOpen('notifications')} />
           <SettingsRow icon={<TagIcon />} title="Milk labels & printer" value={labelSummary(labelSize(prefs.labels.size).label, printer.data, prefs.labels.autoPrint)} onClick={() => setOpen('labels')} />
           <SettingsRow icon={<PumpIcon />} title="Pumps" value={pumpSummary} onClick={() => setOpen('pumps')} />
-          <SettingsRow icon={<BottleIcon />} title="Calories & fortifying" value={calorieSummary(childSettings.calorieGoal ?? null, childSettings.fortify ?? null)} onClick={() => setOpen('calories')} />
+          <SettingsRow icon={<BottleIcon />} title="Calories & fortifying" value={calorieSummary(calorieTracking(childSettings))} onClick={() => setOpen('calories')} />
           <SettingsRow icon={<ScaleIcon />} title="Hatch scale" value={hatchRowSummary(hatch.status)} onClick={() => setOpen('hatch')} />
           <SettingsRow icon={<HeartIcon />} title="Born early" value={pretermSummary === 'Off' ? 'Corrected age and the NICU stay' : pretermSummary} onClick={() => setOpen('preterm')} />
         </SettingsGroup>
@@ -397,12 +398,13 @@ function SignOutConfirm({ username, onCancel, onConfirm }: { username: string | 
   )
 }
 
-/** "24 kcal/oz · Similac · goal 120", or what the row is for. */
-function calorieSummary(goal: number | null, fortify: FortifySettings | null): string {
-  const parts: string[] = []
-  if (fortify) parts.push(`${fortify.kcalPerOz} kcal/oz · ${fortify.with === 'concentrate' ? 'concentrate' : powderOf(fortify).name}`)
-  if (goal) parts.push(`goal ${goal} kcal/kg`)
-  return parts.length ? parts.join(' · ') : 'Calorie goal and fortified milk'
+/** "On · 24 kcal/oz · Similac · goal 120", or Off. */
+function calorieSummary(tracking: CalorieTracking | null): string {
+  if (!tracking) return 'Off · for babies who need more calories'
+  const parts = ['On']
+  if (tracking.fortify) parts.push(`${tracking.fortify.kcalPerOz} kcal/oz · ${tracking.fortify.with === 'concentrate' ? 'concentrate' : powderOf(tracking.fortify).name}`)
+  if (tracking.goal) parts.push(`goal ${tracking.goal} kcal/kg`)
+  return parts.join(' · ')
 }
 
 function SettingsRow({ icon, title, value, onClick, href }: { icon: ReactNode; title: string; value: string; onClick?: () => void; href?: string }) {

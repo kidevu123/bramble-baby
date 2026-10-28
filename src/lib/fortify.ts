@@ -47,12 +47,15 @@ export interface Powder {
   mlPerG: number
 }
 
-/** Standard 20 kcal/oz powders (PNPG table, 2019). The can's label wins when it says otherwise. */
+/** Standard 20 kcal/oz powders (PNPG table, 2019; Bobbie from its own guide). The can's label wins when it says otherwise. */
 export const POWDERS: Powder[] = [
   { id: 'standard', name: 'Standard formula', kcalPerG: 5.1, gPerScoop: 8.7, gPerTbsp: 6.6, mlPerG: 0.77 },
   { id: 'similac', name: 'Similac', kcalPerG: 5.12, gPerScoop: 8.7, gPerTbsp: 6.25, mlPerG: 0.77 },
   { id: 'enfamil', name: 'Enfamil', kcalPerG: 5.1, gPerScoop: 8.8, gPerTbsp: 7.1, mlPerG: 0.77 },
   { id: 'gerber', name: 'Gerber Good Start', kcalPerG: 5.12, gPerScoop: 8.7, gPerTbsp: 6.5, mlPerG: 0.76 },
+  // Bobbie's own figures for its organic infant formula: 8.6 g and 44.2 kcal a level, unpacked scoop, a scoop about
+  // 1½ level tablespoons, 0.78 mL a gram (Bobbie's healthcare product guide, 2026). One scoop to 2 fl oz of water is 20 kcal/oz.
+  { id: 'bobbie', name: 'Bobbie', kcalPerG: 5.14, gPerScoop: 8.6, gPerTbsp: 5.73, mlPerG: 0.78 },
 ]
 
 export type FortifyWith = 'powder' | 'concentrate'

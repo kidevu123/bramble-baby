@@ -27,7 +27,7 @@ import { useSaver } from './useSaver'
 import { useUnitBoundary } from '../../hooks/useStorageUnits'
 import { timerKind, useTimerActions } from '../timer/useTimerActions'
 import { useChildSettings } from '../../hooks/useChildSettings'
-import { feedKcal, kcalOf, kcalTag, withKcalTag } from '../../lib/calories'
+import { calorieTracking, feedKcal, kcalOf, kcalTag, strengthToSave, withKcalTag } from '../../lib/calories'
 import { strengthText } from '../../lib/fortify'
 
 type Mode = 'nursing' | 'bottle'
@@ -56,7 +56,7 @@ const capitalise = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
 
 export function FeedingSheet({ child, editing, initial, bag: initialBag = null, prefill, onClose }: { child: Child; editing: Feeding | null; initial?: Mode; bag?: MilkBag | null; prefill?: Extract<QuickPrefill, { kind: 'bottle' | 'nursing' }>; onClose: () => void }) {
   const { prefs } = usePrefs()
-  const fortify = useChildSettings(child.id).settings.fortify ?? null
+  const tracking = calorieTracking(useChildSettings(child.id).settings)
   // The bags this bottle draws on, in the order they empty. `undefined` is "not touched": an edited bottle keeps
   // the bags it was poured from (`linkedTakes`, below); [] is "no bag", after Remove.
   const [choice, setChoice] = useState<MilkBag[] | undefined>(initialBag ? [initialBag] : undefined)
@@ -225,7 +225,7 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
 
   /** What this bottle was mixed to: its premade bottle's strength, else what it was saved at, else the household's. */
   const pickedKcal = bags.find((b) => b.kcal_per_oz)?.kcal_per_oz ?? null
-  const strength = mode === 'bottle' && milk === 'fortified breast milk' ? pickedKcal ?? (editing ? kcalOf(editing.tags) : null) ?? fortify?.kcalPerOz ?? null : null
+  const strength = mode === 'bottle' && milk !== 'solid food' ? strengthToSave(milk, { tracking, picked: pickedKcal, edited: editing && editing.method === 'bottle' ? editing : null }) : null
   const body = bodyFor()
   /** Breast milk (or fortified) by bottle: the only feeding that draws on the stash. */
   const fromStash = mode === 'bottle' && milk !== 'formula'
@@ -444,7 +444,7 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
               <span>{sliderMax}</span>
             </div>
           </section>
-          <CaloriesLine milk={milk} amount={Number(amount) || 0} unit={unit} strength={strength} />
+          {tracking ? <CaloriesLine milk={milk} amount={Number(amount) || 0} unit={unit} strength={strength} /> : null}
           {/* A bottle is a moment: its chips set the time itself. */}
           <TimeField label="Time:" value={start} onChange={setStart} quick={editing ? undefined : setStart} />
         </>

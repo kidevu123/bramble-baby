@@ -85,6 +85,11 @@ export interface ChildSettings {
   weightGoalGPerDay?: number | null
   /** The day the pediatrician gave that goal (yyyy-MM-dd); the gain is counted from then (weeks in the NICU do not count). */
   weightGoalSince?: string | null
+  /** Settings › Calories & fortifying is switched on: calories show in Reports and the log sheets, and fortifying is offered.
+   *  Off for a household that never needs it (absent: on only if a goal or fortification was saved before the switch). */
+  caloriesOn?: boolean
+  /** What the household's formula bottles are mixed to (kcal/oz); 20 is the can's own recipe. A stronger one tags each bottle. */
+  formulaKcalPerOz?: number | null
   /** The calories a day per kilogram the pediatrician asked for (Settings › Calories & fortifying); Reports › Feeding
    *  measures the bottles against it. */
   calorieGoal?: number | null

@@ -6,6 +6,7 @@
 import { addDays, differenceInCalendarDays, format, isSameDay, startOfDay } from 'date-fns'
 import type { Child, GrowthEntry } from './api/types'
 import { ACTIVITY_LABEL, dayWindow, isPotty, summarizeDay, type EventSets, type GrowthSets, type TimelineItem } from './events'
+import { dayCalories, weightForDay, type CalorieTracking } from './calories'
 import { decodeSolidsNotes } from './foods'
 import { growthEntryTime } from './growth-note'
 import { compareDiapers, compareFeeds, compareSleep, diaperNormFor, feedingNormFor, feverStatus, fToC, percentile, sleepNormFor, type NormStatus, type Sex } from './science'
@@ -233,7 +234,7 @@ export function rangeOverview(events: EventSets, child: Child, units: UnitPrefs,
 // ---- The Day view's second tier: growth and whatever else the day held.
 
 
-export type ExtraKey = 'weight' | 'height' | 'head' | 'temperature' | 'medicine' | 'tummy' | 'solids' | 'activity'
+export type ExtraKey = 'calories' | 'weight' | 'height' | 'head' | 'temperature' | 'medicine' | 'tummy' | 'solids' | 'activity'
 
 export interface ExtraStat {
   key: ExtraKey
@@ -241,7 +242,7 @@ export interface ExtraStat {
   value: string
   detail: string
   /** The Summary category a tap opens. */
-  cat: 'growth' | 'temperature' | 'medicine' | 'activity' | 'solids'
+  cat: 'feed' | 'growth' | 'temperature' | 'medicine' | 'activity' | 'solids'
 }
 
 /** The entry's moment: its clock segment when the note has one, else noon of its date. */
@@ -310,11 +311,28 @@ export function growthChange(latest: number, previous: number, unit: 'lb' | 'kg'
  * before, and the WHO percentile when the child's sex is set) and the day's temperature, medicine,
  * tummy time, solids and other activities, only when the day has them.
  */
-export function dayExtras(events: EventSets, growth: GrowthSets | undefined, child: Child, units: UnitPrefs, sex: Sex | null, day: Date, now: Date = new Date(), dayStartHour = 0, age: AgeFrom = child.birth_date): ExtraStat[] {
+export function dayExtras(events: EventSets, growth: GrowthSets | undefined, child: Child, units: UnitPrefs, sex: Sex | null, day: Date, now: Date = new Date(), dayStartHour = 0, age: AgeFrom = child.birth_date, calories: CalorieTracking | null = null): ExtraStat[] {
   const win = dayWindow(day, dayStartHour)
   const ctx = judgedAge(age, now >= win.start && now < win.end ? now : day)
   if (ctx.expecting) return []
   const out: ExtraStat[] = []
+  // Calories switched on (Settings › Calories & fortifying): the day's total by bottle leads, per kg by the weighing
+  // that applied, against the doctor's goal. Nursing has no volume, so it is named as left out.
+  if (calories) {
+    const feeds = events.feedings.filter((f) => {
+      const d = parseDate(f.start)
+      return d >= win.start && d < win.end
+    })
+    const c = dayCalories(feeds, units.volume, calories.fortify)
+    if (c.bottles) {
+      const kg = weightForDay((growth?.weights ?? []).map((w) => ({ kg: convertWeight(w.weight, units.weight, 'kg'), at: growthAt(w) })), win.end)
+      const parts = [`${c.bottles} bottle${c.bottles === 1 ? '' : 's'}`]
+      if (kg) parts.push(`${Math.round(c.kcal / kg)} kcal/kg${calories.goal ? ` of the doctor's ${calories.goal}` : ''}`)
+      if (c.nursing) parts.push('nursing not counted')
+      if (now >= win.start && now < win.end) parts.push('so far today')
+      out.push({ key: 'calories', label: 'Calories', value: `${Math.round(c.kcal)} kcal`, detail: parts.join(' · '), cat: 'feed' })
+    }
+  }
   const pct = (e: GrowthEntry) => {
     const label = growthPercentileLabel(e, age, sex, units)
     return label ? ` · ${label}` : ''

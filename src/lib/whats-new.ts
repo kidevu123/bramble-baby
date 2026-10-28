@@ -12,6 +12,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.52.0',
+    date: 'Oct 28',
+    items: [
+      'Calories are now a switch in Settings › Calories & fortifying, off unless you need them.',
+      "With it on, Reports › Day shows the day's total calories, and formula bottles count at the strength you mix them (Bobbie is in the list of powders).",
+    ],
+  },
+  {
     version: '1.51.0',
     date: 'Oct 28',
     items: [

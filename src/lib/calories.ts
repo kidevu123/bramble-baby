@@ -65,6 +65,8 @@ export function feedKcal(f: Pick<Feeding, 'type' | 'method' | 'tags' | 'amount'>
 
 export interface DayCalories {
   kcal: number
+  /** The bottles' volume counted (mL). */
+  ml: number
   bottles: number
   /** Any nursing that day: its calories are not in `kcal`. */
   nursing: boolean
@@ -74,6 +76,7 @@ export interface DayCalories {
 
 export function dayCalories(feeds: Pick<Feeding, 'type' | 'method' | 'tags' | 'amount'>[], unit: VolumeUnit, fortify?: FortifySettings | null): DayCalories {
   let kcal = 0
+  let ml = 0
   let bottles = 0
   let nursing = false
   let unknown = false
@@ -86,10 +89,11 @@ export function dayCalories(feeds: Pick<Feeding, 'type' | 'method' | 'tags' | 'a
     const k = feedKcal(f, unit, fortify)
     if (k === null) continue
     kcal += k
+    ml += convertVolume(f.amount ?? 0, unit, 'ml')
     bottles += 1
     if (feedStrength(f, fortify)?.unknown) unknown = true
   }
-  return { kcal, bottles, nursing, unknown }
+  return { kcal, ml, bottles, nursing, unknown }
 }
 
 /** The weight that applies to a day: the latest weighing on or before its end, else the first one after it. */
@@ -110,3 +114,34 @@ export function judgeCalories(perKg: number, goal: number | null | undefined, nu
 
 /** The bottle volume a day that reaches `goal` kcal/kg at `kcalPerOz` for a baby of `kg` (mL). */
 export const mlForGoal = (goal: number, kg: number, kcalPerOz: number) => (goal * kg * ML_PER_OZ) / kcalPerOz
+
+/** The household's calorie tracking (Settings › Calories & fortifying) when it is on; null when off. */
+export interface CalorieTracking {
+  goal: number | null
+  fortify: FortifySettings | null
+  /** What formula bottles are mixed to; 20 unless the doctor gave a stronger recipe. */
+  formulaKcal: number
+}
+
+export function calorieTracking(s: { caloriesOn?: boolean; calorieGoal?: number | null; fortify?: FortifySettings | null; formulaKcalPerOz?: number | null }): CalorieTracking | null {
+  const on = s.caloriesOn ?? Boolean(s.calorieGoal || s.fortify)
+  if (!on) return null
+  const formula = s.formulaKcalPerOz && s.formulaKcalPerOz >= FORMULA_KCAL_PER_OZ && s.formulaKcalPerOz <= 30 ? s.formulaKcalPerOz : FORMULA_KCAL_PER_OZ
+  return { goal: s.calorieGoal ?? null, fortify: s.fortify ?? null, formulaKcal: formula }
+}
+
+/**
+ * The strength a bottle is saved at (its `kcal:` tag), null for "no tag". An edit that keeps the milk keeps what the
+ * bottle was saved with (an untagged formula bottle was 20); a premade bottle brings its own; otherwise the household's
+ * fortification for fortified milk, its formula strength for formula when stronger than 20. Plain breast milk is never tagged.
+ */
+export function strengthToSave(milk: 'breast milk' | 'formula' | 'fortified breast milk', opts: { tracking: CalorieTracking | null; picked: number | null; edited: { type: string; tags: string[] } | null }): number | null {
+  const kept = opts.edited && opts.edited.type === milk ? kcalOf(opts.edited.tags) : undefined
+  if (milk === 'fortified breast milk') return opts.picked ?? kept ?? opts.tracking?.fortify?.kcalPerOz ?? null
+  if (milk === 'formula') {
+    if (kept !== undefined) return kept
+    const f = opts.tracking?.formulaKcal ?? FORMULA_KCAL_PER_OZ
+    return f !== FORMULA_KCAL_PER_OZ ? f : null
+  }
+  return null
+}

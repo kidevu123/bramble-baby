@@ -63,7 +63,8 @@ installing and deploying; `README.md` is the public front page (screenshots from
 - A bottle's strength is a `kcal:<n>` tag (`src/lib/calories.ts`); a fortified bottle is tagged when it is saved and an edit sends
   the full tag list through `withKcalTag`, so a later recipe never rewrites the calories already logged. The household's
   fortification and calorie goal are `settings.fortify` / `settings.calorieGoal` (Settings › Calories & fortifying); recipes
-  come only from `recipeFor` in `src/lib/fortify.ts`.
+  come only from `recipeFor` in `src/lib/fortify.ts`. Calories are a household switch (`settings.caloriesOn`, off by default):
+  read them only through `calorieTracking(settings)` (null when off), and save a bottle's tag only through `strengthToSave`.
 - A pumping entry's pump is a `pump:<name>` tag beside the `caregiver:` tag (`src/lib/pumps.ts`); every write of a pumping
   entry sends its full tag list through `withPumpTag`, so neither tag is lost on an edit. The pump list is `settings.pumps`
   (Settings › Pumps), never hard-coded in a sheet.

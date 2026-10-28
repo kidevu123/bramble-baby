@@ -9,6 +9,7 @@ import { useNow } from '../../hooks/useNow'
 import { usePrefs } from '../../hooks/usePrefs'
 import { buildDoctorReport, reportText } from '../../lib/doctor-report'
 import { ageBasis } from '../../lib/preterm'
+import { calorieTracking } from '../../lib/calories'
 import { formatDurationShort } from '../../lib/time'
 import { formatVolume } from '../../lib/units'
 import './summary.css'
@@ -34,8 +35,8 @@ export function DoctorReportPage() {
   const growth = useGrowth(child?.id ?? null)
   const { bornAtDays, nicu } = settings
   const report = useMemo(
-    () => (child ? buildDoctorReport(events, growth.data, child, prefs.units, settings.sex ?? null, settings.weightGoalGPerDay, Number(days), now, settings.weightGoalSince, ageBasis(child, { bornAtDays, nicu }), { goal: settings.calorieGoal ?? null, fortify: settings.fortify ?? null }) : null),
-    [events, growth.data, child, prefs.units, settings.sex, settings.weightGoalGPerDay, settings.weightGoalSince, settings.calorieGoal, settings.fortify, bornAtDays, nicu, days, now],
+    () => (child ? buildDoctorReport(events, growth.data, child, prefs.units, settings.sex ?? null, settings.weightGoalGPerDay, Number(days), now, settings.weightGoalSince, ageBasis(child, { bornAtDays, nicu }), calorieTracking(settings)) : null),
+    [events, growth.data, child, prefs.units, settings.sex, settings.weightGoalGPerDay, settings.weightGoalSince, settings, bornAtDays, nicu, days, now],
   )
   if (!child || !report) return null
   const text = reportText(report)

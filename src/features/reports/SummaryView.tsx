@@ -31,8 +31,9 @@ import { comparePumps, pumpOf } from '../../lib/pumps'
 import { SUPPLY_SPAN, supplyTrend, supplyVerdict, supplyWindowLine } from '../../lib/supply'
 import { checkDetail, checkRate, checkTally, DAY_TO_DAY_SWING_G, formatGrams, formatPerDay, gainVerdict, MISSES_IN_A_ROW, stepCompares, stepNoiseNote, weekBesideGoal, weightChecks, weightGain } from '../../lib/weight-gain'
 import { PumpChart } from './PumpChart'
-import { dayCalories, judgeCalories, mlForGoal, TYPICAL_KCAL_PER_KG, weightForDay } from '../../lib/calories'
+import { calorieTracking, dayCalories, judgeCalories, mlForGoal, TYPICAL_KCAL_PER_KG, weightForDay, type CalorieTracking } from '../../lib/calories'
 import { MILK_KCAL_PER_OZ, strengthText, type FortifySettings } from '../../lib/fortify'
+import { ML_PER_OZ } from '../../lib/units'
 import { nicuPumping } from '../../lib/nicu-pumping'
 import { averagedDays, clockRange, diaperSplit, fullDayAverage, keepToRange, LB_STEPS, ozRange, ozText, volumeRange, weightTick } from './format'
 import '../more/pumps.css'
@@ -141,7 +142,7 @@ export function SummaryView({ events, child, now, span, onSpan, filters, cat, on
       {shown === 'medicine' ? <ListSummary title="Medicine" rows={ranged.medication.map((m) => ({ id: m.id, when: m.time, text: `${m.name} · ${m.dosage} ${m.dosage_unit}` }))} /> : null}
       {shown === 'temperature' ? <TemperatureSummary events={ranged} unit={prefs.units.temp} ageMonths={ctx.ageMonths} /> : null}
       {shown === 'milestones' ? <ListSummary title="Milestones" rows={events.milestones.map((m) => ({ id: m.id, when: m.date, text: `${m.title}${m.category ? ` · ${MILESTONE_CATEGORY[m.category] ?? m.category}` : ''}` }))} /> : null}
-      {shown === 'feed' ? <FeedSummary days={days} events={events} label={label} unit={prefs.units.volume} ageMonths={ctx.ageMonths} dayOfLife={ctx.dayOfLife} hold={ctx.hold} now={now} weights={growth.data?.weights ?? []} name={child.first_name} calorieGoal={settings.calorieGoal ?? null} fortify={settings.fortify ?? null} /> : null}
+      {shown === 'feed' ? <FeedSummary days={days} events={events} label={label} unit={prefs.units.volume} ageMonths={ctx.ageMonths} dayOfLife={ctx.dayOfLife} hold={ctx.hold} now={now} weights={growth.data?.weights ?? []} name={child.first_name} tracking={calorieTracking(settings)} /> : null}
       {shown === 'diaper' ? <DiaperSummary days={days} summaries={summaries} changes={events.changes} label={label} dayOfLife={ctx.dayOfLife} hold={ctx.hold} now={now} /> : null}
       {shown === 'pump' ? <PumpSummary days={days} summaries={summaries} label={label} unit={prefs.units.volume} events={events} child={child} now={now} age={age} /> : null}
       {shown === 'growth' ? <GrowthSummary data={growth.data} loading={growth.isLoading} child={child} sex={settings.sex ?? null} age={age} /> : null}
@@ -198,7 +199,7 @@ function TypicalLine({ text, low = false, testId }: { text: string | null; /** U
   )
 }
 
-function FeedSummary({ days, events, label, unit, ageMonths, dayOfLife, hold, now, weights, name, calorieGoal, fortify }: { days: Date[]; events: EventSets; label: (d: Date) => string; unit: 'ml' | 'oz'; ageMonths: number; dayOfLife: number; hold: AgeHold; now: Date; weights: Weight[]; name: string; calorieGoal: number | null; fortify: FortifySettings | null }) {
+function FeedSummary({ days, events, label, unit, ageMonths, dayOfLife, hold, now, weights, name, tracking }: { days: Date[]; events: EventSets; label: (d: Date) => string; unit: 'ml' | 'oz'; ageMonths: number; dayOfLife: number; hold: AgeHold; now: Date; weights: Weight[]; name: string; tracking: CalorieTracking | null }) {
   const norm = feedingNormFor(ageMonths, dayOfLife)
   const perDay = days.map((d) => {
     const feeds = events.feedings.filter((f) => startOfDay(parseDate(f.start)).getTime() === d.getTime() && f.type !== 'solid food')
@@ -215,9 +216,10 @@ function FeedSummary({ days, events, label, unit, ageMonths, dayOfLife, hold, no
   // Held (the NICU sets the feeds): no amount by weight and no age row, only what was logged.
   const bw = hold ? null : byWeightView({ weights, name, unit, weightUnit: prefs.units.weight, ageMonths, dayOfLife, bottleMl: convertVolume(avg('bottle'), unit, 'ml'), nursing: used.some((i) => perDay[i].nursingMin > 0), feedsPerDay: avg('count'), days: used.length })
   const byWeight = Boolean(bw && 'band' in bw)
-  const cal = calorieView({ days, events, unit, weightUnit: prefs.units.weight, weights, now, goal: calorieGoal, fortify, hold, name })
-  // The doctor's number leads while calories are being raised; otherwise the calories sit after the feeds.
-  const calFirst = Boolean(cal && (calorieGoal || fortify))
+  // Only with calories switched on (Settings › Calories & fortifying), where they lead the card.
+  const calorieGoal = tracking?.goal ?? null
+  const cal = tracking ? calorieView({ days, events, unit, weightUnit: prefs.units.weight, weights, now, goal: calorieGoal, fortify: tracking.fortify, hold, name }) : null
+  const calFirst = Boolean(cal)
   const calTiles = cal ? (
     <>
       <Stat name="Calories / day" value={`${Math.round(cal.kcal)} kcal`} detail={cal.nursing ? 'bottles only' : cal.perFeed ? `about ${Math.round(cal.perFeed)} a bottle` : null} testId="kcal-per-day" />
@@ -308,7 +310,9 @@ function calorieView({ days, events, unit, weightUnit, weights, now, goal, forti
   const status = perKg !== null ? judgeCalories(perKg, goal, nursing) : null
   const latest = latestWeight(weights)
   const kg = latest ? convertWeight(latest.weight, weightUnit, 'kg') : null
-  const strength = fortify?.kcalPerOz ?? MILK_KCAL_PER_OZ
+  // What the bottles averaged (breast milk, formula and fortified as logged): the volume that reaches the goal at it.
+  const usedMl = used.reduce((s, i) => s + byDay[i].ml, 0)
+  const strength = usedMl > 0 ? (used.reduce((s, i) => s + byDay[i].kcal, 0) / usedMl) * ML_PER_OZ : (fortify?.kcalPerOz ?? MILK_KCAL_PER_OZ)
   const vol = (ml: number) => formatVolume(convertVolume(ml, 'ml', unit), unit)
   const parts: string[] = []
   if (goal && perKg !== null && nursing) parts.push(`Nursing is not measured, so bottles alone cannot show whether ${name} reaches the doctor's ${goal} kcal/kg.`)

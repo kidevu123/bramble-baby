@@ -12,6 +12,7 @@ import { BagRow, StashKey } from './BagRow'
 import { NicuTripSheet } from './NicuTripSheet'
 import { NightBottlesSheet } from './NightBottlesSheet'
 import { FortifyCard } from './FortifyCard'
+import { calorieTracking } from '../../lib/calories'
 import { stashCounts } from './stash-counts'
 import { useAutoPrint } from '../../hooks/useAutoPrint'
 import { useChildren } from '../../hooks/useChildren'
@@ -77,6 +78,8 @@ export function MilkPage() {
   const range = useMemo(() => rangeDays(14, now), [dayKey]) // eslint-disable-line react-hooks/exhaustive-deps
   const events = useChildEvents(child?.id ?? null, range)
   const { settings } = useChildSettings(child?.id ?? null)
+  // Calories switched on (Settings › Calories & fortifying) with a fortification: the recipe card and fortified premade bottles.
+  const tracking = calorieTracking(settings)
   const runway = useMemo(() => stashRunway(bags, events.feedings, events.pumping, prefs.units.volume, settings.stashGoalDays, now), [bags, events.feedings, events.pumping, prefs.units.volume, settings.stashGoalDays, now])
   const sections = useMemo(() => stashSections(bags, now), [bags, now])
   // In the NICU (Settings › Born early): the milk is taken in, not fed at home. The card says what went in and
@@ -330,7 +333,7 @@ export function MilkPage() {
         ) : null}
 
         {/* Fortifying (Settings › Calories & fortifying): the recipe beside the bottles it goes into. */}
-        {settings.fortify ? <FortifyCard fortify={settings.fortify} unit={unit} /> : null}
+        {tracking?.fortify ? <FortifyCard fortify={tracking.fortify} unit={unit} /> : null}
 
         {stash.isLoading ? <p className="small muted">Loading…</p> : null}
         {!stash.isLoading && sections.length === 0 ? (
@@ -463,7 +466,7 @@ export function MilkPage() {
         ) : null}
       </Sheet>
       <NicuTripSheet open={trip} child={child.id} candidates={toTake} birth={child.birth_date} unit={unit} now={now} onClose={() => setTrip(false)} />
-      <NightBottlesSheet open={making} child={child.id} bags={bags} unit={unit} now={now} typical={typical} fortify={settings.fortify ?? null} onClose={() => setMaking(false)} />
+      <NightBottlesSheet open={making} child={child.id} bags={bags} unit={unit} now={now} typical={typical} fortify={tracking?.fortify ?? null} onClose={() => setMaking(false)} />
       <LogSheet request={request} child={child} names={names} onClose={() => setRequest(null)} />
       <MilkLabelSheet
         open={reprint !== null || adding}
