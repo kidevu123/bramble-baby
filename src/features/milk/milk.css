@@ -765,12 +765,7 @@
   vertical-align: 2px;
 }
 
-/* Stash › Fortify recipe (while fortifying). */
-.fortify-head { align-items: baseline; gap: 8px; }
-.fortify-head h3 { margin: 0; }
-.fortify-calc { flex-direction: column; align-items: stretch; gap: var(--space-2); }
-.fortify-out { margin: 0; line-height: 1.35; }
-.fortify-sub { display: block; }
+/* The fortify recipe chart (RecipeFold in the mixing sheets, Settings › Calories & fortifying). */
 .fortify-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
 .fortify-table th { text-align: left; font-weight: 600; color: var(--text-muted); padding: 4px 0; border-bottom: 1px solid var(--line); }
 .fortify-table td { padding: 6px 0; border-bottom: 1px solid var(--line); }

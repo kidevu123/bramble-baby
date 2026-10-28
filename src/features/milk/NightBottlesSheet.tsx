@@ -11,6 +11,7 @@ import type { Id } from '../../lib/api/types'
 import { bagStamp, expectedExpiry, formatMl, freeSpots, newClientKey, NIGHT_SPOTS, nightBottleSources, planNightBottles, toMl } from '../../lib/milk'
 import { parseDate } from '../../lib/time'
 import { volumeLabel, type VolumeUnit } from '../../lib/units'
+import { RecipeFold } from './Recipe'
 import { FORTIFIED_KEEP_HOURS, recipeFor, recipeText, strengthText, type FortifySettings } from '../../lib/fortify'
 import { ValueField } from '../log/LogFields'
 import './milk.css'
@@ -186,6 +187,7 @@ export function NightBottlesSheet({ open, child, bags, unit, now, typical, forti
               : "Each bottle is good until its oldest milk's fridge time ends."}{' '}
             At night, open Bottle and tap its spot; she drinks what she drinks and the rest is thrown away.
           </p>
+          {mix ? <RecipeFold fortify={mix} unit={unit} /> : null}
           {make.isError ? (
             <p className="log-error" role="alert">
               {describeApiError(make.error)}

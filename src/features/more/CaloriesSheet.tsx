@@ -12,12 +12,12 @@ import { calorieTracking, TYPICAL_KCAL_PER_KG, type CalorieTracking } from '../.
 import type { ChildSettings } from '../../lib/api/companion'
 import { FORMULA_KCAL_PER_OZ, POWDERS, recipeFor, recipeText, STRENGTHS, strengthText, validStrength, type FortifySettings, type FortifyWith } from '../../lib/fortify'
 import { convertVolume, formatVolume } from '../../lib/units'
-import { RecipeChart } from '../milk/FortifyCard'
+import { RecipeChart } from '../milk/Recipe'
 import '../milk/milk.css'
 
 /**
  * Settings › Calories & fortifying: the calories a day per kilogram the pediatrician asked for, and the household's
- * fortification (strength, formula or concentrate, which powder). Shared per child; the Stash tab shows the recipe,
+ * fortification (strength, formula or concentrate, which powder). Shared per child; the mixing sheets fold the recipe in,
  * log sheets mark fortified bottles with their strength, Reports › Feeding counts the calories.
  */
 export function CaloriesSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -118,7 +118,7 @@ function CaloriesEditor({ name, tracking, goal, fortify, formulaKcal, onSave }: 
               <TextField label="Started on" type="date" value={since} max={format(new Date(), 'yyyy-MM-dd')} onChange={(e) => touch(setSince)(e.target.value)} />
               {preview ? (
                 <p className="small" data-testid="fortify-preview">
-                  {formatVolume(convertVolume(sample, 'ml', unit), unit)} of breast milk + <span className="strong">{recipeText(preview)}</span> makes about {strengthText(preview.kcalPerOz)}. The chart below is the same recipe for common amounts; the Stash tab works it out for any amount.
+                  {formatVolume(convertVolume(sample, 'ml', unit), unit)} of breast milk + <span className="strong">{recipeText(preview)}</span> makes about {strengthText(preview.kcalPerOz)}. The chart below is the same recipe for common amounts; a fortified bottle and Make premade bottles work it out for the amount you pour.
                 </p>
               ) : null}
               {draft && !problem ? <RecipeChart fortify={draft} unit={unit} /> : null}

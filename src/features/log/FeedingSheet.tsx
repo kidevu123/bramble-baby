@@ -28,6 +28,7 @@ import { useUnitBoundary } from '../../hooks/useStorageUnits'
 import { timerKind, useTimerActions } from '../timer/useTimerActions'
 import { useChildSettings } from '../../hooks/useChildSettings'
 import { calorieTracking, feedKcal, kcalOf, kcalTag, strengthToSave, withKcalTag } from '../../lib/calories'
+import { RecipeFold } from '../milk/Recipe'
 import { recipeFor, recipeText, strengthText, type FortifySettings } from '../../lib/fortify'
 
 type Mode = 'nursing' | 'bottle'
@@ -451,6 +452,8 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
       ) : null}
 
       <NoteField value={notes} onChange={setNotes} />
+      {/* The recipe for any other amount, folded under everything else (a fortified bottle not poured from a premade one). */}
+      {mode === 'bottle' && milk === 'fortified breast milk' && !pickedKcal && tracking?.fortify ? <RecipeFold fortify={tracking.fortify} unit={unit} /> : null}
 
       <SheetFooter
         busy={busy}
@@ -497,7 +500,7 @@ function CaloriesLine({ milk, amount, unit, strength, mix }: { milk: FeedingType
       {recipe ? (
         <p className="small calories-line" data-testid="bottle-mix">
           {recipe.tooSmall ? (
-            `Too little milk to measure ${strengthText(mix!.kcalPerOz)} for; mix a bigger batch (the Stash tab has the recipe).`
+            `Too little milk to measure ${strengthText(mix!.kcalPerOz)} for; mix a bigger batch (the recipe chart is below).`
           ) : (
             <>
               To mix {formatVolume(amount, unit)}: add <span className="strong">{recipeText(recipe)}</span>

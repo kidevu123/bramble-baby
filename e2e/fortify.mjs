@@ -1,7 +1,7 @@
 /**
  * Calories and fortified breast milk. Settings › Calories & fortifying takes the doctor's goal (kcal per kg a day) and
- * the fortification (24 kcal/oz with formula powder); the Stash tab then has the recipe for any amount; premade
- * bottles can be made fortified (24 hours from mixing, the strength on the spot); a fortified bottle logged from the
+ * the fortification (22 kcal/oz with Bobbie); the recipe chart is folded into the sheets where milk is mixed (not the
+ * Stash tab); premade bottles can be made fortified (24 hours from mixing, the strength on the spot); a fortified bottle logged from the
  * bottle sheet says its calories and keeps its strength as a `kcal:24` tag; Reports › Feeding leads with the calories
  * a day and per kg against the goal.
  *   MOCK_BB=http://127.0.0.1:<bb-port> node e2e/fortify.mjs <out-dir> <base-url> [light|dark]
@@ -138,23 +138,13 @@ check('the row now says on, the strength, the powder and the goal', /On · 22 kc
 const stored = (await companion('GET', `/settings/${child.id}`)).body
 check('… shared on the server for every phone', stored.caloriesOn === true && stored.formulaKcalPerOz === 22 && stored.calorieGoal === 150 && stored.fortify?.kcalPerOz === 22 && stored.fortify?.powder === 'bobbie' && stored.fortify?.with === 'powder', JSON.stringify(stored.fortify))
 
-// ---- Stash: the recipe for any amount
+// ---- Stash: no recipe card (the recipe lives, folded, where milk is mixed)
 const bags = []
 for (const [ml, key] of [[120, 'a'], [100, 'b']]) bags.push((await companion('POST', '/milk', { child: child.id, pumped_at: new Date(Date.now() - 5 * HOUR).toISOString(), volume_ml: ml, location: 'fridge', client_key: `fortify-${key}-${Date.now()}` })).body)
 await page.goto(BASE + '/milk')
 await settle(1200)
-const card = page.getByTestId('fortify-card')
-check('the Stash tab has the recipe card while fortifying', (await card.count()) === 1 && /Fortify to 22 kcal\/oz Bobbie · level, unpacked/.test(squash(await card.innerText())))
-await card.getByRole('spinbutton', { name: 'Breast milk in mL' }).fill('150')
-await settle(200)
-check('… 150 mL takes 1¼ teaspoons (2.2 g) of Bobbie', /^Add 1¼ teaspoons \(2\.2 g\) of Bobbie makes 15\d mL at about 2[12]\.\d kcal\/oz/.test(squash(await card.getByTestId('fortify-out').innerText())), squash(await card.getByTestId('fortify-out').innerText()))
-await card.getByRole('spinbutton', { name: 'Breast milk in mL' }).fill('10')
-await settle(200)
-check('… too little milk to measure says the smallest batch', /Too little to measure accurately: mix at least \d+ mL at a time/.test(squash(await card.getByTestId('fortify-out').innerText())), squash(await card.getByTestId('fortify-out').innerText()))
-check('… with the chart of common amounts, spoons and grams: 60 mL is ½ teaspoon (0.9 g)', (await card.locator('tbody tr').count()) === 6 && squash(await card.locator('tbody tr').first().innerText()) === '60 mL ½ teaspoon · 0.9 g', squash(await card.locator('tbody tr').first().innerText()))
+check('the Stash tab carries no recipe card or chart while fortifying', (await page.getByTestId('fortify-card').count()) === 0 && (await page.getByTestId('recipe-fold').count()) === 0 && (await page.getByRole('table', { name: 'Recipe for common amounts' }).count()) === 0)
 check('nothing wider than the screen on the Stash tab', !(await overflow()))
-await card.scrollIntoViewIfNeeded()
-await shot('stash-card')
 
 // ---- premade bottles, fortified: the recipe per bottle, 24 hours from mixing
 await page.getByTestId('night-bottles').getByRole('button', { name: 'Make premade bottles' }).click()
@@ -166,7 +156,17 @@ check('the make sheet fortifies by default, at the household strength', (await s
 const planText = squash(await sheet().getByTestId('night-plan').innerText())
 check('… each bottle says what to stir in', (planText.match(/Add ¾ teaspoon \(1\.3 g\) of Bobbie → 2[12]\.\d kcal\/oz/g) ?? []).length === 2, planText)
 check('… and that it keeps 24 hours from mixing', /Fortified bottles keep 24 hours from now/.test(await sheet().innerText()))
+const makeFold = sheet().getByTestId('recipe-fold')
+check('… with the recipe chart folded at the bottom, closed', (await makeFold.count()) === 1 && (await makeFold.getAttribute('open')) === null && /Recipe chart · 22 kcal\/oz with Bobbie/.test(squash(await makeFold.innerText())), (await makeFold.count()) ? squash(await makeFold.innerText()) : 'missing')
 await shot('make-fortified')
+await makeFold.locator('summary').click()
+await settle(300)
+check('… one tap opens the chart of common amounts, spoons and grams: 60 mL is ½ teaspoon (0.9 g)', (await makeFold.locator('tbody tr').count()) === 6 && squash(await makeFold.locator('tbody tr').first().innerText()) === '60 mL ½ teaspoon · 0.9 g', squash(await makeFold.locator('tbody tr').first().innerText()))
+check('… 150 mL is 1¼ teaspoons (2.2 g)', squash(await makeFold.locator('tbody tr').nth(3).innerText()) === '150 mL 1¼ teaspoons · 2.2 g', squash(await makeFold.locator('tbody tr').nth(3).innerText()))
+check('nothing wider than the screen in the make sheet', !(await overflow()))
+await makeFold.scrollIntoViewIfNeeded()
+await shot('make-fold-open')
+await makeFold.locator('summary').click()
 await sheet().getByRole('button', { name: 'Make 2 bottles' }).click()
 await settle(1500)
 const made = (await companion('GET', `/milk?child=${child.id}&status=stored`)).body.filter((b) => b.kind === 'bottle')
@@ -188,7 +188,7 @@ await settle(500)
 check('picking the fortified bottle makes the feed Fortified', (await sheet().getByRole('radio', { name: 'Fortified' }).getAttribute('aria-checked')) === 'true')
 await sheet().getByRole('spinbutton', { name: 'Amount in mL' }).fill('60')
 await settle(300)
-check('… and says its calories at the bottle strength (60 mL at 22: 45 kcal), no mixing line (it is mixed)', (await sheet().getByTestId('bottle-mix').count()) === 0 && /^About 45 kcal · 22 kcal\/oz$/.test(squash(await sheet().getByTestId('bottle-kcal').innerText())), squash(await sheet().getByTestId('bottle-kcal').innerText()))
+check('… and says its calories at the bottle strength (60 mL at 22: 45 kcal), no mixing line or recipe chart (it is mixed)', (await sheet().getByTestId('bottle-mix').count()) === 0 && (await sheet().getByTestId('recipe-fold').count()) === 0 && /^About 45 kcal · 22 kcal\/oz$/.test(squash(await sheet().getByTestId('bottle-kcal').innerText())), squash(await sheet().getByTestId('bottle-kcal').innerText()))
 await shot('bottle-sheet')
 await sheet().getByRole('button', { name: 'Save', exact: true }).click()
 await settle(1500)
@@ -201,7 +201,15 @@ await sheet().getByRole('radio', { name: 'Fortified', exact: true }).click()
 await sheet().getByRole('spinbutton', { name: 'Amount in mL' }).fill('90')
 await settle(300)
 check('a new fortified bottle says how to mix it: 90 mL takes ¾ teaspoon (1.3 g) of Bobbie', /^To mix 90 mL: add ¾ teaspoon \(1\.3 g\) of Bobbie$/.test(squash(await sheet().getByTestId('bottle-mix').innerText())), (await sheet().getByTestId('bottle-mix').count()) ? squash(await sheet().getByTestId('bottle-mix').innerText()) : 'missing')
+const feedFold = sheet().getByTestId('recipe-fold')
+check('… with the recipe chart folded under the note, closed', (await feedFold.count()) === 1 && (await feedFold.getAttribute('open')) === null)
 await shot('bottle-mix')
+await feedFold.locator('summary').click()
+await settle(300)
+check('… which opens to the six common amounts', (await feedFold.locator('tbody tr').count()) === 6)
+await sheet().getByRole('radio', { name: 'Breast milk', exact: true }).click()
+await settle(200)
+check('… and goes away for plain breast milk', (await sheet().getByTestId('recipe-fold').count()) === 0)
 await page.keyboard.press('Escape')
 await settle(500)
 // a formula bottle takes the household's formula strength (22) as its tag

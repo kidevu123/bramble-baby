@@ -11,7 +11,6 @@ import { volumeLabel } from '../../lib/units'
 import { BagRow, StashKey } from './BagRow'
 import { NicuTripSheet } from './NicuTripSheet'
 import { NightBottlesSheet } from './NightBottlesSheet'
-import { FortifyCard } from './FortifyCard'
 import { calorieTracking } from '../../lib/calories'
 import { stashCounts } from './stash-counts'
 import { useAutoPrint } from '../../hooks/useAutoPrint'
@@ -78,7 +77,7 @@ export function MilkPage() {
   const range = useMemo(() => rangeDays(14, now), [dayKey]) // eslint-disable-line react-hooks/exhaustive-deps
   const events = useChildEvents(child?.id ?? null, range)
   const { settings } = useChildSettings(child?.id ?? null)
-  // Calories switched on (Settings › Calories & fortifying) with a fortification: the recipe card and fortified premade bottles.
+  // Calories switched on (Settings › Calories & fortifying) with a fortification: fortified premade bottles (the recipe is folded in their sheet).
   const tracking = calorieTracking(settings)
   const runway = useMemo(() => stashRunway(bags, events.feedings, events.pumping, prefs.units.volume, settings.stashGoalDays, now), [bags, events.feedings, events.pumping, prefs.units.volume, settings.stashGoalDays, now])
   const sections = useMemo(() => stashSections(bags, now), [bags, now])
@@ -331,9 +330,6 @@ export function MilkPage() {
             ) : null}
           </section>
         ) : null}
-
-        {/* Fortifying (Settings › Calories & fortifying): the recipe beside the bottles it goes into. */}
-        {tracking?.fortify ? <FortifyCard fortify={tracking.fortify} unit={unit} /> : null}
 
         {stash.isLoading ? <p className="small muted">Loading…</p> : null}
         {!stash.isLoading && sections.length === 0 ? (

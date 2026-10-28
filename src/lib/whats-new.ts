@@ -12,6 +12,13 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.53.2',
+    date: 'Oct 28',
+    items: [
+      'The fortify recipe left the Stash tab. It now sits folded at the bottom of Make premade bottles and of a fortified bottle: tap "Recipe chart" to open it.',
+    ],
+  },
+  {
     version: '1.53.1',
     date: 'Oct 28',
     items: [
