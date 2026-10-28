@@ -53,6 +53,12 @@ export interface LabelPrefs {
    * prints the label at once, no label sheet needed (the sheet stays for a reprint).
    */
   autoPrint: boolean
+  /**
+   * With a printer on the Bramble server: a bag moved into the freezer, or out of it to thaw, gets a new label at
+   * once. Into the freezer the label is the same one (for milk poured into a freezer bag, or a sticker the fridge
+   * spoiled); out of it the label changes, THAWED MILK with use-by times counted from the thaw.
+   */
+  reprintOnFreezer: boolean
   /** True once a size was picked in Settings; until then the old default (50 × 30) moves to 51 × 38 by itself. */
   sizeChosen: boolean
   /**
@@ -76,6 +82,7 @@ export const DEFAULT_LABEL_PREFS: LabelPrefs = {
   showNotes: false,
   bothUnits: true,
   autoPrint: true,
+  reprintOnFreezer: true,
   sizeChosen: false,
   dayNight: true,
   // Milk melatonin rises in the evening and is highest in the small hours; cortisol peaks soon after waking.

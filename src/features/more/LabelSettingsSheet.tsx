@@ -24,6 +24,7 @@ export function LabelSettingsSheet({ open, onClose }: { open: boolean; onClose: 
   const { update: updateShared } = useChildSettings(child?.id ?? null)
   const printer = usePrinterStatus()
   const setAutoPrint = (autoPrint: boolean) => update({ labels: { ...prefs.labels, autoPrint } })
+  const setReprintOnFreezer = (reprintOnFreezer: boolean) => update({ labels: { ...prefs.labels, reprintOnFreezer } })
   const configured = Boolean(printer.data?.configured)
   return (
     <Sheet open={open} title="Milk labels & printer" onClose={onClose}>
@@ -55,6 +56,15 @@ export function LabelSettingsSheet({ open, onClose }: { open: boolean; onClose: 
                 <span className="small muted">Type the volume, tap Save: the sticker prints. Reprint from the label or the Stash.</span>
               </span>
               <Toggle label="Print when a pumping is saved" checked={prefs.labels.autoPrint} onChange={setAutoPrint} />
+            </div>
+          ) : null}
+          {configured ? (
+            <div className="ls-row ls-auto">
+              <span className="grow ls-row-text">
+                Print a new label for the freezer
+                <span className="small muted">When a bag goes into the freezer, or comes out to thaw (its label then says THAWED).</span>
+              </span>
+              <Toggle label="Print a new label for the freezer" checked={prefs.labels.reprintOnFreezer} onChange={setReprintOnFreezer} />
             </div>
           ) : null}
         </section>

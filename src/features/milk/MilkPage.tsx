@@ -12,6 +12,7 @@ import { BagRow, StashKey } from './BagRow'
 import { NicuTripSheet } from './NicuTripSheet'
 import { NightBottlesSheet } from './NightBottlesSheet'
 import { stashCounts } from './stash-counts'
+import { useAutoPrint } from '../../hooks/useAutoPrint'
 import { useChildren } from '../../hooks/useChildren'
 import { useChildSettings } from '../../hooks/useChildSettings'
 import { rangeDays, useChildEvents } from '../../hooks/useEvents'
@@ -104,6 +105,7 @@ export function MilkPage() {
     return amounts.length ? amounts[Math.floor(amounts.length / 2)] : null
   }, [events.feedings])
 
+  const { reprintMoved } = useAutoPrint()
   const patch = useMutation({
     mutationFn: ({ id, body }: { id: number; body: Parameters<typeof companion.milk.update>[1] }) => companion.milk.update(id, { ...body, windows }),
     onSuccess: () => {
@@ -411,7 +413,11 @@ export function MilkPage() {
             onUndo={() => patch.mutate({ id: selected.id, body: { status: 'stored' } })}
             onUnmake={() => unmake.mutate(selected.id)}
             onBottle={() => startBottle(selected)}
-            onMove={(location, at) => patch.mutate({ id: selected.id, body: at ? { location, moved_at: at.toISOString() } : { location } })}
+            onMove={(location, at) => {
+              const from = selected.location
+              // Into the freezer or out of it to thaw: a new label prints when Settings asks for it (reprintOnMoveWanted).
+              patch.mutate({ id: selected.id, body: at ? { location, moved_at: at.toISOString() } : { location } }, { onSuccess: (moved) => void reprintMoved(child, moved, from) })
+            }}
             onDiscard={() => patch.mutate({ id: selected.id, body: { status: 'discarded' } })}
             onUsedElsewhere={() => patch.mutate({ id: selected.id, body: { status: 'used' } })}
             onSetLeft={(ml) => patch.mutate({ id: selected.id, body: { remaining_ml: ml } })}

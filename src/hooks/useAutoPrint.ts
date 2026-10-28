@@ -2,8 +2,8 @@ import { useCallback } from 'react'
 import { describeApiError } from '../lib/api/client'
 import { companion, type MilkBag, type MilkLocation } from '../lib/api/companion'
 import type { Child, Pumping } from '../lib/api/types'
-import { autoPrintWanted, blobToBase64, labelInputFor, renderLabelBlob } from '../lib/auto-print'
-import { toMl } from '../lib/milk'
+import { autoPrintWanted, blobToBase64, labelInputFor, labelInputForBag, renderLabelBlob, reprintOnMoveWanted } from '../lib/auto-print'
+import { bagVolume, toMl } from '../lib/milk'
 import { beginPrintNotice, updatePrintNotice } from '../lib/print-notice'
 import { toIso } from '../lib/time'
 import { volumeLabel } from '../lib/units'
@@ -52,5 +52,25 @@ export function useAutoPrint() {
     },
     [prefs.labels, printerConfigured, unit, windows, invalidateMilk],
   )
-  return { enabled, run }
+
+  /**
+   * A bag that has just moved (`bag` as the server returned it, `from` where it was): a new label when it went into
+   * the freezer or came out of it to thaw, and the phone asked for that. The PrintNotice says what became of it.
+   */
+  const reprintMoved = useCallback(
+    async (child: Child, bag: MilkBag, from: MilkLocation): Promise<void> => {
+      if (!reprintOnMoveWanted({ prefs: prefs.labels, printerConfigured, from, to: bag.location })) return
+      const id = beginPrintNotice(bagVolume(bag, unit))
+      updatePrintNotice(id, { bagCode: bag.code })
+      try {
+        const blob = await renderLabelBlob(labelInputForBag(child, bag, unit), prefs.labels)
+        const res = await companion.print.label(await blobToBase64(blob), bag.code)
+        updatePrintNotice(id, { state: 'sent', job: res.job })
+      } catch (err) {
+        updatePrintNotice(id, { state: 'failed', error: describeApiError(err) })
+      }
+    },
+    [prefs.labels, printerConfigured, unit],
+  )
+  return { enabled, run, reprintMoved }
 }

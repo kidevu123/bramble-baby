@@ -12,6 +12,11 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.50.0',
+    date: 'Oct 28',
+    items: ['Moving a bag into the freezer prints its label again, and thawing one prints a new THAWED label with the right use-by times. Turn it off in Settings › Milk labels & printer.'],
+  },
+  {
     version: '1.49.1',
     date: 'Oct 28',
     items: ['Housekeeping for the public release of Bramble\'s code. Nothing changes in how the app works, and your settings carry over.'],
