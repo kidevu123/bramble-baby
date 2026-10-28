@@ -64,7 +64,11 @@
 }
 .sheet-body {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  /* A swipe at the end of the sheet stays in the sheet (iOS otherwise hands it to the page behind). */
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
   padding: var(--space-4) var(--space-4) var(--space-8);
   display: flex;
   flex-direction: column;

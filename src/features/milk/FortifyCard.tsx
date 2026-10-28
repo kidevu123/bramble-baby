@@ -41,25 +41,7 @@ export function FortifyCard({ fortify, unit }: { fortify: FortifySettings; unit:
           )}
         </p>
       </div>
-      <table className="fortify-table" aria-label="Recipe for common amounts">
-        <thead>
-          <tr>
-            <th scope="col">Breast milk</th>
-            <th scope="col">{fortify.with === 'concentrate' ? 'Concentrate' : 'Powder · or weigh it'}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {AMOUNTS[unit].map((a) => {
-            const r = recipeFor(convertVolume(a, unit, 'ml'), fortify)
-            return (
-              <tr key={a}>
-                <td>{formatVolume(a, unit)}</td>
-                <td>{r.tooSmall ? <span className="muted">too little to measure</span> : r.with === 'concentrate' ? `${r.addMl} mL` : `${r.spoons} · ${gramsText(r.scaleGrams)}${r.scoops ? ` · ${r.scoops}` : ''}`}</td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
+      <RecipeChart fortify={fortify} unit={unit} />
       <About label="How to mix it">
         <p>Wash your hands and the top of the can. Warm the milk to room temperature (powder clumps in cold milk), measure it in a clear cup at eye level, add level, unpacked spoons and shake gently.</p>
         <p>A kitchen scale that reads 0.1 g is more exact than spoons (Bobbie advises weighing its powder): set the cup on it, zero it, and add the grams shown. With scoops, use only the scoop from the can.</p>
@@ -67,5 +49,31 @@ export function FortifyCard({ fortify, unit }: { fortify: FortifySettings; unit:
         <p>Never mix it stronger than the doctor asked. The recipe counts breast milk at 20 kcal/oz, as hospital charts do; set the strength in Settings › Calories & fortifying.</p>
       </About>
     </section>
+  )
+}
+
+/** The recipe for six common amounts, like a hospital's chart: spoons and grams (or mL of concentrate). Shown on the
+ *  Stash tab's card and in Settings › Calories & fortifying. */
+export function RecipeChart({ fortify, unit }: { fortify: FortifySettings; unit: VolumeUnit }) {
+  return (
+    <table className="fortify-table" aria-label="Recipe for common amounts">
+      <thead>
+        <tr>
+          <th scope="col">Breast milk</th>
+          <th scope="col">{fortify.with === 'concentrate' ? 'Concentrate' : 'Powder · or weigh it'}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {AMOUNTS[unit].map((a) => {
+          const r = recipeFor(convertVolume(a, unit, 'ml'), fortify)
+          return (
+            <tr key={a}>
+              <td>{formatVolume(a, unit)}</td>
+              <td>{r.tooSmall ? <span className="muted">too little to measure</span> : r.with === 'concentrate' ? `${r.addMl} mL` : `${r.spoons} · ${gramsText(r.scaleGrams)}${r.scoops ? ` · ${r.scoops}` : ''}`}</td>
+            </tr>
+          )
+        })}
+      </tbody>
+    </table>
   )
 }

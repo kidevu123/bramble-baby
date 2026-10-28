@@ -32,6 +32,29 @@ export function Sheet({ open, title, onClose, children, footer, action }: Props)
     }
   }, [open])
 
+  // iPhone: the on-screen keyboard shrinks the visible area but not the dialog, so the bottom of a long sheet (the
+  // bottle sheet's time and Save) sat under the keyboard where no scroll could reach it. While open, the sheet is
+  // sized to the visual viewport, so its body scrolls everything into view above the keyboard.
+  useEffect(() => {
+    const el = ref.current
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null
+    if (!el || !vv || !open) return
+    const fit = () => {
+      const covered = window.innerHeight - vv.height > 1
+      el.style.height = covered ? `${vv.height}px` : ''
+      el.style.top = covered ? `${vv.offsetTop}px` : ''
+    }
+    fit()
+    vv.addEventListener('resize', fit)
+    vv.addEventListener('scroll', fit)
+    return () => {
+      vv.removeEventListener('resize', fit)
+      vv.removeEventListener('scroll', fit)
+      el.style.height = ''
+      el.style.top = ''
+    }
+  }, [open])
+
   useEffect(() => {
     const el = ref.current
     if (!el) return

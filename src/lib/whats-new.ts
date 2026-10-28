@@ -12,6 +12,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.53.1',
+    date: 'Oct 28',
+    items: [
+      'Settings › Calories & fortifying shows the recipe chart for your formula and strength.',
+      'Fixed: with the keyboard up, the bottle sheet could not scroll down to the time and Save.',
+    ],
+  },
+  {
     version: '1.53.0',
     date: 'Oct 28',
     items: [
