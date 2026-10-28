@@ -564,6 +564,13 @@
 .spot.is-filled.state-expired .spot-vol {
   color: var(--red-text, var(--red));
 }
+/* A fortified bottle names its strength under the volume. */
+.spot-kcal {
+  font-size: var(--text-xs);
+  font-weight: var(--w-label);
+  color: var(--text);
+  white-space: nowrap;
+}
 
 /* Rearrange: a small link beside the count; the picked bottle lifts, the spots it can go to light up. */
 .spot-head-right {
@@ -757,3 +764,15 @@
   font-weight: 700;
   vertical-align: 2px;
 }
+
+/* Stash › Fortify recipe (while fortifying). */
+.fortify-head { align-items: baseline; gap: 8px; }
+.fortify-head h3 { margin: 0; }
+.fortify-calc { flex-direction: column; align-items: stretch; gap: var(--space-2); }
+.fortify-out { margin: 0; line-height: 1.35; }
+.fortify-sub { display: block; }
+.fortify-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.fortify-table th { text-align: left; font-weight: 600; color: var(--text-muted); padding: 4px 0; border-bottom: 1px solid var(--line); }
+.fortify-table td { padding: 6px 0; border-bottom: 1px solid var(--line); }
+.fortify-table td:first-child { width: 34%; font-variant-numeric: tabular-nums; }
+.night-plan-mix { font-weight: 600; }

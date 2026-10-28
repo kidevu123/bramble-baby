@@ -876,6 +876,34 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(self.call("POST", f"/milk/{bag['id']}/spot", {"spot": 3})[0], 400)
         self.assertEqual(self.call("POST", "/milk/999999/spot", {"spot": 3})[0], 404)
 
+    def test_a_fortified_premade_bottle_keeps_a_day_from_mixing_and_is_never_frozen(self):
+        a, b = self._bag(90), self._bag(60)
+        body = {"child": 1, "bottles": [{"spot": 1, "takes": [{"bag": a["id"], "amount_ml": 90}], "kcal_per_oz": 24, "added_ml": 3, "client_key": "fortified-bottle-01"}, {"spot": 2, "takes": [{"bag": b["id"], "amount_ml": 60}], "client_key": "plain-bottle-0001"}]}
+        status, (fortified, plain) = self.call("POST", "/milk/bottles", body)
+        self.assertEqual(status, 201)
+        self.assertEqual((fortified["kcal_per_oz"], plain["kcal_per_oz"], plain["mixed_at"]), (24, None, None))
+        # the bottle holds the milk and what the powder adds; the bag gave only its milk
+        self.assertEqual((fortified["volume_ml"], fortified["remaining_ml"]), (93, 93))
+        self.assertEqual(self.call("GET", f"/milk/{a['id']}")[1]["uses"][0]["amount_ml"], 90)
+        mixed = datetime.fromisoformat(fortified["mixed_at"])
+        self.assertLess(abs((mixed - datetime.now(timezone.utc)).total_seconds()), 60)
+        # a day from mixing, though its milk alone would keep four days; the plain one keeps the four
+        self.assertEqual(datetime.fromisoformat(fortified["expires_at"]) - mixed, timedelta(hours=24))
+        self.assertEqual(datetime.fromisoformat(plain["expires_at"]) - datetime.fromisoformat(plain["pumped_at"]), timedelta(days=4))
+        self.assertIn("Fortified to 24 kcal/oz", fortified["notes"])
+        # never frozen; out on the counter it keeps no longer than the day from mixing
+        status, out = self.call("PATCH", f"/milk/{fortified['id']}", {"location": "freezer"})
+        self.assertEqual(status, 400)
+        self.assertIn("not frozen", out["detail"])
+        moved = self.call("PATCH", f"/milk/{fortified['id']}", {"location": "room"})[1]
+        self.assertLessEqual(datetime.fromisoformat(moved["expires_at"]), mixed + timedelta(hours=24))
+        # a strength outside a home recipe is refused, nothing poured
+        c = self._bag(50)
+        status, out = self.call("POST", "/milk/bottles", {"child": 1, "bottles": [{"spot": 3, "takes": [{"bag": c["id"], "amount_ml": 50}], "kcal_per_oz": 40}]})
+        self.assertEqual(status, 400)
+        self.assertEqual(self.call("POST", "/milk/bottles", {"child": 1, "bottles": [{"spot": 3, "takes": [{"bag": c["id"], "amount_ml": 50}], "kcal_per_oz": 24, "added_ml": 40}]})[0], 400)
+        self.assertEqual(self.call("GET", f"/milk/{c['id']}")[1]["remaining_ml"], 50)
+
     def test_night_bottles_are_poured_from_bags_into_numbered_spots(self):
         a, b, d = self._bag(30), self._bag(60), self._bag(20)
         frozen = self._bag(100, location="freezer")

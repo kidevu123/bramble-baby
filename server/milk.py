@@ -91,7 +91,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS milk_uses_feeding ON milk_uses (bag, feeding_i
 # Columns added after the table first shipped. A database that already has bags in it gets them in place
 # (ALTER TABLE ... ADD COLUMN keeps every row; the new column is NULL on old bags).
 # `out_at`: when a bag moved out onto the counter (a bag pumped straight onto it has none: its time out starts at the pump).
-ADDED_COLUMNS = (("thawed_at", "TEXT"), ("client_key", "TEXT"), ("remaining_ml", "REAL"), ("kind", "TEXT"), ("spot", "INTEGER"), ("out_at", "TEXT"))
+ADDED_COLUMNS = (("thawed_at", "TEXT"), ("client_key", "TEXT"), ("remaining_ml", "REAL"), ("kind", "TEXT"), ("spot", "INTEGER"), ("out_at", "TEXT"), ("kcal_per_oz", "REAL"), ("mixed_at", "TEXT"))
 # The same for milk_uses: `into_bag` is the premade bottle a `combined` use poured the milk into.
 USE_ADDED_COLUMNS = (("into_bag", "INTEGER"),)
 # Indexes over added columns run after the columns exist: on an old table they would fail inside SCHEMA.
@@ -105,7 +105,7 @@ BACKFILL_REMAINING = "UPDATE milk_bags SET remaining_ml = CASE WHEN status='used
 
 LOCATIONS = ("room", "fridge", "freezer")
 STATUSES = ("stored", "used", "discarded")
-COLUMNS = ["id", "child", "code", "pumped_at", "volume_ml", "remaining_ml", "location", "thawed", "expires_at", "status", "pumping_id", "feeding_id", "notes", "created", "created_by", "used_at", "used_by", "thawed_at", "kind", "spot", "out_at"]
+COLUMNS = ["id", "child", "code", "pumped_at", "volume_ml", "remaining_ml", "location", "thawed", "expires_at", "status", "pumping_id", "feeding_id", "notes", "created", "created_by", "used_at", "used_by", "thawed_at", "kind", "spot", "out_at", "kcal_per_oz", "mixed_at"]
 USE_COLUMNS = ["id", "bag", "feeding_id", "amount_ml", "kind", "at", "by_user", "into_bag"]
 # What a use row records: a bottle made from the bag, milk used without a bottle (the rest of the bag), a hand
 # correction of the balance (a spill, a syringe, a misread), whose amount is negative when milk came back, or
@@ -127,6 +127,10 @@ OVER_TOLERANCE_ML = 3.0
 # CDC storage windows for freshly expressed milk, and for milk that has been thawed (never refreeze).
 FRESH_WINDOW = {"room": timedelta(hours=4), "fridge": timedelta(days=4), "freezer": timedelta(days=183)}
 THAWED_WINDOW = {"room": timedelta(hours=2), "fridge": timedelta(hours=24)}
+# Fortified milk (formula stirred into breast milk) keeps a day in the fridge from when it was mixed, and is never
+# frozen. A premade bottle mixed to a strength carries `kcal_per_oz` and `mixed_at`.
+FORTIFIED_WINDOW = timedelta(hours=24)
+FORTIFIED_KCAL = (21.0, 30.0)
 # How far ahead the "expiring" reminder fires, by location.
 LEAD = {"room": timedelta(hours=1), "fridge": timedelta(hours=12), "freezer": timedelta(days=7)}
 
@@ -157,6 +161,20 @@ def expiry_for(pumped_at: datetime, location: str, thawed: bool, since: datetime
     if windows:
         win.update(windows)
     return pumped_at + win.get(location, win["fridge"])
+
+
+def _clean_kcal(value) -> float | None:
+    """A premade bottle's strength when fortified (kcal per ounce), or None for plain milk."""
+    if value in (None, ""):
+        return None
+    kcal = _number(value)
+    if not FORTIFIED_KCAL[0] <= kcal <= FORTIFIED_KCAL[1]:
+        raise MilkError(f"A fortified bottle is mixed to {FORTIFIED_KCAL[0]:g}–{FORTIFIED_KCAL[1]:g} kcal/oz.")
+    return round(kcal, 1)
+
+
+def _kcal_text(kcal: float) -> str:
+    return f"{kcal:g}"
 
 
 def _number(value) -> float:
@@ -499,6 +517,8 @@ class MilkStore:
             if when > deadline + timedelta(minutes=1):
                 place = {"room": "out at room temperature", "fridge": "in the fridge", "freezer": "in the freezer"}[bag["location"]]
                 raise MilkError(f"It was {place} past {deadline.astimezone(self.zone()).strftime('%-I:%M %p')}, the end of its window there, so it cannot be moved now. Milk past its window should be thrown away.")
+        if moved and location == "freezer" and bag.get("mixed_at"):
+            raise MilkError("Fortified milk is not frozen. Keep it in the fridge and use it within 24 hours of mixing.")
         if moved:
             if bag["location"] == "freezer" and location != "freezer":
                 thawed = True  # out of the freezer means thawed: 24 h in the fridge, never refreeze
@@ -529,6 +549,8 @@ class MilkStore:
                 out = moved_at or datetime.now(timezone.utc)
                 updates["out_at"] = _iso(out)
                 expires = min(self.parse_iso(bag["expires_at"]), expiry_for(out, "room", thawed, since=out if thawed else None, windows=windows))
+            if bag.get("mixed_at"):
+                expires = min(expires, self.parse_iso(bag["mixed_at"]) + FORTIFIED_WINDOW)
             updates["expires_at"] = _iso(expires)
         # expires_at is always computed from pumped_at / thawed_at and the location; it is not writable.
         status = str(data.get("status") or bag["status"])
@@ -800,7 +822,7 @@ class MilkStore:
             raise ValueError("missing: bottles")
         if len(bottles) > SPOTS:
             raise MilkError(f"There are {SPOTS} spots, so at most {SPOTS} bottles at a time.")
-        plan: list[tuple[int, list[tuple[int, float]], str | None, str]] = []
+        plan: list[tuple[int, list[tuple[int, float]], str | None, str, float | None, float]] = []
         spots: set[int] = set()
         for b in bottles:
             if not isinstance(b, dict):
@@ -838,22 +860,29 @@ class MilkStore:
             # room window from the start: the room clock counts from the oldest milk's pumping.)
             if str(b.get("location") or "fridge") != "fridge":
                 raise MilkError("Premade bottles go in the fridge spots.")
-            plan.append((spot, parsed, _clean_client_key(b.get("client_key")), "fridge"))
+            kcal = _clean_kcal(b.get("kcal_per_oz"))
+            # What the fortifier adds to the bottle (concentrate, or the room powder takes up): in the bottle, not from a bag.
+            added = 0.0
+            if kcal is not None and b.get("added_ml") not in (None, ""):
+                added = round(_number(b.get("added_ml")), 2)
+                if not 0 <= added <= sum(ml for _, ml in parsed) * 0.5:
+                    raise ValueError("bad added_ml")
+            plan.append((spot, parsed, _clean_client_key(b.get("client_key")), "fridge", kcal, added))
         now = datetime.now(timezone.utc)
         with self.store.atomic():
             made: list[dict] = []
             todo = []
-            for spot, parsed, key, location in plan:
+            for spot, parsed, key, location, kcal, added in plan:
                 existing = self.by_client_key(child, key) if key else None
                 if existing:
                     made.append(existing)  # sent again: the milk already moved
                 else:
-                    todo.append((spot, parsed, key, location))
+                    todo.append((spot, parsed, key, location, kcal, added))
             if not todo:
                 return made
             taken = {r["spot"]: r for r in self.store.q("SELECT spot, remaining_ml FROM milk_bags WHERE child=? AND kind='bottle' AND status='stored' AND spot IS NOT NULL", (child,))}
             need: dict[int, float] = {}
-            for spot, parsed, _, _ in todo:
+            for spot, parsed, _, _, _, _ in todo:
                 if spot in taken:
                     raise MilkError(f"Spot {spot} already has a bottle ({describe_ml(taken[spot]['remaining_ml'])}). Feed it or discard it first.")
                 for bag_id, amount in parsed:
@@ -875,7 +904,7 @@ class MilkStore:
                 if amount > bag["remaining_ml"] + OVER_TOLERANCE_ML:
                     raise MilkError(f"Only {describe_ml(bag['remaining_ml'])} is left in bag {code}.")
                 bags[bag_id] = bag
-            for spot, parsed, key, location in todo:
+            for spot, parsed, key, location, kcal, added in todo:
                 sources = [(self.get(bag_id), amount) for bag_id, amount in parsed]
                 pours = [(bag, round(min(amount, bag["remaining_ml"]), 2)) for bag, amount in sources if bag]  # type: ignore[index]
                 pours = [(bag, ml) for bag, ml in pours if ml > 0]
@@ -885,15 +914,20 @@ class MilkStore:
                 thawed_from = [self.parse_iso(bag["thawed_at"]) for bag, _ in pours if bag["thawed"] and bag.get("thawed_at")]
                 thawed = any(bag["thawed"] for bag, _ in pours)
                 thawed_at = min(thawed_from) if thawed_from else (pumped if thawed else None)
-                volume = round(sum(ml for _, ml in pours), 2)
+                volume = round(sum(ml for _, ml in pours) + added, 2)
                 expires = expiry_for(pumped, location, thawed, since=thawed_at, windows=windows)
+                if kcal is not None:
+                    # Fortified: a day from mixing, never longer than its milk keeps.
+                    expires = min(expires, now + FORTIFIED_WINDOW)
                 code = self._fresh_code()
                 notes = "From " + ", ".join(f"{describe_ml(ml)} of bag {bag['code']}" for bag, ml in pours)
+                if kcal is not None:
+                    notes += f"\nFortified to {_kcal_text(kcal)} kcal/oz"
                 stamp = self.now_iso()
                 cur = self.store.x(
-                    "INSERT INTO milk_bags (child, code, pumped_at, volume_ml, remaining_ml, location, thawed, thawed_at, expires_at, status, client_key, notes, created, created_by, kind, spot)"
-                    " VALUES (?,?,?,?,?,?,?,?,?,'stored',?,?,?,?,'bottle',?)",
-                    (child, code, _iso(pumped), volume, volume, location, 1 if thawed else 0, _iso(thawed_at) if thawed_at else None, _iso(expires), key, notes, stamp, user_id, spot),
+                    "INSERT INTO milk_bags (child, code, pumped_at, volume_ml, remaining_ml, location, thawed, thawed_at, expires_at, status, client_key, notes, created, created_by, kind, spot, kcal_per_oz, mixed_at)"
+                    " VALUES (?,?,?,?,?,?,?,?,?,'stored',?,?,?,?,'bottle',?,?,?)",
+                    (child, code, _iso(pumped), volume, volume, location, 1 if thawed else 0, _iso(thawed_at) if thawed_at else None, _iso(expires), key, notes, stamp, user_id, spot, kcal, _iso(now) if kcal is not None else None),
                 )
                 bottle_id = cur.lastrowid
                 for bag, ml in pours:

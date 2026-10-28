@@ -2,6 +2,7 @@ import { useMutation } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '../../components/ui/Button'
 import { FieldGroup, PillChoice } from '../../components/ui/Field'
+import { Segmented } from '../../components/ui/Segmented'
 import { Sheet } from '../../components/ui/Sheet'
 import { useInvalidateMilk, useMilkWindows } from '../../hooks/useMilk'
 import { describeApiError } from '../../lib/api/client'
@@ -10,6 +11,7 @@ import type { Id } from '../../lib/api/types'
 import { bagStamp, expectedExpiry, formatMl, freeSpots, newClientKey, NIGHT_SPOTS, nightBottleSources, planNightBottles, toMl } from '../../lib/milk'
 import { parseDate } from '../../lib/time'
 import { volumeLabel, type VolumeUnit } from '../../lib/units'
+import { FORTIFIED_KEEP_HOURS, recipeFor, recipeText, strengthText, type FortifySettings } from '../../lib/fortify'
 import { ValueField } from '../log/LogFields'
 import './milk.css'
 
@@ -19,7 +21,7 @@ import './milk.css'
  * milk leaves the bags when they are made; at night, the bottle sheet offers the spots and a feed takes the whole
  * bottle. Bags can be left out with a tap; frozen milk is never used (thaw it in the fridge first).
  */
-export function NightBottlesSheet({ open, child, bags, unit, now, typical, onClose }: { open: boolean; child: Id; bags: MilkBag[]; unit: VolumeUnit; now: Date; /** A usual bottle in the phone unit (recent breast-milk bottles), for the size field. */ typical: number | null; onClose: () => void }) {
+export function NightBottlesSheet({ open, child, bags, unit, now, typical, fortify = null, onClose }: { open: boolean; child: Id; bags: MilkBag[]; unit: VolumeUnit; now: Date; /** A usual bottle in the phone unit (recent breast-milk bottles), for the size field. */ typical: number | null; /** The household's fortification (Settings › Calories & fortifying): offered, and on by default. */ fortify?: FortifySettings | null; onClose: () => void }) {
   const invalidate = useInvalidateMilk()
   const windows = useMilkWindows()
   const spots = useMemo(() => freeSpots(bags), [bags])
@@ -28,6 +30,7 @@ export function NightBottlesSheet({ open, child, bags, unit, now, typical, onClo
   const [sizeText, setSizeText] = useState('')
   const [count, setCount] = useState(1)
   const [left, setLeft] = useState<Set<Id>>(() => new Set())
+  const [fortified, setFortified] = useState<'plain' | 'fortified'>('plain')
   // One key per spot for this sitting: a retry (a dropped answer, a second tap) returns the bottles already made.
   const keys = useRef<Map<number, string>>(new Map())
   useEffect(() => {
@@ -37,6 +40,7 @@ export function NightBottlesSheet({ open, child, bags, unit, now, typical, onClo
     const total = all.reduce((s, b) => s + b.remaining_ml, 0)
     setCount(Math.max(1, Math.min(spots.length, Math.floor(total / Math.max(1, toMl(size, unit))) || 1)))
     setLeft(new Set())
+    setFortified(fortify ? 'fortified' : 'plain')
     keys.current = new Map()
     // Opening the sheet sets it up once; the stash ticking under it must not reset what was typed.
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -45,10 +49,13 @@ export function NightBottlesSheet({ open, child, bags, unit, now, typical, onClo
   const sizeMl = toMl(Number(sizeText) || 0, unit)
   const plan = sizeMl > 0 ? planNightBottles(sources, sizeMl, count, spots) : []
   const holds = sources.reduce((s, b) => s + b.remaining_ml, 0)
+  /** Mixed now when fortified: what to add to each bottle, and the day it keeps from now. */
+  const mix = fortified === 'fortified' && fortify ? fortify : null
   const goodUntil = (takes: { bag: MilkBag }[]) => {
     const pumped = Math.min(...takes.map((t) => parseDate(t.bag.pumped_at).getTime()))
     const thawed = takes.filter((t) => t.bag.thawed && t.bag.thawed_at).map((t) => parseDate(t.bag.thawed_at!).getTime())
-    return expectedExpiry({ pumpedAt: new Date(pumped), location: 'fridge', thawedAt: thawed.length ? new Date(Math.min(...thawed)) : null }, windows)
+    const milk = expectedExpiry({ pumpedAt: new Date(pumped), location: 'fridge', thawedAt: thawed.length ? new Date(Math.min(...thawed)) : null }, windows)
+    return mix ? new Date(Math.min(milk.getTime(), now.getTime() + FORTIFIED_KEEP_HOURS * 3_600_000)) : milk
   }
 
   const make = useMutation({
@@ -58,7 +65,10 @@ export function NightBottlesSheet({ open, child, bags, unit, now, typical, onClo
         windows,
         bottles: plan.map((p) => {
           if (!keys.current.has(p.spot)) keys.current.set(p.spot, newClientKey())
-          return { spot: p.spot, client_key: keys.current.get(p.spot)!, takes: p.takes.map((t) => ({ bag: t.bag.id, amount_ml: t.ml })) }
+          const base = { spot: p.spot, client_key: keys.current.get(p.spot)!, takes: p.takes.map((t) => ({ bag: t.bag.id, amount_ml: t.ml })) }
+          if (!mix) return base
+          const r = recipeFor(p.ml, mix)
+          return { ...base, kcal_per_oz: mix.kcalPerOz, added_ml: Math.max(0, Math.round((r.ml - p.ml) * 10) / 10) }
         }),
       }),
     onSuccess: () => {
@@ -99,6 +109,19 @@ export function NightBottlesSheet({ open, child, bags, unit, now, typical, onClo
           <div className="night-size">
             <ValueField label="Each bottle" unit={volumeLabel(unit)} name={`Each bottle in ${volumeLabel(unit)}`} type="number" inputMode="decimal" min={0} step={unit === 'oz' ? 0.5 : 5} value={sizeText} onChange={(e) => setSizeText(e.target.value)} />
           </div>
+          {fortify ? (
+            <FieldGroup title="Fortify">
+              <Segmented
+                label="Fortify these bottles"
+                options={[
+                  { value: 'fortified', label: `Fortified · ${fortify.kcalPerOz}` },
+                  { value: 'plain', label: 'Plain milk' },
+                ]}
+                value={fortified}
+                onChange={setFortified}
+              />
+            </FieldGroup>
+          ) : null}
           <FieldGroup title="How many">
             <PillChoice
               tone="purple"
@@ -122,6 +145,7 @@ export function NightBottlesSheet({ open, child, bags, unit, now, typical, onClo
                     <span className="xs muted">
                       {p.takes.map((t) => `${formatMl(t.ml, unit)} ${t.bag.code}`).join(' + ')} · good until {bagStamp(goodUntil(p.takes), now, { today: '' })}
                     </span>
+                    {mix ? <FortifyStep ml={p.ml} fortify={mix} /> : null}
                   </span>
                 </li>
               ))}
@@ -156,7 +180,12 @@ export function NightBottlesSheet({ open, child, bags, unit, now, typical, onClo
             </ul>
           </FieldGroup>
           {frozen ? <p className="xs muted">Frozen milk is not used: thaw a bag in the fridge first.</p> : null}
-          <p className="xs muted">Each bottle is good until its oldest milk's fridge time ends. At night, open Bottle and tap its spot; she drinks what she drinks and the rest is thrown away.</p>
+          <p className="xs muted">
+            {mix
+              ? `Fortified bottles keep ${FORTIFIED_KEEP_HOURS} hours from now in the fridge (sooner if their milk runs out first) and are never frozen. Mix each one as shown before it goes in its spot.`
+              : "Each bottle is good until its oldest milk's fridge time ends."}{' '}
+            At night, open Bottle and tap its spot; she drinks what she drinks and the rest is thrown away.
+          </p>
           {make.isError ? (
             <p className="log-error" role="alert">
               {describeApiError(make.error)}
@@ -165,5 +194,15 @@ export function NightBottlesSheet({ open, child, bags, unit, now, typical, onClo
         </>
       )}
     </Sheet>
+  )
+}
+
+/** What to stir into one premade bottle, or that the bottle is too small to measure for. */
+function FortifyStep({ ml, fortify }: { ml: number; fortify: FortifySettings }) {
+  const r = recipeFor(ml, fortify)
+  return (
+    <span className={r.tooSmall ? 'xs text-pumping' : 'xs night-plan-mix'}>
+      {r.tooSmall ? `Too little milk to measure ${strengthText(fortify.kcalPerOz)} for; make it bigger or mix a batch.` : `Add ${recipeText(r)} → ${strengthText(r.kcalPerOz)}`}
+    </span>
   )
 }

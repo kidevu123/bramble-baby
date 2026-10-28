@@ -26,6 +26,9 @@ import { SheetFooter } from './SheetFooter'
 import { useSaver } from './useSaver'
 import { useUnitBoundary } from '../../hooks/useStorageUnits'
 import { timerKind, useTimerActions } from '../timer/useTimerActions'
+import { useChildSettings } from '../../hooks/useChildSettings'
+import { feedKcal, kcalOf, kcalTag, withKcalTag } from '../../lib/calories'
+import { strengthText } from '../../lib/fortify'
 
 type Mode = 'nursing' | 'bottle'
 
@@ -53,6 +56,7 @@ const capitalise = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
 
 export function FeedingSheet({ child, editing, initial, bag: initialBag = null, prefill, onClose }: { child: Child; editing: Feeding | null; initial?: Mode; bag?: MilkBag | null; prefill?: Extract<QuickPrefill, { kind: 'bottle' | 'nursing' }>; onClose: () => void }) {
   const { prefs } = usePrefs()
+  const fortify = useChildSettings(child.id).settings.fortify ?? null
   // The bags this bottle draws on, in the order they empty. `undefined` is "not touched": an edited bottle keeps
   // the bags it was poured from (`linkedTakes`, below); [] is "no bag", after Remove.
   const [choice, setChoice] = useState<MilkBag[] | undefined>(initialBag ? [initialBag] : undefined)
@@ -135,7 +139,9 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
     const next = bags.some((x) => x.id === b.id) ? bags.filter((x) => x.id !== b.id) : [...bags, b]
     setChoice(next)
     setMode('bottle')
-    if (milk === 'formula') setMilk('breast milk')
+    // A premade bottle mixed to a strength is fortified milk, whatever the sheet said before.
+    if (!bags.some((x) => x.id === b.id) && b.kcal_per_oz) setMilk('fortified breast milk')
+    else if (milk === 'formula') setMilk('breast milk')
     if (next.length && (amountAuto || !(Number(amount) > 0))) {
       setAmount(String(fillAmount(suggested(next), unit)))
       setAmountAuto(true)
@@ -207,11 +213,19 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
     }
     const amt = Number(amount)
     const body: Record<string, unknown> = { child: child.id, start: toIso(start), end: toIso(start), type: milk, method: 'bottle', amount: amt > 0 ? amt : null, notes }
+    // A fortified bottle keeps the strength it was mixed at (`kcal:<n>`), so a later recipe never rewrites it; an edit
+    // sends the whole tag list (the caregiver tag stays), and only when the strength changed.
+    if (editing) {
+      if (kcalOf(editing.tags) !== strength) body.tags = withKcalTag(editing.tags, strength)
+    } else if (strength) body.tags = [kcalTag(strength)]
     // Untouched amount on an edit: leave it out so display rounding never rewrites the stored number.
     if (editing && editing.method === 'bottle' && amount === initialAmount) delete body.amount
     return body
   }
 
+  /** What this bottle was mixed to: its premade bottle's strength, else what it was saved at, else the household's. */
+  const pickedKcal = bags.find((b) => b.kcal_per_oz)?.kcal_per_oz ?? null
+  const strength = mode === 'bottle' && milk === 'fortified breast milk' ? pickedKcal ?? (editing ? kcalOf(editing.tags) : null) ?? fortify?.kcalPerOz ?? null : null
   const body = bodyFor()
   /** Breast milk (or fortified) by bottle: the only feeding that draws on the stash. */
   const fromStash = mode === 'bottle' && milk !== 'formula'
@@ -430,6 +444,7 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
               <span>{sliderMax}</span>
             </div>
           </section>
+          <CaloriesLine milk={milk} amount={Number(amount) || 0} unit={unit} strength={strength} />
           {/* A bottle is a moment: its chips set the time itself. */}
           <TimeField label="Time:" value={start} onChange={setStart} quick={editing ? undefined : setStart} />
         </>
@@ -459,5 +474,22 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
       />
       <StashPicker open={picking} child={child.id} unit={unit} selected={bags.map((b) => b.id)} onPick={toggleBag} onClose={() => setPicking(false)} />
     </>
+  )
+}
+
+/** Under the amount: what the bottle is worth in calories, at the strength it is counted at. */
+function CaloriesLine({ milk, amount, unit, strength }: { milk: FeedingType; amount: number; unit: VolumeUnit; strength: number | null }) {
+  if (milk === 'fortified breast milk' && !strength) {
+    return <p className="xs muted calories-line">Set the strength in Settings › Calories &amp; fortifying to count this bottle&apos;s calories.</p>
+  }
+  if (amount <= 0) return null
+  const tags = strength ? [kcalTag(strength)] : []
+  const kcal = feedKcal({ type: milk, method: 'bottle', amount, tags }, unit)
+  if (kcal === null) return null
+  const per = strength ?? 20
+  return (
+    <p className="xs muted calories-line" data-testid="bottle-kcal">
+      About <span className="strong">{Math.round(kcal)} kcal</span> · {strengthText(per)}
+    </p>
   )
 }

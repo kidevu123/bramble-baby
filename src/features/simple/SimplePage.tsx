@@ -13,6 +13,7 @@ import { logout } from '../../lib/api/auth'
 import { describeApiError } from '../../lib/api/client'
 import { companion, type MilkBag, type SimpleAction } from '../../lib/api/companion'
 import { changes as changesApi, feedings as feedingsApi } from '../../lib/api/endpoints'
+import { kcalTag } from '../../lib/calories'
 import type { Feeding } from '../../lib/api/types'
 import { formatMl, summarizeStash } from '../../lib/milk'
 import { bottleNote, drankMl, type BottleLeft } from '../../lib/bottle-finish'
@@ -96,7 +97,9 @@ export function SimplePage({ actions, username }: { actions: SimpleAction[]; use
       const at = new Date()
       let feeding = pending.current?.bottle === bottle.id ? pending.current.feeding : null
       if (!feeding) {
-        const body = { child: child.id, start: toIso(at), end: toIso(at), type: 'breast milk', method: 'bottle', amount, notes: bottleNote(bottle.spot, left) }
+        // A bottle mixed to a strength is fortified milk and keeps that strength on the feeding (calories in Reports).
+        const fortified = bottle.kcal_per_oz ? { type: 'fortified breast milk', tags: [kcalTag(bottle.kcal_per_oz)] } : { type: 'breast milk' }
+        const body = { child: child.id, start: toIso(at), end: toIso(at), method: 'bottle', amount, notes: bottleNote(bottle.spot, left), ...fortified }
         feeding = await feedingsApi.create(units.toStorage('feeding', body))
         pending.current = { bottle: bottle.id, feeding }
       }

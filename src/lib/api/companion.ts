@@ -3,6 +3,7 @@
  * It stores what Baby Buddy has no model for (contractions, activities, milestones, shared child
  * settings, reminders) and delivers Web Push notifications. Auth reuses the Baby Buddy API token.
  */
+import type { FortifySettings } from '../fortify'
 import type { NicuStay } from '../preterm'
 import type { PumpSpec } from '../pumps'
 import type { UnitPrefs } from '../units'
@@ -84,6 +85,11 @@ export interface ChildSettings {
   weightGoalGPerDay?: number | null
   /** The day the pediatrician gave that goal (yyyy-MM-dd); the gain is counted from then (weeks in the NICU do not count). */
   weightGoalSince?: string | null
+  /** The calories a day per kilogram the pediatrician asked for (Settings › Calories & fortifying); Reports › Feeding
+   *  measures the bottles against it. */
+  calorieGoal?: number | null
+  /** Breast milk fortified with formula to a strength (Settings › Calories & fortifying, `src/lib/fortify.ts`); null when not. */
+  fortify?: FortifySettings | null
   /** Days of bottles to have banked in the stash (Settings › Pumps); the Stash tab measures progress against it. */
   stashGoalDays?: number | null
   /** Settings › Born early: weeks + days of pregnancy at birth, in days (25 wk 3 d = 178), for a baby born before
@@ -233,6 +239,9 @@ export interface MilkBag {
    */
   kind?: 'bag' | 'bottle'
   spot?: number | null
+  /** A premade bottle mixed with formula to this strength (kcal per ounce); it keeps 24 hours from `mixed_at`. */
+  kcal_per_oz?: number | null
+  mixed_at?: string | null
 }
 
 /** This Bramble's own setup. `source`: set in the app ('settings'), on the host's environment ('server'), or not at all. */
@@ -510,7 +519,7 @@ export const companion = {
     /** A premade bottle moved to another fridge spot; a bottle already there swaps into its old one. */
     moveBottle: (id: Id, spot: number) => api<MilkBag[]>(`${COMPANION}/milk/${id}/spot`, { method: 'POST', body: JSON.stringify({ spot }) }),
     unmakeBottle: (id: Id) => api<MilkBag[]>(`${COMPANION}/milk/${id}/unmake`, { method: 'POST', body: '{}' }),
-    makeBottles: (body: { child: Id; bottles: { spot: number; takes: { bag: Id; amount_ml: number }[]; client_key: string }[]; windows?: MilkWindows }) =>
+    makeBottles: (body: { child: Id; bottles: { spot: number; takes: { bag: Id; amount_ml: number }[]; client_key: string; kcal_per_oz?: number }[]; windows?: MilkWindows }) =>
       api<MilkBag[]>(`${COMPANION}/milk/bottles`, { method: 'POST', body: JSON.stringify(body) }),
   },
 

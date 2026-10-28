@@ -11,6 +11,7 @@ import { volumeLabel } from '../../lib/units'
 import { BagRow, StashKey } from './BagRow'
 import { NicuTripSheet } from './NicuTripSheet'
 import { NightBottlesSheet } from './NightBottlesSheet'
+import { FortifyCard } from './FortifyCard'
 import { stashCounts } from './stash-counts'
 import { useAutoPrint } from '../../hooks/useAutoPrint'
 import { useChildren } from '../../hooks/useChildren'
@@ -305,10 +306,11 @@ export function MilkPage() {
                       className={`spot is-filled state-${state}${rearranging ? ' is-rearranging' : ''}${moving?.id === b.id ? ' is-moving' : ''}`}
                       onClick={() => tapSpot(spot, b)}
                       aria-pressed={rearranging ? moving?.id === b.id : undefined}
-                      aria-label={rearranging && moving && moving.id !== b.id ? `Swap bottle ${moving.spot} with bottle ${spot}` : `Premade bottle ${spot}, ${formatMl(b.remaining_ml, unit)}${state === 'expired' ? ', expired' : ''}`}
+                      aria-label={rearranging && moving && moving.id !== b.id ? `Swap bottle ${moving.spot} with bottle ${spot}` : `Premade bottle ${spot}, ${formatMl(b.remaining_ml, unit)}${b.kcal_per_oz ? `, fortified to ${b.kcal_per_oz} kcal/oz` : ''}${state === 'expired' ? ', expired' : ''}`}
                     >
                       <span className="spot-num">{spot}</span>
                       <span className="spot-vol">{state === 'expired' ? 'expired' : formatMl(b.remaining_ml, unit)}</span>
+                      {b.kcal_per_oz && state !== 'expired' ? <span className="spot-kcal">{b.kcal_per_oz} kcal</span> : null}
                     </button>
                   </li>
                 )
@@ -326,6 +328,9 @@ export function MilkPage() {
             ) : null}
           </section>
         ) : null}
+
+        {/* Fortifying (Settings › Calories & fortifying): the recipe beside the bottles it goes into. */}
+        {settings.fortify ? <FortifyCard fortify={settings.fortify} unit={unit} /> : null}
 
         {stash.isLoading ? <p className="small muted">Loading…</p> : null}
         {!stash.isLoading && sections.length === 0 ? (
@@ -458,7 +463,7 @@ export function MilkPage() {
         ) : null}
       </Sheet>
       <NicuTripSheet open={trip} child={child.id} candidates={toTake} birth={child.birth_date} unit={unit} now={now} onClose={() => setTrip(false)} />
-      <NightBottlesSheet open={making} child={child.id} bags={bags} unit={unit} now={now} typical={typical} onClose={() => setMaking(false)} />
+      <NightBottlesSheet open={making} child={child.id} bags={bags} unit={unit} now={now} typical={typical} fortify={settings.fortify ?? null} onClose={() => setMaking(false)} />
       <LogSheet request={request} child={child} names={names} onClose={() => setRequest(null)} />
       <MilkLabelSheet
         open={reprint !== null || adding}

@@ -125,6 +125,18 @@ describe('buildDoctorReport', () => {
     expect(text).toContain('Oct 3 · 0 · – · 0/0 · – · –')
     expect(text).toContain('Vitamin D 1 drop')
   })
+  it('counts the calories by bottle, per kg by the weighing that applied, against the doctor goal', () => {
+    const fed = { ...events, feedings: [...events.feedings, { id: 5, child: 1, start: iso('2026-10-08T15:00:00'), end: iso('2026-10-08T15:00:00'), type: 'fortified breast milk', method: 'bottle', amount: 2, duration: '00:00:00', notes: '', tags: ['kcal:24'] }] as EventSets['feedings'] }
+    const rep = buildDoctorReport(fed, growth, child, DEFAULT_UNITS, 'female', 20, 7, now, null, child.birth_date, { goal: 120, fortify: null })
+    const oct8 = rep.days.find((d) => d.date.getDate() === 8)!
+    // 3 oz of formula at 20 and 2 oz fortified to 24: 108 kcal, over 5 lb (2.27 kg) from Oct 1
+    expect(oct8.kcal).toBeCloseTo(108, 5)
+    expect(oct8.kcalPerKg).toBeCloseTo(108 / 2.268, 0)
+    const avg = rep.averages.find((a) => a.key === 'kcalkg')!
+    expect(avg.label).toBe('kcal per kg a day (goal 120)')
+    expect(avg.value).toBe('48')
+    expect(rep.averages.find((a) => a.key === 'kcal')?.value).toBe('108 kcal')
+  })
   it('copes with no growth and an expecting child', () => {
     const bare = buildDoctorReport(empty, undefined, child, DEFAULT_UNITS, null, null, 14, now)
     expect(bare.growth).toEqual([])

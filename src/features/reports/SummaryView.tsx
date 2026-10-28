@@ -31,6 +31,8 @@ import { comparePumps, pumpOf } from '../../lib/pumps'
 import { SUPPLY_SPAN, supplyTrend, supplyVerdict, supplyWindowLine } from '../../lib/supply'
 import { checkDetail, checkRate, checkTally, DAY_TO_DAY_SWING_G, formatGrams, formatPerDay, gainVerdict, MISSES_IN_A_ROW, stepCompares, stepNoiseNote, weekBesideGoal, weightChecks, weightGain } from '../../lib/weight-gain'
 import { PumpChart } from './PumpChart'
+import { dayCalories, judgeCalories, mlForGoal, TYPICAL_KCAL_PER_KG, weightForDay } from '../../lib/calories'
+import { MILK_KCAL_PER_OZ, strengthText, type FortifySettings } from '../../lib/fortify'
 import { nicuPumping } from '../../lib/nicu-pumping'
 import { averagedDays, clockRange, diaperSplit, fullDayAverage, keepToRange, LB_STEPS, ozRange, ozText, volumeRange, weightTick } from './format'
 import '../more/pumps.css'
@@ -139,7 +141,7 @@ export function SummaryView({ events, child, now, span, onSpan, filters, cat, on
       {shown === 'medicine' ? <ListSummary title="Medicine" rows={ranged.medication.map((m) => ({ id: m.id, when: m.time, text: `${m.name} · ${m.dosage} ${m.dosage_unit}` }))} /> : null}
       {shown === 'temperature' ? <TemperatureSummary events={ranged} unit={prefs.units.temp} ageMonths={ctx.ageMonths} /> : null}
       {shown === 'milestones' ? <ListSummary title="Milestones" rows={events.milestones.map((m) => ({ id: m.id, when: m.date, text: `${m.title}${m.category ? ` · ${MILESTONE_CATEGORY[m.category] ?? m.category}` : ''}` }))} /> : null}
-      {shown === 'feed' ? <FeedSummary days={days} events={events} label={label} unit={prefs.units.volume} ageMonths={ctx.ageMonths} dayOfLife={ctx.dayOfLife} hold={ctx.hold} now={now} weights={growth.data?.weights ?? []} name={child.first_name} /> : null}
+      {shown === 'feed' ? <FeedSummary days={days} events={events} label={label} unit={prefs.units.volume} ageMonths={ctx.ageMonths} dayOfLife={ctx.dayOfLife} hold={ctx.hold} now={now} weights={growth.data?.weights ?? []} name={child.first_name} calorieGoal={settings.calorieGoal ?? null} fortify={settings.fortify ?? null} /> : null}
       {shown === 'diaper' ? <DiaperSummary days={days} summaries={summaries} changes={events.changes} label={label} dayOfLife={ctx.dayOfLife} hold={ctx.hold} now={now} /> : null}
       {shown === 'pump' ? <PumpSummary days={days} summaries={summaries} label={label} unit={prefs.units.volume} events={events} child={child} now={now} age={age} /> : null}
       {shown === 'growth' ? <GrowthSummary data={growth.data} loading={growth.isLoading} child={child} sex={settings.sex ?? null} age={age} /> : null}
@@ -196,7 +198,7 @@ function TypicalLine({ text, low = false, testId }: { text: string | null; /** U
   )
 }
 
-function FeedSummary({ days, events, label, unit, ageMonths, dayOfLife, hold, now, weights, name }: { days: Date[]; events: EventSets; label: (d: Date) => string; unit: 'ml' | 'oz'; ageMonths: number; dayOfLife: number; hold: AgeHold; now: Date; weights: Weight[]; name: string }) {
+function FeedSummary({ days, events, label, unit, ageMonths, dayOfLife, hold, now, weights, name, calorieGoal, fortify }: { days: Date[]; events: EventSets; label: (d: Date) => string; unit: 'ml' | 'oz'; ageMonths: number; dayOfLife: number; hold: AgeHold; now: Date; weights: Weight[]; name: string; calorieGoal: number | null; fortify: FortifySettings | null }) {
   const norm = feedingNormFor(ageMonths, dayOfLife)
   const perDay = days.map((d) => {
     const feeds = events.feedings.filter((f) => startOfDay(parseDate(f.start)).getTime() === d.getTime() && f.type !== 'solid food')
@@ -213,23 +215,41 @@ function FeedSummary({ days, events, label, unit, ageMonths, dayOfLife, hold, no
   // Held (the NICU sets the feeds): no amount by weight and no age row, only what was logged.
   const bw = hold ? null : byWeightView({ weights, name, unit, weightUnit: prefs.units.weight, ageMonths, dayOfLife, bottleMl: convertVolume(avg('bottle'), unit, 'ml'), nursing: used.some((i) => perDay[i].nursingMin > 0), feedsPerDay: avg('count'), days: used.length })
   const byWeight = Boolean(bw && 'band' in bw)
+  const cal = calorieView({ days, events, unit, weightUnit: prefs.units.weight, weights, now, goal: calorieGoal, fortify, hold, name })
+  // The doctor's number leads while calories are being raised; otherwise the calories sit after the feeds.
+  const calFirst = Boolean(cal && (calorieGoal || fortify))
+  const calTiles = cal ? (
+    <>
+      <Stat name="Calories / day" value={`${Math.round(cal.kcal)} kcal`} detail={cal.nursing ? 'bottles only' : cal.perFeed ? `about ${Math.round(cal.perFeed)} a bottle` : null} testId="kcal-per-day" />
+      {cal.perKg !== null ? <Stat name="kcal / kg / day" value={String(Math.round(cal.perKg))} detail={calorieGoal ? `goal ${calorieGoal}` : hold || ageMonths >= 6 ? null : `typical ${TYPICAL_KCAL_PER_KG[0]}–${TYPICAL_KCAL_PER_KG[1]}`} tone={cal.status === 'under' ? 'missed' : cal.status === 'met' ? 'met' : undefined} testId="kcal-per-kg" /> : null}
+    </>
+  ) : null
   return (
     <section className="card card-pad stack">
       <h3>Feeding</h3>
       {/* The tiles lead with the bottles beside what her weight suggests: the two numbers a parent sets side by side. */}
       <div className="stat-grid">
+        {calFirst ? calTiles : null}
         <Stat name="Bottle / day" value={formatVolume(avg('bottle'), unit) || `0 ${unit}`} />
         {bw && 'band' in bw ? <Stat name={`${name}'s weight suggests`} value={bw.band} detail={`a day · ${bw.weighed}`} testId="by-weight-band" /> : null}
         <Stat name="Feeds / day" value={avg('count').toFixed(1)} detail={bw && 'band' in bw ? `about ${bw.perFeed} a feed` : null} testId="feeds-per-day" />
         {/* Nursing and solids only when there is any: "0m" and "0" on a bottle-fed newborn say nothing. */}
         {perDay.some((p) => p.nursingMin > 0) ? <Stat name="Nursing / day" value={formatDurationShort(avg('nursingMin') * 60)} /> : null}
         {perDay.some((p) => p.solids > 0) ? <Stat name="Solids meals" value={String(perDay.reduce((s, p) => s + p.solids, 0))} /> : null}
+        {calFirst ? null : calTiles}
       </div>
+      {cal?.verdict ? <TypicalLine text={cal.verdict} low={cal.status === 'under'} testId="kcal-verdict" /> : null}
       {bw && 'band' in bw ? <ByWeightVerdict view={bw} unit={unit} /> : <TypicalLine text={bw && 'note' in bw ? bw.note : null} />}
       <p className="small muted">Feeds per day</p>
       <StackedBars integer days={days.map((d, i) => ({ label: label(d), date: d, parts: [{ value: perDay[i].count, color: 'var(--orange)' }] }))} formatTick={(v) => String(Math.round(v))} valueText={(v) => `${Math.round(v)} feed${Math.round(v) === 1 ? '' : 's'}`} />
       {/* The age row's amount assumes a typical-weight baby; with a weighing, the amount by weight in the tiles replaces it. */}
       <TypicalLine text={hold ? holdNote(hold) : `Typical for this age: ${norm.feedsPerDay[0]}–${norm.feedsPerDay[1]} feeds a day${norm.ozPerDay && !byWeight ? `, about ${ozRange(norm.ozPerDay, unit)} total by bottle` : ''}.`} />
+      {cal && cal.perKg !== null ? (
+        <>
+          <p className="small muted">Calories by bottle (kcal per kg a day)</p>
+          <StackedBars days={days.map((d, i) => ({ label: label(d), date: d, parts: [{ value: cal.perKgByDay[i] ?? 0, color: 'var(--orange)' }] }))} formatTick={(v) => String(Math.round(v))} average={cal.perKg} valueText={(v) => `${Math.round(v)} kcal/kg`} />
+        </>
+      ) : null}
       {perDay.some((p) => p.bottle > 0) ? (
         <>
           <p className="small muted">Bottle volume ({volumeLabel(unit)})</p>
@@ -239,6 +259,11 @@ function FeedSummary({ days, events, label, unit, ageMonths, dayOfLife, hold, no
       <About>
         <p>Averages count full days only; today joins once it is over.</p>
         <p>{ozText(norm.notes, unit)}</p>
+        <p data-testid="kcal-note">
+          Calories count bottles only: breast milk and standard formula at 20 kcal/oz, fortified milk at the strength it was mixed to. Nursing has no volume, so a day with nursing
+          is more than this. Breast milk really varies (averages of 18–20 kcal/oz in studies), so the figure is close, not exact. Healthy term babies under 6 months take about
+          100–120 kcal per kg a day; the goal, when set in Settings › Calories &amp; fortifying, is the doctor&apos;s.
+        </p>
         <p data-testid="by-weight-note">
           By weight: about 150–180 mL per kg a day, which holds the AAP&apos;s rough rule of 2½ oz per pound inside it, and never more than about 32 oz (960 mL). It applies from two weeks to six months. Babies regulate their own intake: the AAP says a baby who is growing, gaining and content is likely taking the right amount, and a breastfed baby can level off around 750–800 mL a day from one to six months whatever they weigh. The weight checks on the Growth card are what settles it.
         </p>
@@ -252,6 +277,49 @@ function FeedSummary({ days, events, label, unit, ageMonths, dayOfLife, hold, no
  * where the bottles logged sit against it. Nursing has no volume, so with any nursing the bottles are shown
  * against the band but not judged: the day's total is more than they say.
  */
+interface CalorieView {
+  /** Average over full days with bottles, kcal a day. */
+  kcal: number
+  perFeed: number | null
+  /** Average kcal per kg a day (each day by the weighing that applied), null with no weighing. */
+  perKg: number | null
+  perKgByDay: (number | null)[]
+  nursing: boolean
+  status: ReturnType<typeof judgeCalories>
+  verdict: string | null
+}
+
+/** Calories by bottle over the range: a day, a bottle, per kg against the doctor's goal. Null with no bottle volume. */
+function calorieView({ days, events, unit, weightUnit, weights, now, goal, fortify, hold, name }: { days: Date[]; events: EventSets; unit: 'ml' | 'oz'; weightUnit: Parameters<typeof formatWeight>[1]; weights: Weight[]; now: Date; goal: number | null; fortify: FortifySettings | null; hold: AgeHold; name: string }): CalorieView | null {
+  const byDay = days.map((d) => dayCalories(events.feedings.filter((f) => isSameDay(parseDate(f.start), d)), unit, fortify))
+  const used = averagedDays(byDay.map((c) => c.kcal), days, now)
+  if (!used.length) return null
+  const points = weights.map((w) => ({ kg: convertWeight(w.weight, weightUnit, 'kg'), at: growthAt(w) }))
+  const perKgByDay = days.map((d, i) => {
+    const kg = weightForDay(points, addDays(d, 1))
+    return kg && byDay[i].kcal > 0 ? byDay[i].kcal / kg : null
+  })
+  const kcal = used.reduce((s, i) => s + byDay[i].kcal, 0) / used.length
+  const bottles = used.reduce((s, i) => s + byDay[i].bottles, 0) / used.length
+  const kgDays = used.filter((i) => perKgByDay[i] !== null)
+  const perKg = kgDays.length ? kgDays.reduce((s, i) => s + (perKgByDay[i] ?? 0), 0) / kgDays.length : null
+  const nursing = used.some((i) => byDay[i].nursing)
+  const unknown = used.some((i) => byDay[i].unknown)
+  const status = perKg !== null ? judgeCalories(perKg, goal, nursing) : null
+  const latest = latestWeight(weights)
+  const kg = latest ? convertWeight(latest.weight, weightUnit, 'kg') : null
+  const strength = fortify?.kcalPerOz ?? MILK_KCAL_PER_OZ
+  const vol = (ml: number) => formatVolume(convertVolume(ml, 'ml', unit), unit)
+  const parts: string[] = []
+  if (goal && perKg !== null && nursing) parts.push(`Nursing is not measured, so bottles alone cannot show whether ${name} reaches the doctor's ${goal} kcal/kg.`)
+  else if (status === 'under' && perKg !== null) parts.push(`Bottles give ${Math.round(perKg)} kcal per kg a day, under the doctor's ${goal}.${kg && latest ? ` At ${strengthText(strength)} that goal is about ${vol(mlForGoal(goal!, kg, strength))} a day at ${formatWeight(latest.weight, weightUnit)}.` : ''}`)
+  else if (status === 'met' && perKg !== null) parts.push(`Bottles give ${Math.round(perKg)} kcal per kg a day, ${perKg < goal! ? 'close to' : 'on'} the doctor's ${goal}.`)
+  else if (perKg === null && goal) parts.push(`Log a weight to see kcal per kg against the doctor's ${goal}.`)
+  if (unknown) parts.push('Some fortified bottles have no strength on them and count at 20 kcal/oz; set it in Settings › Calories & fortifying.')
+  if (hold && !goal) parts.length = 0
+  return { kcal, perFeed: bottles >= 1 ? kcal / bottles : null, perKg, perKgByDay, nursing, status, verdict: parts.join(' ') || null }
+}
+
 const latestWeight = (weights: Weight[]): Weight | undefined => [...weights].sort((a, b) => growthAt(b).getTime() - growthAt(a).getTime())[0]
 
 interface ByWeightView {

@@ -60,6 +60,10 @@ installing and deploying; `README.md` is the public front page (screenshots from
   `status: 'used' | 'discarded'`; reminders for a bag carry `tag: milk:<id>`.
 - Run server tests with `PYTHONDONTWRITEBYTECODE=1 <venv>/bin/python -m unittest server/test_server.py`;
   `server/__pycache__` is untracked and ignored.
+- A bottle's strength is a `kcal:<n>` tag (`src/lib/calories.ts`); a fortified bottle is tagged when it is saved and an edit sends
+  the full tag list through `withKcalTag`, so a later recipe never rewrites the calories already logged. The household's
+  fortification and calorie goal are `settings.fortify` / `settings.calorieGoal` (Settings › Calories & fortifying); recipes
+  come only from `recipeFor` in `src/lib/fortify.ts`.
 - A pumping entry's pump is a `pump:<name>` tag beside the `caregiver:` tag (`src/lib/pumps.ts`); every write of a pumping
   entry sends its full tag list through `withPumpTag`, so neither tag is lost on an edit. The pump list is `settings.pumps`
   (Settings › Pumps), never hard-coded in a sheet.

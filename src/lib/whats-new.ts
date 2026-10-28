@@ -12,6 +12,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.51.0',
+    date: 'Oct 28',
+    items: [
+      "Calories: Reports › Feeding shows the calories a day and per kg against the doctor's goal (Settings › Calories & fortifying).",
+      'Fortified milk: set the strength, and the Stash tab gives the formula to add for any amount; premade bottles can be made fortified and keep 24 hours.',
+      "Fortified bottles keep the strength they were mixed at, so {name}'s calories stay right if the recipe changes.",
+    ],
+  },
+  {
     version: '1.50.0',
     date: 'Oct 28',
     items: ['Moving a bag into the freezer prints its label again, and thawing one prints a new THAWED label with the right use-by times. Turn it off in Settings › Milk labels & printer.'],

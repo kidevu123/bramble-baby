@@ -2,6 +2,7 @@ import { pumpOf } from './pumps'
 import { addDays } from 'date-fns'
 import type { Activity, Contraction, Milestone } from './api/companion'
 import { bottleFinish } from './bottle-finish'
+import { kcalOf } from './calories'
 import type { DiaperChange, EventKind, Feeding, GrowthEntry, GrowthKind, HeadCircumference, Height, Medication, Note, Pumping, Sleep, Temperature, TummyTime, Weight } from './api/types'
 import { caregiverOf } from './caregiver'
 import { decodeSolidsNotes } from './foods'
@@ -121,7 +122,10 @@ export function describeFeeding(f: Feeding, units: UnitPrefs): string {
             ? 'Nursed · L+R'
             : 'Fed'
   const parts = [method]
-  if (f.method === 'bottle') parts.push(f.type === 'formula' ? 'formula' : f.type === 'fortified breast milk' ? 'fortified' : 'breast milk')
+  if (f.method === 'bottle') {
+    const kcal = f.type === 'fortified breast milk' ? kcalOf(f.tags) : null
+    parts.push(f.type === 'formula' ? 'formula' : f.type === 'fortified breast milk' ? (kcal ? `fortified ${kcal}` : 'fortified') : 'breast milk')
+  }
   if (f.amount) parts.push(formatVolume(f.amount, units.volume))
   const secs = parseDuration(f.duration)
   if (secs >= 60 && f.method !== 'bottle') parts.push(formatDurationShort(secs))

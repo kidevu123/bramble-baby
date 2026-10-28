@@ -42,6 +42,8 @@ It was built for one family's newborn and is used by them every day; everything 
   check that nothing was missed.
 - **Summary**: every category over 7 days to a year. Tap any bar for its value.
 - **Feeding by weight**: what the baby's latest weight suggests a day (150–180 mL/kg) right beside what was given.
+- **Calories and fortified milk**: calories a day and per kg against the doctor's goal, and the formula to stir into
+  breast milk for the prescribed strength (any amount, premade bottles that keep 24 hours), worked out from the powder's label.
 - **Growth**: daily gain in grams against the pediatrician's goal, each weighing marked met or missed, and a
   **growth chart by age** with the WHO percentile bands the doctor's card uses.
 - **A report for the pediatrician**: growth, daily averages and a day-by-day table, printed to PDF or shared as text.

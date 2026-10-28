@@ -2,7 +2,7 @@ import { BackButton } from '../../components/nav/BackButton'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BellIcon, ChartIcon, ChevronRightIcon, FaceIcon, GearIcon, HeartIcon, MoonIcon, PumpIcon, ScaleIcon, SlidersIcon, SunIcon, TagIcon } from '../../components/icons'
+import { BellIcon, BottleIcon, ChartIcon, ChevronRightIcon, FaceIcon, GearIcon, HeartIcon, MoonIcon, PumpIcon, ScaleIcon, SlidersIcon, SunIcon, TagIcon } from '../../components/icons'
 import { Button } from '../../components/ui/Button'
 import { Segmented } from '../../components/ui/Segmented'
 import { Sheet } from '../../components/ui/Sheet'
@@ -38,13 +38,15 @@ import { HatchSheet } from './HatchSheet'
 import { LabelSettingsSheet } from './LabelSettingsSheet'
 import { PeopleSheet } from './PeopleSheet'
 import { PretermSheet } from './PretermSheet'
+import { CaloriesSheet } from './CaloriesSheet'
+import { powderOf, type FortifySettings } from '../../lib/fortify'
 import { PumpsSheet } from './PumpsSheet'
 import { useChildSettings } from '../../hooks/useChildSettings'
 import { ageBasis, pretermState } from '../../lib/preterm'
 import { DEFAULT_PUMPS } from '../../lib/pumps'
 import './more.css'
 
-type Section = 'units' | 'notifications' | 'labels' | 'hatch' | 'people' | 'export' | 'pumps' | 'preterm'
+type Section = 'units' | 'notifications' | 'labels' | 'hatch' | 'people' | 'export' | 'pumps' | 'preterm' | 'calories'
 
 /**
  * Settings: every configuration the app has, grouped, each row opening a focused sheet. A daily-use
@@ -190,6 +192,7 @@ export function MorePage() {
           <SettingsRow icon={<BellIcon />} title="Notifications" value={notificationSummary(notifications.state, nudges.settings)} onClick={() => setOpen('notifications')} />
           <SettingsRow icon={<TagIcon />} title="Milk labels & printer" value={labelSummary(labelSize(prefs.labels.size).label, printer.data, prefs.labels.autoPrint)} onClick={() => setOpen('labels')} />
           <SettingsRow icon={<PumpIcon />} title="Pumps" value={pumpSummary} onClick={() => setOpen('pumps')} />
+          <SettingsRow icon={<BottleIcon />} title="Calories & fortifying" value={calorieSummary(childSettings.calorieGoal ?? null, childSettings.fortify ?? null)} onClick={() => setOpen('calories')} />
           <SettingsRow icon={<ScaleIcon />} title="Hatch scale" value={hatchRowSummary(hatch.status)} onClick={() => setOpen('hatch')} />
           <SettingsRow icon={<HeartIcon />} title="Born early" value={pretermSummary === 'Off' ? 'Corrected age and the NICU stay' : pretermSummary} onClick={() => setOpen('preterm')} />
         </SettingsGroup>
@@ -275,6 +278,7 @@ export function MorePage() {
       <PeopleSheet open={open === 'people'} onClose={close} />
       <PumpsSheet open={open === 'pumps'} onClose={close} />
       <PretermSheet open={open === 'preterm'} onClose={close} />
+      <CaloriesSheet open={open === 'calories'} onClose={close} />
       <WhatsNewSheet open={news} releases={releasesUpTo(BUILD.version)} onClose={() => setNews(false)} />
 
       <Sheet open={open === 'export'} title="Export CSV" onClose={close}>
@@ -391,6 +395,14 @@ function SignOutConfirm({ username, onCancel, onConfirm }: { username: string | 
       </div>
     </>
   )
+}
+
+/** "24 kcal/oz · Similac · goal 120", or what the row is for. */
+function calorieSummary(goal: number | null, fortify: FortifySettings | null): string {
+  const parts: string[] = []
+  if (fortify) parts.push(`${fortify.kcalPerOz} kcal/oz · ${fortify.with === 'concentrate' ? 'concentrate' : powderOf(fortify).name}`)
+  if (goal) parts.push(`goal ${goal} kcal/kg`)
+  return parts.length ? parts.join(' · ') : 'Calorie goal and fortified milk'
 }
 
 function SettingsRow({ icon, title, value, onClick, href }: { icon: ReactNode; title: string; value: string; onClick?: () => void; href?: string }) {

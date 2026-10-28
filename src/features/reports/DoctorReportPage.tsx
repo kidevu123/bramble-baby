@@ -34,12 +34,13 @@ export function DoctorReportPage() {
   const growth = useGrowth(child?.id ?? null)
   const { bornAtDays, nicu } = settings
   const report = useMemo(
-    () => (child ? buildDoctorReport(events, growth.data, child, prefs.units, settings.sex ?? null, settings.weightGoalGPerDay, Number(days), now, settings.weightGoalSince, ageBasis(child, { bornAtDays, nicu })) : null),
-    [events, growth.data, child, prefs.units, settings.sex, settings.weightGoalGPerDay, settings.weightGoalSince, bornAtDays, nicu, days, now],
+    () => (child ? buildDoctorReport(events, growth.data, child, prefs.units, settings.sex ?? null, settings.weightGoalGPerDay, Number(days), now, settings.weightGoalSince, ageBasis(child, { bornAtDays, nicu }), { goal: settings.calorieGoal ?? null, fortify: settings.fortify ?? null }) : null),
+    [events, growth.data, child, prefs.units, settings.sex, settings.weightGoalGPerDay, settings.weightGoalSince, settings.calorieGoal, settings.fortify, bornAtDays, nicu, days, now],
   )
   if (!child || !report) return null
   const text = reportText(report)
   const vol = prefs.units.volume
+  const kcalCol = report.days.some((d) => d.kcalPerKg !== null)
 
   async function share() {
     setStatus(null)
@@ -158,6 +159,7 @@ export function DoctorReportPage() {
 
           <section className="report-section" data-testid="report-days">
             <h2>Day by day</h2>
+            {/* kcal per kg by bottle, only when there is any (a weighing and bottles with volume). */}
             {/* Six columns do not fit a 320 px phone: the table scrolls inside its own box, never the page. */}
             <div className="report-days-scroll">
             <table className="report-table report-days">
@@ -166,6 +168,7 @@ export function DoctorReportPage() {
                   <th>Date</th>
                   <th>Feeds</th>
                   <th>Bottle</th>
+                  {kcalCol ? <th>kcal/kg</th> : null}
                   <th>Wet/dirty</th>
                   <th>Sleep</th>
                   <th>Pumped</th>
@@ -177,6 +180,7 @@ export function DoctorReportPage() {
                     <th scope="row">{format(d.date, 'EEE MMM d')}</th>
                     <td>{d.feeds || '–'}</td>
                     <td>{d.bottle ? formatVolume(d.bottle, vol) : '–'}</td>
+                    {kcalCol ? <td>{d.kcalPerKg ? Math.round(d.kcalPerKg) : '–'}</td> : null}
                     <td>
                       {d.wet} / {d.dirty}
                     </td>

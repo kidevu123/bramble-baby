@@ -13,7 +13,9 @@ import { growthAt, growthChange, growthPercentile } from './reports'
 import { asBasis, correctedAgeText, describeWeeks, judgedAge, type AgeFrom } from './preterm'
 import { describePercentile, diaperNormFor, feedingNormFor, feverStatus, fToC, sleepNormFor, type Sex } from './science'
 import { formatAge, formatDurationShort, parseDate, parseDuration } from './time'
-import { convertVolume, formatLength, formatTemp, formatVolume, formatWeight, volumeLabel, type UnitPrefs } from './units'
+import { dayCalories, TYPICAL_KCAL_PER_KG, weightForDay } from './calories'
+import type { FortifySettings } from './fortify'
+import { convertVolume, convertWeight, formatLength, formatTemp, formatVolume, formatWeight, volumeLabel, type UnitPrefs } from './units'
 import { formatGrams, formatPerDay, gainVerdict, spanDays, weightGain, type WeightGain } from './weight-gain'
 
 export interface ReportGrowthRow {
@@ -26,7 +28,7 @@ export interface ReportGrowthRow {
 }
 
 export interface ReportAverage {
-  key: 'feeds' | 'bottle' | 'nursing' | 'wet' | 'dirty' | 'sleep' | 'naps' | 'pumped'
+  key: 'feeds' | 'bottle' | 'nursing' | 'wet' | 'dirty' | 'sleep' | 'naps' | 'pumped' | 'kcal' | 'kcalkg'
   label: string
   value: string
   /** The age-typical band in the same words, or null when the science has none for this age. */
@@ -47,6 +49,15 @@ export interface ReportDay {
   sleepHours: number
   naps: number
   pumped: number
+  /** Calories by bottle that day, and per kg by the weighing that applied (null without one). */
+  kcal: number
+  kcalPerKg: number | null
+}
+
+/** The doctor's calorie goal and the household's fortification (Settings › Calories & fortifying). */
+export interface ReportCalories {
+  goal: number | null
+  fortify: FortifySettings | null
 }
 
 export interface DoctorReport {
@@ -76,7 +87,7 @@ function avgOf<T>(rows: T[], value: (r: T) => number, logged: (r: T) => boolean 
   return { value: active.length ? active.reduce((s, r) => s + value(r), 0) / active.length : 0, days: active.length }
 }
 
-export function buildDoctorReport(events: EventSets, growth: GrowthSets | undefined, child: Child, units: UnitPrefs, sex: Sex | null, goal: number | null | undefined, days: number, now: Date = new Date(), goalSince?: string | null, age: AgeFrom = child.birth_date): DoctorReport {
+export function buildDoctorReport(events: EventSets, growth: GrowthSets | undefined, child: Child, units: UnitPrefs, sex: Sex | null, goal: number | null | undefined, days: number, now: Date = new Date(), goalSince?: string | null, age: AgeFrom = child.birth_date, calories: ReportCalories = { goal: null, fortify: null }): DoctorReport {
   const to = startOfDay(now)
   const from = addDays(to, -(days - 1))
   const dayList = Array.from({ length: days }, (_, i) => addDays(from, i))
@@ -119,10 +130,13 @@ export function buildDoctorReport(events: EventSets, growth: GrowthSets | undefi
   }
 
   // ---- day by day
+  const weighings = (growth?.weights ?? []).map((w) => ({ kg: convertWeight(w.weight, units.weight, 'kg'), at: growthAt(w) }))
   const dayRows: ReportDay[] = dayList.map((d) => {
     const s = summarizeDay(events, d)
     const nursing = events.feedings.filter((f) => isSameDay(parseDate(f.start), d) && f.type !== 'solid food' && f.method !== 'bottle').reduce((sum, f) => sum + parseDuration(f.duration) / 60, 0)
-    return { date: d, feeds: s.feedCount, bottle: s.bottleVolume, nursingMinutes: nursing, diaperCount: s.diaperCount, wet: s.wetCount, dirty: s.solidCount, sleepHours: s.sleepSeconds / 3600, naps: s.napCount, pumped: s.pumpVolume }
+    const kcal = dayCalories(events.feedings.filter((f) => isSameDay(parseDate(f.start), d)), units.volume, calories.fortify).kcal
+    const kg = weightForDay(weighings, addDays(d, 1))
+    return { date: d, feeds: s.feedCount, bottle: s.bottleVolume, nursingMinutes: nursing, diaperCount: s.diaperCount, wet: s.wetCount, dirty: s.solidCount, sleepHours: s.sleepSeconds / 3600, naps: s.napCount, pumped: s.pumpVolume, kcal, kcalPerKg: kg && kcal > 0 ? kcal / kg : null }
   })
   // Today is still in progress: it stays in the day-by-day table but not in the averages (2 feeds by 7 AM
   // is not a day of 2 feeds), as the supply trend and the stash runway leave it out too.
@@ -142,6 +156,10 @@ export function buildDoctorReport(events: EventSets, growth: GrowthSets | undefi
       const typicalDay = !ctx.hold && feedNorm.ozPerDay ? band(Math.round(convertVolume(feedNorm.ozPerDay[0], 'oz', units.volume)), Math.round(convertVolume(feedNorm.ozPerDay[1], 'oz', units.volume)), ` ${vol}`) : null
       averages.push({ key: 'bottle', label: 'By bottle a day', value: formatVolume(bottle.value, units.volume), typical: typicalDay, loggedDays: bottle.days })
     }
+    const kcal = avgOf(whole, (d) => d.kcal)
+    if (kcal.days) averages.push({ key: 'kcal', label: 'Calories by bottle a day', value: `${Math.round(kcal.value)} kcal`, typical: null, loggedDays: kcal.days })
+    const perKg = avgOf(whole, (d) => d.kcalPerKg ?? 0)
+    if (perKg.days) averages.push({ key: 'kcalkg', label: calories.goal ? `kcal per kg a day (goal ${calories.goal})` : 'kcal per kg a day', value: String(Math.round(perKg.value)), typical: ctx.hold || ctx.ageMonths >= 6 ? null : band(TYPICAL_KCAL_PER_KG[0], TYPICAL_KCAL_PER_KG[1]), loggedDays: perKg.days })
     const nursing = avgOf(whole, (d) => d.nursingMinutes)
     // A day's total minutes has no band: the science gives minutes a side per feed, which beside a day's
     // total would read as six times over.

@@ -12,7 +12,7 @@ export interface UnitPrefs {
 
 export const DEFAULT_UNITS: UnitPrefs = { volume: 'oz', temp: 'f', weight: 'lb', length: 'in' }
 
-const ML_PER_OZ = 29.5735
+export const ML_PER_OZ = 29.5735
 const KG_PER_LB = 0.45359237
 const CM_PER_IN = 2.54
 

@@ -369,3 +369,8 @@
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 }
+
+/* Bottle sheet: the bottle's calories under the amount. */
+.calories-line {
+  margin: 0;
+}
