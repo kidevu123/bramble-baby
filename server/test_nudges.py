@@ -795,7 +795,7 @@ class NudgeTest(unittest.TestCase):
         self.assertEqual([p for _, p in self.sent if p["tag"].startswith("milk:")], [])
         # Manual tile reminders open their sheet; nap window stays on Home.
         self.assertEqual(self.n.route({"tag": "reminder:bottle", "source": "manual", "child": CHILD}), ("/?log=bottle", None, False))
-        self.assertEqual(self.n.route({"tag": "sweetspot:now", "source": "auto", "child": CHILD}), ("/", None, False))
+        self.assertEqual(self.n.route({"tag": "nap:now", "source": "auto", "child": CHILD}), ("/", None, False))
 
     def test_http_arms_the_token_saves_settings_and_reports_the_plan(self):
         self.n.secrets.clear()

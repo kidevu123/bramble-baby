@@ -36,7 +36,7 @@ export function ChildPage() {
   const [showAllHistory, setShowAllHistory] = useState(false)
   // Nap window settings and the Schedule Creator live here; Home and the nap window page open the same
   // Schedule Creator sheet in place rather than sending the user to this tab.
-  const [sheet, setSheet] = useState<'sweetspot' | 'schedule' | null>(null)
+  const [sheet, setSheet] = useState<'nap' | 'schedule' | null>(null)
   const { settings, update: updateSettings } = useChildSettings(child?.id ?? null)
   if (!child) return null
   const expecting = isExpecting(child)
@@ -165,7 +165,7 @@ export function ChildPage() {
 
         <WeightGoalCard child={child} />
         <div className="card profile-links">
-          <button type="button" className="profile-link" onClick={() => setSheet('sweetspot')}>
+          <button type="button" className="profile-link" onClick={() => setSheet('nap')}>
             <span className="icon-circle tone-sleep">
               <MoonIcon />
             </span>
@@ -214,7 +214,7 @@ export function ChildPage() {
 
       </main>
 
-      <NapSettingsSheet open={sheet === 'sweetspot'} child={child} onClose={() => setSheet(null)} />
+      <NapSettingsSheet open={sheet === 'nap'} child={child} onClose={() => setSheet(null)} />
       <ScheduleCreatorSheet open={sheet === 'schedule'} child={child} onClose={() => setSheet(null)} />
       <ChildEditor key={editing === null ? 'closed' : editing === 'new' ? 'new' : `child-${editing.id}`} target={editing} onClose={() => setEditing(null)} />
       <LogSheet request={request} child={child} onClose={() => setRequest(null)} />

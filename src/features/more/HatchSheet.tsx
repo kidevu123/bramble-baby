@@ -87,7 +87,7 @@ function SignInForm({ hatch, email: knownEmail, submitLabel }: { hatch: Hatch; e
       <Button type="submit" variant="primary" size="lg" block disabled={!canSubmit} loading={hatch.connect.isPending}>
         {submitLabel}
       </Button>
-      <p className="xs muted">Your password goes to your own Bramble server once, to sign in to Hatch, and is not kept. The server keeps only the session Hatch hands back.</p>
+      <p className="xs muted">Your password goes to your own Bramble server once, to sign in to Hatch, and is not kept. The server keeps only the session Hatch hands back. An unofficial connection: Bramble is not made by or affiliated with Hatch.</p>
     </form>
   )
 }

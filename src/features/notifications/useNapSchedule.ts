@@ -24,12 +24,12 @@ export function useNapSchedule(child: Child | null, sleeps: Sleep[], settings: N
     if (settings.notify && !ageHold(basis, now) && p.state === 'predicted' && p.at) {
       const lead = new Date(p.at.getTime() - settings.leadMinutes * 60_000)
       if (lead.getTime() > now.getTime()) {
-        items.push({ tag: 'sweetspot:near', at: lead.toISOString(), title: `Nap window soon · ${formatTime(p.at)}`, body: `${child.first_name}'s ideal nap is coming up in ${settings.leadMinutes} minutes.` })
+        items.push({ tag: 'nap:near', at: lead.toISOString(), title: `Nap window soon · ${formatTime(p.at)}`, body: `${child.first_name}'s ideal nap is coming up in ${settings.leadMinutes} minutes.` })
       }
       // Only future alerts: a prediction inside the current window has a past `at`, and scheduling it
       // again on every app open re-fired "now is the ideal time" to every phone.
       if (p.at.getTime() > now.getTime()) {
-        items.push({ tag: 'sweetspot:now', at: p.at.toISOString(), title: `Nap window now · ${formatTime(p.at)}`, body: `Now is the ideal time to put ${child.first_name} down.` })
+        items.push({ tag: 'nap:now', at: p.at.toISOString(), title: `Nap window now · ${formatTime(p.at)}`, body: `Now is the ideal time to put ${child.first_name} down.` })
       }
     }
     const signature = `${child.id}|${items.map((i) => `${i.tag}@${i.at}`).join(',')}`

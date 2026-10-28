@@ -292,11 +292,11 @@ class ServerTest(unittest.TestCase):
     def test_schedule_skips_auto_alert_already_sent(self):
         past = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat(timespec="seconds")
         self.subscribe("https://push/x", child=1)
-        self.call("POST", "/push/schedule", {"child": 1, "items": [{"tag": "sweetspot:now", "at": past, "title": "Now"}]})
+        self.call("POST", "/push/schedule", {"child": 1, "items": [{"tag": "nap:now", "at": past, "title": "Now"}]})
         self.assertEqual(self.delivery.run_once(), 1)
         self.assertEqual(len(self.sent), 1)
         # app reopened inside the window: same item re-scheduled → no second push
-        status, body = self.call("POST", "/push/schedule", {"child": 1, "items": [{"tag": "sweetspot:now", "at": past, "title": "Now"}]})
+        status, body = self.call("POST", "/push/schedule", {"child": 1, "items": [{"tag": "nap:now", "at": past, "title": "Now"}]})
         self.assertEqual(body["scheduled"], [])
         self.assertEqual(self.delivery.run_once(), 0)
         self.assertEqual(len(self.sent), 1)
@@ -307,7 +307,7 @@ class ServerTest(unittest.TestCase):
         same alert (same child, tag and time) is inserted again as unsent and goes out a second time."""
         self.subscribe("https://push/x", child=1)
         past = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat(timespec="seconds")
-        items = [{"tag": "sweetspot:now", "at": past, "title": "Now"}]
+        items = [{"tag": "nap:now", "at": past, "title": "Now"}]
         self.call("POST", "/push/schedule", {"child": 1, "items": items})
         orig = bs.send_push
 
@@ -1814,6 +1814,22 @@ class ServerTest(unittest.TestCase):
         self.assertEqual((status, body["storageUnits"]), (200, units))
         self.assertEqual(self.call("GET", "/settings/3")[1], {"storageUnits": units, "pumps": [{"name": "Eufy", "minutes": 30}]})
 
+    def test_the_nap_window_settings_and_alerts_are_stored_under_their_new_names(self):
+        # 1.49.1: the nap window's settings key and its alerts' tag prefix were renamed; stored data follows, and a
+        # phone still on an older build is converted as it writes.
+        old_key, old_tag = next(iter(bs.RENAMED_SETTINGS)), bs.RENAMED_TAG[0]
+        nap = {"notify": True, "leadMinutes": 15, "wakeWindowAdjustMinutes": 0, "napsPerDayOverride": None}
+        self.app.store.x("INSERT OR REPLACE INTO settings (child, blob) VALUES (8, ?)", (json.dumps({old_key: nap, "pumps": []}),))
+        future = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat(timespec="seconds")
+        self.app.store.x("INSERT INTO reminders (child, at, title, body, tag, source, sent, created) VALUES (8, ?, 'Near', '', ?, 'auto', 0, ?)", (future, old_tag + ":near", bs.now_iso()))
+        self.app._rename_stored()
+        self.assertEqual(self.call("GET", "/settings/8")[1], {"napWindow": nap, "pumps": []})
+        self.assertEqual([r["tag"] for r in self.app.store.q("SELECT tag FROM reminders WHERE child=8")], ["nap:near"])
+        # An older phone writing the old key: its change lands under the new one, and the old one is not kept.
+        status, body = self.call("PUT", "/settings/8", {old_key: {**nap, "leadMinutes": 5}})
+        self.assertEqual((status, body["napWindow"]["leadMinutes"], old_key in body), (200, 5, False))
+        self.app.store.x("DELETE FROM reminders WHERE child=8")
+
     def test_storage_units_are_recorded_once(self):
         # sweep 2026-10-21: a phone that missed the shared copy could write its own units over the household's
         units = {"volume": "ml", "weight": "lb", "temp": "f", "length": "in"}
@@ -1912,10 +1928,10 @@ class ServerTest(unittest.TestCase):
     def test_schedule_replaces_auto_but_keeps_manual(self):
         future = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(timespec="seconds")
         self.call("POST", "/reminders", {"child": 1, "at": future, "title": "Manual", "tag": "manual"})
-        self.call("POST", "/push/schedule", {"child": 1, "items": [{"tag": "sweetspot-near", "at": future, "title": "Near"}, {"tag": "sweetspot", "at": future, "title": "Now"}]})
+        self.call("POST", "/push/schedule", {"child": 1, "items": [{"tag": "nap-near", "at": future, "title": "Near"}, {"tag": "nap", "at": future, "title": "Now"}]})
         titles = sorted(r["title"] for r in self.call("GET", "/reminders?child=1")[1])
         self.assertEqual(titles, ["Manual", "Near", "Now"])
-        status, body = self.call("POST", "/push/schedule", {"child": 1, "items": [{"tag": "sweetspot", "at": future, "title": "Later"}]})
+        status, body = self.call("POST", "/push/schedule", {"child": 1, "items": [{"tag": "nap", "at": future, "title": "Later"}]})
         self.assertEqual(status, 200)
         self.assertEqual([r["title"] for r in body["scheduled"]], ["Later"])
         titles = sorted(r["title"] for r in self.call("GET", "/reminders?child=1")[1])

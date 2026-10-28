@@ -1,7 +1,29 @@
 """Niimbot label printer protocol (B1/B18/B21/D11/D110) over RFCOMM Bluetooth or USB serial.
 
-Vendored from https://github.com/AndBondStyle/niimprint (MIT License, Copyright (c) 2023 kjy00302) so the print bridge
-runs on the Proxmox host's Python without pip, git or a Python 3.11 pin. Only the import lines were changed.
+Vendored from https://github.com/AndBondStyle/niimprint so the print bridge runs on the Proxmox host's Python without
+pip, git or a Python 3.11 pin. Only the import lines were changed. Its licence, which travels with this file:
+
+MIT License
+
+Copyright (c) 2023 kjy00302
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 """
 
 class NiimbotPacket:

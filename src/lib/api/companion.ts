@@ -64,7 +64,7 @@ export interface ChildSettings {
   dayStart: string
   dayEnd: string
   /** Nap window settings (stored under the feature's old name, so phones keep what they set). */
-  sweetSpot: NapSettings
+  napWindow: NapSettings
   homeTiles: string[]
   customFoods: string[]
   reportFilters: Record<string, boolean>
@@ -119,7 +119,7 @@ export const DEFAULT_HOME_TILES = [
 export const DEFAULT_CHILD_SETTINGS: ChildSettings = {
   dayStart: '08:00',
   dayEnd: '18:00',
-  sweetSpot: { notify: true, leadMinutes: 10, wakeWindowAdjustMinutes: 0, napsPerDayOverride: null },
+  napWindow: { notify: true, leadMinutes: 10, wakeWindowAdjustMinutes: 0, napsPerDayOverride: null },
   homeTiles: DEFAULT_HOME_TILES,
   customFoods: [],
   reportFilters: {},
@@ -414,7 +414,7 @@ export const companion = {
   settings: {
     get: async (child: Id): Promise<ChildSettings> => {
       const raw = await api<Partial<ChildSettings>>(`${COMPANION}/settings/${child}`)
-      return { ...DEFAULT_CHILD_SETTINGS, ...raw, sweetSpot: { ...DEFAULT_CHILD_SETTINGS.sweetSpot, ...(raw.sweetSpot ?? {}) } }
+      return { ...DEFAULT_CHILD_SETTINGS, ...raw, napWindow: { ...DEFAULT_CHILD_SETTINGS.napWindow, ...(raw.napWindow ?? {}) } }
     },
     /** Sends only the keys that changed; the companion merges them over the shared copy (top-level keys),
      *  so two phones changing different settings never undo each other. A whole object still works. */

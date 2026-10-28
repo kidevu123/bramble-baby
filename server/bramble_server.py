@@ -597,6 +597,24 @@ def public_error(text: str | None) -> str | None:
     return re.sub(r"(?<=[\s:'\"(=])/[^\s'\"()<>]+", "[path]", text)
 
 
+# Names a household's data carried before 1.49.1, renamed in place: the nap window's settings key and the prefix of
+# its alerts' tags. Stored rows are converted at start-up; a phone still on an older build is converted as it writes.
+RENAMED_SETTINGS = {"sweetSpot": "napWindow"}
+RENAMED_TAG = ("sweetspot", "nap")
+
+
+def renamed_settings(blob: dict, incoming: bool = False) -> dict:
+    """A settings object under today's key names. For a write (`incoming`) the old key's value wins, since it is
+    what that phone just changed; for a stored blob a key already under the new name is kept."""
+    out = dict(blob)
+    for old, new in RENAMED_SETTINGS.items():
+        if old in out:
+            value = out.pop(old)
+            if incoming or new not in out:
+                out[new] = value
+    return out
+
+
 # Printers that can be set from the app. `file://` (writes PNGs to a folder, for tests) stays a host-only setting.
 PRINTER_KINDS = ("zebra", "brother_ql", "bridge", "niimbot")
 
@@ -607,6 +625,7 @@ class App:
         self.milk = milk_mod.MilkStore(store, parse_iso, utc_iso, now_iso)
         self.env_printer = os.environ.get("BRAMBLE_PRINTER") or None
         self.printer = printer or milk_mod.Printer(self._printer_spec())
+        self._rename_stored()
         set_vapid_sub(self.config_get("push_contact"))
         # Hatch Grow scale weights -> Baby Buddy (hatch.py); its poll thread is started in main().
         self.hatch = hatch_mod.Hatch(store, auth.url, auth.host_header)
@@ -617,6 +636,19 @@ class App:
         self.nudges = nudges_mod.Nudges(store, auth.url, auth.host_header)
         delivery.router = self.nudges.route
         self.hatch.on_weight = self.nudges.weight_imported
+
+    def _rename_stored(self) -> None:
+        """Stored settings and reminders under today's names (RENAMED_SETTINGS, RENAMED_TAG). Runs on every start."""
+        old, new = RENAMED_TAG
+        with self.store.atomic():
+            for row in self.store.q("SELECT child, blob FROM settings"):
+                try:
+                    blob = json.loads(row["blob"])
+                except ValueError:
+                    continue
+                if isinstance(blob, dict) and any(k in blob for k in RENAMED_SETTINGS):
+                    self.store.x("UPDATE settings SET blob=? WHERE child=?", (json.dumps(renamed_settings(blob)), row["child"]))
+            self.store.x("UPDATE reminders SET tag = ? || substr(tag, ?) WHERE tag LIKE ?", (new, len(old) + 1, old + "%"))
 
     # ---- the household's own setup (printer, push contact), editable from the app
     def config_get(self, key: str) -> str | None:
@@ -780,9 +812,11 @@ class App:
             child = int(parts[1])
             if method == "GET":
                 rows = self.store.q("SELECT blob FROM settings WHERE child=?", (child,))
-                return 200, json.loads(rows[0]["blob"]) if rows else {}
+                blob = json.loads(rows[0]["blob"]) if rows else {}
+                return 200, renamed_settings(blob) if isinstance(blob, dict) else blob
             if method == "PUT":
                 data = people_mod.People.strip_settings(data)  # caregiver names live in the people table now
+                data = renamed_settings(data, incoming=True)
                 # Keys in the body replace, keys left out are kept: a phone saving its pump list must not erase
                 # storageUnits (or anything else it did not send). A full-object PUT works as before.
                 with self.store.atomic():
@@ -791,7 +825,7 @@ class App:
                         old = json.loads(rows[0]["blob"]) if rows else {}
                     except ValueError:
                         old = {}
-                    old = old if isinstance(old, dict) else {}
+                    old = renamed_settings(old) if isinstance(old, dict) else {}
                     if isinstance(old.get("storageUnits"), dict) and "storageUnits" in data:
                         # The units every stored number is in are recorded once and never change: a phone that
                         # missed the shared copy would otherwise re-label every bottle, weight and Hatch import.

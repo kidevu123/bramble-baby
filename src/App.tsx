@@ -131,7 +131,6 @@ export function App() {
                 <Route path="/report" element={<DoctorReportPage />} />
                 <Route path="/nap" element={<NapPage />} />
                 {/* The page's address until 1.47: old bookmarks and Home Screen history land on the new one. */}
-                <Route path="/sweetspot" element={<Navigate to="/nap" replace />} />
                 <Route path="/child" element={<ChildPage />} />
                 <Route path="/plans" element={<SleepPlansPage />} />
                 <Route path="/insights" element={<InsightsPage />} />

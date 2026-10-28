@@ -110,7 +110,7 @@ export function HomePage() {
 
   const { bornAtDays, nicu } = settings
   const ageBasisOf = useMemo(() => (child ? ageBasis(child, { bornAtDays, nicu }) : null), [child, bornAtDays, nicu])
-  useNapSchedule(child, events.sleep, settings.sweetSpot, Boolean(notifications.state?.subscribed), asleepSince, ageBasisOf)
+  useNapSchedule(child, events.sleep, settings.napWindow, Boolean(notifications.state?.subscribed), asleepSince, ageBasisOf)
   // What the nudges are computed from; a change (a feed just saved) makes the server recompute at once.
   useNudgeTouch(child?.id ?? null, `${latestOf(events.feedings, (f) => f.start)?.id ?? 0}|${events.feedings.length}|${latestOf(events.pumping, (p) => p.start)?.id ?? 0}|${events.pumping.length}|${latestOf(events.changes, (c) => c.time)?.id ?? 0}|${events.changes.length}`, Boolean(notifications.state?.subscribed))
 
@@ -147,7 +147,7 @@ export function HomePage() {
     <>
       <TopBar onInbox={() => setInbox(true)} inboxCount={(reminders.data ?? []).filter((r) => !r.sent).length} />
       <main className="page home-page">
-        <NapBand child={child} sleeps={events.sleep} now={now} wakeWindowAdjustMinutes={settings.sweetSpot.wakeWindowAdjustMinutes} asleepSince={asleepSince} onSchedule={() => setSchedule(true)} />
+        <NapBand child={child} sleeps={events.sleep} now={now} wakeWindowAdjustMinutes={settings.napWindow.wakeWindowAdjustMinutes} asleepSince={asleepSince} onSchedule={() => setSchedule(true)} />
         <ActiveTimers child={child.id} />
         {events.isError ? (
           <p className="log-error" role="alert">

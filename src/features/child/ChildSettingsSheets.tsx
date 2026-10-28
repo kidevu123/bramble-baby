@@ -19,8 +19,8 @@ import './child.css'
 /** Nap window settings: notifications lead time, wake-window nudge, naps override. */
 export function NapSettingsSheet({ open, child, onClose }: { open: boolean; child: Child; onClose: () => void }) {
   const { settings, update } = useChildSettings(child.id)
-  const ss = settings.sweetSpot
-  const set = (patch: Partial<typeof ss>) => update((latest) => ({ sweetSpot: { ...ss, ...latest.sweetSpot, ...patch } }))
+  const ss = settings.napWindow
+  const set = (patch: Partial<typeof ss>) => update((latest) => ({ napWindow: { ...ss, ...latest.napWindow, ...patch } }))
   const months = judgedMonths(ageBasis(child, settings)) // corrected age for a baby born early
   const age = ageWakeWindow(months)
   return (
@@ -68,9 +68,9 @@ export function ScheduleCreatorSheet({ open, child, onClose }: { open: boolean; 
   // Follows Nap window settings' "Naps per day" (also when it changes while this tab stays open) until a
   // count is picked here for this sample day.
   const [picked, setNaps] = useState<number | 'auto' | null>(null)
-  const naps = picked === null ? (settings.sweetSpot.napsPerDayOverride ?? undefined) : picked === 'auto' ? undefined : picked
+  const naps = picked === null ? (settings.napWindow.napsPerDayOverride ?? undefined) : picked === 'auto' ? undefined : picked
   const age = ageWakeWindow(months)
-  const items = buildSchedule({ ageMonths: months, wakeTime: wake, napsPerDay: naps, wakeWindowMinutes: Math.round((age.minMinutes + age.maxMinutes) / 2 + settings.sweetSpot.wakeWindowAdjustMinutes), includeFeeds: months < 6 })
+  const items = buildSchedule({ ageMonths: months, wakeTime: wake, napsPerDay: naps, wakeWindowMinutes: Math.round((age.minMinutes + age.maxMinutes) / 2 + settings.napWindow.wakeWindowAdjustMinutes), includeFeeds: months < 6 })
   return (
     <Sheet
       open={open}

@@ -117,7 +117,7 @@ await page.getByRole('button', { name: 'Miniplans' }).click(); await settle(); a
 
 // Child
 await page.getByRole('link', { name: 'Child' }).click(); await settle(1000); await page.getByRole('radio', { name: 'Boy' }).click(); await settle(600); await shot('27-child')
-await page.getByRole('button', { name: /Nap window settings/ }).click(); await settle(); await shot('28-sweetspot-settings'); await inDialog().getByRole('button', { name: 'Done' }).click(); await settle()
+await page.getByRole('button', { name: /Nap window settings/ }).click(); await settle(); await shot('28-nap-window-settings'); await inDialog().getByRole('button', { name: 'Done' }).click(); await settle()
 await page.getByRole('button', { name: /Schedule Creator/ }).click(); await settle(); await shot('29-schedule'); await inDialog().getByRole('button', { name: 'Done' }).click(); await settle()
 
 // Settings + dark

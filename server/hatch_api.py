@@ -1,10 +1,11 @@
 """Everything Bramble knows about Hatch's cloud, in one place.
 
-Hatch has no public API. The names below were read out of the Hatch Grow Android app (com.hatchbaby
-2.2.4, build 160) and cross-checked against older community notes (davemasse/hatchbabyapi, the
-`hatchbaby` npm package). None of it has been exercised against a real account by the author, so
-when the first real sign-in disagrees, this file is the only one that should need editing: the
-routes in SOURCES, the list name in WEIGHT_LIST_KEYS and the field names in FIELDS.
+Unofficial: Hatch publishes no API, and Bramble is not made by, affiliated with or endorsed by Hatch Baby,
+Inc. Bramble signs in with the family's own Hatch account, as the Hatch app does, and only reads that family's
+own weighings. The routes and field names below follow what community projects already document
+(davemasse/hatchbabyapi, the `hatchbaby` npm package). When a real sign-in disagrees, this file is the only
+one that should need editing: the routes in SOURCES, the list name in WEIGHT_LIST_KEYS and the field names in
+FIELDS.
 
 What the app does, and what this module copies:
   * POST /public/v1/login {email, password} -> always HTTP 200, {status: success|failure, token, payload:{babies:[...]}}

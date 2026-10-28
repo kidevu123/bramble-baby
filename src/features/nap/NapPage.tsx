@@ -24,7 +24,7 @@ export function NapPage() {
   if (!child) return null
 
   const months = judgedMonths(ageBasis(child, settings), now) // corrected age for a baby born early
-  const prediction = predictNap(events.sleep, months, now, settings.sweetSpot.wakeWindowAdjustMinutes, asleepSince)
+  const prediction = predictNap(events.sleep, months, now, settings.napWindow.wakeWindowAdjustMinutes, asleepSince)
   const window = ageWakeWindow(months)
   const bedtime = suggestBedtime(months, now, prediction.lastWakeAt)
 
@@ -32,7 +32,7 @@ export function NapPage() {
     <>
       <TopBar title="Nap window" right="none" back />
       <main className="page">
-        <NapBand child={child} sleeps={events.sleep} now={now} wakeWindowAdjustMinutes={settings.sweetSpot.wakeWindowAdjustMinutes} asleepSince={asleepSince} onSchedule={() => setSchedule(true)} linked={false} />
+        <NapBand child={child} sleeps={events.sleep} now={now} wakeWindowAdjustMinutes={settings.napWindow.wakeWindowAdjustMinutes} asleepSince={asleepSince} onSchedule={() => setSchedule(true)} linked={false} />
 
         <section className="card card-pad stack">
           <div className="row">

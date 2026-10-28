@@ -519,14 +519,14 @@ async function run(scheme, viewport, reducedMotion = 'no-preference') {
   })
 
   // ---------------------------------------------------------------- nap window page
-  await section('sweetspot', async () => {
+  await section('nap-window', async () => {
     await page.getByRole('link', { name: 'Home' }).click(); await settle(800)
     await page.locator('a.band-pred').click(); await settle(1000)
-    await shot('sweetspot')
+    await shot('nap-window')
     ok('nap window page shows Back', (await page.getByRole('button', { name: 'Back' }).count()) === 1)
     ok('the band on the nap window page does not link to the page it is on', (await page.locator('a.band-pred').count()) === 0 && (await page.locator('.band-pred').count()) === 1)
     const sc = page.getByRole('button', { name: /Schedule/ })
-    if (await sc.count()) { await sc.first().click(); await settle(); await shot('sweetspot-schedule-creator'); ok('Schedule Creator opens in place on nap window', new URL(page.url()).pathname === '/nap'); await sheet().getByRole('button', { name: 'Done' }).click(); await settle() }
+    if (await sc.count()) { await sc.first().click(); await settle(); await shot('nap-window-schedule-creator'); ok('Schedule Creator opens in place on nap window', new URL(page.url()).pathname === '/nap'); await sheet().getByRole('button', { name: 'Done' }).click(); await settle() }
     await page.getByRole('button', { name: 'Back' }).click(); await settle(800)
     ok('Back from nap window returns Home', new URL(page.url()).pathname === '/')
   })
@@ -552,7 +552,7 @@ async function run(scheme, viewport, reducedMotion = 'no-preference') {
     ok('Delete from the history row removes the entry', (await page.locator('.growth-row').count()) === 0)
     await shot('child-full', { fullPage: true })
 
-    await page.getByRole('button', { name: /Nap window settings/ }).click(); await settle(); await shot('child-sweetspot-settings'); await sheet().getByRole('button', { name: 'Done' }).click(); await settle()
+    await page.getByRole('button', { name: /Nap window settings/ }).click(); await settle(); await shot('child-nap-window-settings'); await sheet().getByRole('button', { name: 'Done' }).click(); await settle()
     await page.getByRole('button', { name: /Schedule Creator/ }).click(); await settle(); await shot('child-schedule-creator'); await sheet().getByRole('button', { name: 'Done' }).click(); await settle()
     await page.getByRole('button', { name: 'Edit profile' }).click(); await settle(); await shot('child-edit-profile'); await closeSheet()
     await page.getByRole('button', { name: /Add another child/ }).click(); await settle(); await shot('child-add-child')

@@ -12,6 +12,11 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.49.1',
+    date: 'Oct 28',
+    items: ['Housekeeping for the public release of Bramble\'s code. Nothing changes in how the app works, and your settings carry over.'],
+  },
+  {
     version: '1.49.0',
     date: 'Oct 27',
     items: [

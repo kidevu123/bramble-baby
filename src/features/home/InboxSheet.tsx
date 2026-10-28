@@ -21,7 +21,7 @@ export function InboxSheet({ open, child, onClose }: { open: boolean; child: Chi
   const recent = (reminders.data ?? []).filter((r) => r.sent).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 10)
   const label = (r: { tag: string; title: string }) => {
     const tag = r.tag
-    if (tag.startsWith('sweetspot')) return 'Nap window'
+    if (tag.startsWith('nap')) return 'Nap window'
     if (tag === 'nudge:activity') {
       // "Dad logged a bottle" → "Logged by Dad"
       const who = /^(.+?) logged\b/.exec(r.title)?.[1]

@@ -49,7 +49,7 @@ when Dad starts a sleep timer, Mom's phone gets `start` and shows the same runni
   environment).
 - New tables: `apns_devices (token PK, user_id, child, env, created)` for plain alerts, and
   `activity_tokens (token PK, kind, subject, user_id, env, is_push_to_start, updated)`; `subject` is the Baby
-  Buddy timer id, `sweetspot:<child>` or `milk:<bag id>`. Routes: `/push/apns/{register, activity-token,
+  Buddy timer id, `nap:<child>` or `milk:<bag id>`. Routes: `/push/apns/{register, activity-token,
   start-token, unregister}`.
 - `Delivery._deliver` fans out to `subscriptions` (Web Push, unchanged) and `apns_devices`.
 - New `ActivityPush` on the same 15 s loop: polls Baby Buddy `/api/timers/` with a service token, diffs

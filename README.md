@@ -117,11 +117,19 @@ run in light and dark mode without touching real data.
   listed in the app's Insights), but your pediatrician and NICU team come first.
 - **iPhone web apps can't use Bluetooth, USB or Live Activities**, so label printing goes through the server or the
   share sheet, and there are no Lock Screen widgets.
-- The Hatch connection uses Hatch's unofficial cloud API. It can stop working whenever Hatch changes something.
+- The Hatch connection uses Hatch's unofficial cloud API, with your own account. It can stop working whenever Hatch
+  changes something.
+- **Trademarks.** Bramble is an independent project. It is not made by, affiliated with or endorsed by Baby Buddy,
+  Hatch, Apple, Zebra, Brother, Niimbot, any breast-pump maker or any other baby-tracking app. Product names are
+  trademarks of their owners and are used only to say what Bramble works with.
 
 ## Credits
 - [Baby Buddy](https://github.com/babybuddy/babybuddy) (BSD 2-Clause): the backend everything is stored in.
-- WHO Child Growth Standards; CDC breast-milk storage guidelines.
+- Growth percentiles: the WHO Child Growth Standards (© World Health Organization), reproduced with attribution for
+  reference in `src/lib/science/growth-data.ts`; that data is not covered by the MIT licence. Breast-milk storage
+  times follow CDC guidance.
+- The Niimbot printer protocol in `server/niimbot_proto.py` is vendored from
+  [niimprint](https://github.com/AndBondStyle/niimprint) (MIT, © 2023 kjy00302); its licence is kept in that file.
 - Food photos: CC0, from rawpixel (list in `src/lib/food-credits.json`). Fonts: Nunito and Fraunces (SIL Open Font
   License), via Google Fonts.
 

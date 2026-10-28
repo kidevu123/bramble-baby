@@ -1,4 +1,6 @@
-/* Generated from WHO Child Growth Standards expanded LMS tables (who.int, 2006), sampled monthly 0–24 months. */
+/* Generated from WHO Child Growth Standards expanded LMS tables (who.int, 2006), sampled monthly 0–24 months.
+ * The numbers are the World Health Organization's, reproduced with attribution for reference; they are not covered
+ * by this project's MIT licence (see README › Credits). */
 export type GrowthMetric = 'weight' | 'length' | 'head'
 export type Sex = 'male' | 'female'
 /** [L, M, S] per month index 0..24. Weight kg, length cm, head circumference cm. */

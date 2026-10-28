@@ -32,7 +32,7 @@ function readLocal(child: Id): ChildSettings {
     const raw = localStorage.getItem(LOCAL_KEY(child))
     if (!raw) return DEFAULT_CHILD_SETTINGS
     const parsed = JSON.parse(raw) as Partial<ChildSettings>
-    return { ...DEFAULT_CHILD_SETTINGS, ...parsed, sweetSpot: { ...DEFAULT_CHILD_SETTINGS.sweetSpot, ...(parsed.sweetSpot ?? {}) } }
+    return { ...DEFAULT_CHILD_SETTINGS, ...parsed, napWindow: { ...DEFAULT_CHILD_SETTINGS.napWindow, ...(parsed.napWindow ?? {}) } }
   } catch {
     return DEFAULT_CHILD_SETTINGS
   }
