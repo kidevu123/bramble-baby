@@ -12,6 +12,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.53.3',
+    date: 'Nov 3',
+    items: [
+      'Fixed: the Bobbie spoon measures were too big. The app counted a level teaspoon of Bobbie as 1.9 g; Bobbie\u2019s own spec sheet says 2.49 g. So "½ teaspoon" for 60 mL at 22 kcal/oz was really ⅜ (a third), and ½ made about 22.8 kcal/oz. If you mixed by the spoon, your bottles were a little stronger than 22, not weaker.',
+      'Fortify recipes now lead with the grams for a kitchen scale, which are exact. Spoons are a second, rounded measure (to the nearest level ⅛ teaspoon, as measuring sets have) and the chart says how far they can land from the strength.',
+      'A spoon and its grams are no longer written as if they were the same amount.',
+    ],
+  },
+  {
     version: '1.53.2',
     date: 'Oct 28',
     items: [

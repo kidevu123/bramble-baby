@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { concentrateMl, mixWithPowder, POWDERS, powderGrams, powderOf, recipeFor, recipeText, smallestBatchOz, spoonText, type FortifySettings } from './fortify'
+import { concentrateMl, mixWithPowder, POWDERS, powderGrams, powderOf, recipeFor, recipeText, smallestBatchOz, spoonDrift, spoonText, type FortifySettings } from './fortify'
 import { convertVolume } from './units'
 
 const oz = (n: number) => convertVolume(n, 'oz', 'ml')
@@ -33,21 +33,22 @@ describe('fortifying with powder', () => {
   })
 
   it('writes the measure in level spoons, and whole scoops when they fit', () => {
-    expect(spoonText(1)).toBe('¼ teaspoon')
-    expect(spoonText(5)).toBe('1¼ teaspoons')
-    expect(spoonText(14)).toBe('1 tablespoon + ½ teaspoon')
-    expect(spoonText(24)).toBe('2 tablespoons')
+    expect(spoonText(1)).toBe('⅛ teaspoon')
+    expect(spoonText(3)).toBe('⅜ teaspoon')
+    expect(spoonText(10)).toBe('1¼ teaspoons')
+    expect(spoonText(28)).toBe('1 tablespoon + ½ teaspoon')
+    expect(spoonText(48)).toBe('2 tablespoons')
     const f: FortifySettings = { kcalPerOz: 24, with: 'powder', powder: 'standard' }
     const r = recipeFor(oz(10), f)
     expect(r.with === 'powder' && r.scoops).toBe('1 scoop')
     expect(r.tooSmall).toBe(false)
     expect(Math.abs(r.kcalPerOz - 24)).toBeLessThan(0.6)
-    expect(recipeText(recipeFor(oz(5), f))).toBe('2 teaspoons (4.5 g) of powder')
+    expect(recipeText(recipeFor(oz(5), f))).toBe('2 teaspoons of powder, or 4.5 g on a scale')
   })
 
   it('says when a batch is too small to measure, and how small it can go', () => {
     const f: FortifySettings = { kcalPerOz: 22, with: 'powder', powder: 'standard' }
-    expect(recipeFor(15, f).tooSmall).toBe(true)
+    expect(recipeFor(5, f).tooSmall).toBe(true)
     const least = smallestBatchOz(f)
     expect(least).not.toBeNull()
     expect(recipeFor(oz(least!), f).tooSmall).toBe(false)
@@ -59,9 +60,40 @@ describe('fortifying with powder', () => {
     const r = recipeFor(oz(4), { kcalPerOz: 22, with: 'powder', powder: 'bobbie' })
     expect(r.tooSmall).toBe(false)
     expect(Math.abs(r.kcalPerOz - 22)).toBeLessThan(0.6)
-    // Children's Wisconsin's home recipe lists Bobbie: ½ teaspoon to 60 mL for 22 kcal/oz
-    expect(recipeText(recipeFor(60, { kcalPerOz: 22, with: 'powder', powder: 'bobbie' }))).toBe('½ teaspoon (0.9 g) of Bobbie')
-    expect(recipeText(recipeFor(60, { kcalPerOz: 24, with: 'powder', powder: 'bobbie' }))).toBe('1 teaspoon (1.8 g) of Bobbie')
+    // Bobbie's spec sheet: 2.49 g a level teaspoon, so 60 mL to 22 kcal/oz (0.89 g) is a third of a teaspoon, written as the
+    // nearest eighth. The owner mixed ½ teaspoon from an earlier build (1.9 g a teaspoon, derived from "about 1½ tablespoons
+    // a scoop"), which made about 22.8 kcal/oz; this pins the teaspoon to the maker's figure.
+    expect(bobbie.gPerTbsp / 3).toBeCloseTo(2.49, 2)
+    expect(recipeText(recipeFor(60, { kcalPerOz: 22, with: 'powder', powder: 'bobbie' }))).toBe('⅜ teaspoon of Bobbie, or 0.9 g on a scale')
+    expect(recipeText(recipeFor(60, { kcalPerOz: 24, with: 'powder', powder: 'bobbie' }))).toBe('¾ teaspoon of Bobbie, or 1.8 g on a scale')
+    expect(mixWithPowder(60, 2.49 / 2, bobbie).kcalPerOz).toBeCloseTo(22.8, 1)
+  })
+
+  // Worked by hand (and by bisection, outside the app) for Bobbie at 22 kcal/oz: grams = mL × (22 − 20)/29.5735 ÷ (5.14 − 22/29.5735 × 0.78);
+  // spoons at 2.49 g a teaspoon to the nearest eighth.
+  const bobbie22: FortifySettings = { kcalPerOz: 22, with: 'powder', powder: 'bobbie' }
+  it.each([
+    [60, 0.9, '⅜ teaspoon'],
+    [90, 1.3, '½ teaspoon'],
+    [120, 1.8, '¾ teaspoon'],
+    [150, 2.2, '⅞ teaspoon'],
+    [180, 2.7, '1⅛ teaspoons'],
+    [240, 3.6, '1⅜ teaspoons'],
+  ])('Bobbie at 22: %i mL takes %f g on a scale, %s by spoon', (ml, grams, spoons) => {
+    const r = recipeFor(ml, bobbie22)
+    expect(r.with === 'powder' && r.scaleGrams).toBe(grams)
+    expect(r.with === 'powder' && r.spoons).toBe(spoons)
+    // the scale makes the strength exactly; the spoons within a quarter of a calorie
+    expect(mixWithPowder(ml, powderGrams(ml, 22, POWDERS.find((p) => p.id === 'bobbie')!), POWDERS.find((p) => p.id === 'bobbie')!).kcalPerOz).toBeCloseTo(22, 6)
+    expect(Math.abs(r.kcalPerOz - 22)).toBeLessThan(0.25)
+  })
+
+  it('weighs in a straight line with the milk; spoons are the rounded measure and say how far they drift', () => {
+    const g = (ml: number) => powderGrams(ml, 22, POWDERS.find((p) => p.id === 'bobbie')!)
+    expect(g(240)).toBeCloseTo(4 * g(60), 9)
+    const rows = [60, 90, 120, 150, 180, 240].map((ml) => recipeFor(ml, bobbie22))
+    expect(spoonDrift(rows, 22)).toBeGreaterThan(0.1)
+    expect(spoonDrift(rows, 22)).toBeLessThan(0.2)
   })
 
   it('takes the powder from the can when it is typed in', () => {

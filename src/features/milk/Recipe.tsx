@@ -1,5 +1,5 @@
 import { About } from '../../components/ui/About'
-import { FORTIFIED_KEEP_HOURS, gramsText, powderOf, recipeFor, strengthText, type FortifySettings } from '../../lib/fortify'
+import { FORTIFIED_KEEP_HOURS, gramsText, powderOf, recipeFor, spoonDrift, strengthText, type FortifySettings } from '../../lib/fortify'
 import { convertVolume, formatVolume, type VolumeUnit } from '../../lib/units'
 import './milk.css'
 
@@ -24,28 +24,57 @@ export function RecipeFold({ fortify, unit }: { fortify: FortifySettings; unit: 
   )
 }
 
-/** The recipe for six common amounts, like a hospital's chart: spoons and grams (or mL of concentrate). Shown in
- *  `RecipeFold` and in Settings › Calories & fortifying. */
+/** The recipe for six common amounts, like a hospital's chart: grams for a scale (exact) and level spoons (rounded),
+ *  or mL of concentrate. Shown in `RecipeFold` and in Settings › Calories & fortifying. */
 export function RecipeChart({ fortify, unit }: { fortify: FortifySettings; unit: VolumeUnit }) {
+  const rows = AMOUNTS[unit].map((a) => ({ a, r: recipeFor(convertVolume(a, unit, 'ml'), fortify) }))
+  const powder = fortify.with !== 'concentrate'
+  const drift = spoonDrift(rows.map((x) => x.r), fortify.kcalPerOz)
   return (
-    <table className="fortify-table" aria-label="Recipe for common amounts">
-      <thead>
-        <tr>
-          <th scope="col">Breast milk</th>
-          <th scope="col">{fortify.with === 'concentrate' ? 'Concentrate' : 'Powder · or weigh it'}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {AMOUNTS[unit].map((a) => {
-          const r = recipeFor(convertVolume(a, unit, 'ml'), fortify)
-          return (
+    <>
+      <table className="fortify-table" aria-label="Recipe for common amounts">
+        <thead>
+          <tr>
+            <th scope="col">Breast milk</th>
+            {powder ? (
+              <>
+                <th scope="col">Scale</th>
+                <th scope="col">or level spoons</th>
+              </>
+            ) : (
+              <th scope="col">Concentrate</th>
+            )}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(({ a, r }) => (
             <tr key={a}>
               <td>{formatVolume(a, unit)}</td>
-              <td>{r.tooSmall ? <span className="muted">too little to measure</span> : r.with === 'concentrate' ? `${r.addMl} mL` : `${r.spoons} · ${gramsText(r.scaleGrams)}${r.scoops ? ` · ${r.scoops}` : ''}`}</td>
+              {r.tooSmall ? (
+                <td colSpan={powder ? 2 : 1}>
+                  <span className="muted">too little to measure</span>
+                </td>
+              ) : r.with === 'concentrate' ? (
+                <td>{r.addMl} mL</td>
+              ) : (
+                <>
+                  <td>{gramsText(r.scaleGrams)}</td>
+                  <td>
+                    {r.spoons}
+                    {r.scoops ? ` · ${r.scoops}` : ''}
+                  </td>
+                </>
+              )}
             </tr>
-          )
-        })}
-      </tbody>
-    </table>
+          ))}
+        </tbody>
+      </table>
+      {powder ? (
+        <p className="xs muted fortify-note" data-testid="spoon-note">
+          The scale is exact. Spoons are rounded to the nearest level ⅛ teaspoon, so they do not grow in a straight line with the milk; each one lands within{' '}
+          {Math.max(0.1, Math.ceil(drift * 10) / 10)} kcal/oz of {fortify.kcalPerOz}.
+        </p>
+      ) : null}
+    </>
   )
 }

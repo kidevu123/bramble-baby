@@ -12,8 +12,8 @@
  * - Breast milk is counted at 20 kcal/oz, as the hospital charts do. Real milk varies (studies of mothers' milk find
  *   averages of 18–20 and single samples from about 12 to 30), so the strength is a target, not a measurement;
  *   the weight checks are what show whether it is enough.
- * - Spoons are level and unpacked; teaspoons differ by brand (about 2.1 g of Similac, 2.4 g of Enfamil), which is
- *   why the powder is a setting.
+ * - Spoons are level and unpacked; teaspoons differ by brand (about 2.1 g of Similac, 2.4 g of Enfamil, 2.5 g of Bobbie),
+ *   which is why the powder is a setting, and a spoon weight is taken only from the maker's published figure.
  * - Liquid concentrate (40 kcal/oz) is the other way to fortify: sterile until opened, nothing to clump or level.
  *   CDC advises liquid rather than powdered formula for babies under 2 months, born early or with weak immunity,
  *   because powder is not sterile. Which one to use is the care team's call.
@@ -53,9 +53,11 @@ export const POWDERS: Powder[] = [
   { id: 'similac', name: 'Similac', kcalPerG: 5.12, gPerScoop: 8.7, gPerTbsp: 6.25, mlPerG: 0.77 },
   { id: 'enfamil', name: 'Enfamil', kcalPerG: 5.1, gPerScoop: 8.8, gPerTbsp: 7.1, mlPerG: 0.77 },
   { id: 'gerber', name: 'Gerber Good Start', kcalPerG: 5.12, gPerScoop: 8.7, gPerTbsp: 6.5, mlPerG: 0.76 },
-  // Bobbie's own figures for its organic infant formula: 8.6 g and 44.2 kcal a level, unpacked scoop, a scoop about
-  // 1½ level tablespoons, 0.78 mL a gram (Bobbie's healthcare product guide, 2026). One scoop to 2 fl oz of water is 20 kcal/oz.
-  { id: 'bobbie', name: 'Bobbie', kcalPerG: 5.14, gPerScoop: 8.6, gPerTbsp: 5.73, mlPerG: 0.78 },
+  // Bobbie's own figures for its organic infant formula: 8.6 g and 44.2 kcal a level, unpacked scoop, 0.78 mL a gram, and
+  // from its healthcare-professional spec sheet **2.49 g a level teaspoon, 7.48 g a tablespoon**. One scoop to 2 fl oz of water
+  // is 20 kcal/oz. Until 1.53.3 the spoon weight was derived from Bobbie's loose "a scoop is about 1½ tablespoons" (1.9 g a
+  // teaspoon), which wrote ½ teaspoon where ⅓ was right; a spoon weight comes only from the maker's published figure.
+  { id: 'bobbie', name: 'Bobbie', kcalPerG: 5.14, gPerScoop: 8.6, gPerTbsp: 7.47, mlPerG: 0.78 },
 ]
 
 export type FortifyWith = 'powder' | 'concentrate'
@@ -104,14 +106,16 @@ export function concentrateMl(milkMl: number, target: number, milkKcal = MILK_KC
   return (milkMl * (target - milkKcal)) / (concentrate - target)
 }
 
-const FRACTIONS = ['', '¼', '½', '¾']
+const FRACTIONS = ['', '⅛', '¼', '⅜', '½', '⅝', '¾', '⅞']
+/** The finest spoon in a measuring set. */
+export const SPOON_STEPS_PER_TSP = 8
 
-/** "1 tablespoon + 1½ teaspoons": quarter teaspoons as a cook measures them. */
-export function spoonText(quarters: number): string {
-  const tbsp = Math.floor(quarters / 12)
-  const rest = quarters % 12
-  const whole = Math.floor(rest / 4)
-  const frac = FRACTIONS[rest % 4]
+/** "1 tablespoon + 1½ teaspoons": eighth teaspoons as a measuring set has them (⅛, ¼, ½, 1). */
+export function spoonText(eighths: number): string {
+  const tbsp = Math.floor(eighths / 24)
+  const rest = eighths % 24
+  const whole = Math.floor(rest / 8)
+  const frac = FRACTIONS[rest % 8]
   const parts: string[] = []
   if (tbsp) parts.push(`${tbsp} tablespoon${tbsp === 1 ? '' : 's'}`)
   if (whole || frac) {
@@ -123,7 +127,7 @@ export function spoonText(quarters: number): string {
 
 export interface PowderStep {
   with: 'powder'
-  /** "1 teaspoon + ¼ teaspoon" as level, unpacked spoons. */
+  /** "1 teaspoon + ⅛ teaspoon" as level, unpacked spoons, to the nearest ⅛ teaspoon. */
   spoons: string
   /** "1 scoop" when whole scoops come within a few percent of it, else null. */
   scoops: string | null
@@ -160,22 +164,22 @@ export function recipeFor(milkMl: number, f: FortifySettings, milkKcal = MILK_KC
   }
   const powder = powderOf(f)
   const exact = powderGrams(milkMl, f.kcalPerOz, powder, milkKcal)
-  const quarter = powder.gPerTbsp / 12
-  const quarters = Math.round(exact / quarter)
-  const grams = quarters * quarter
+  const step = powder.gPerTbsp / 3 / SPOON_STEPS_PER_TSP
+  const steps = Math.round(exact / step)
+  const grams = steps * step
   const mixed = mixWithPowder(milkMl, grams, powder, milkKcal)
   const wholeScoops = Math.round(exact / powder.gPerScoop)
   const scoops = wholeScoops >= 1 && Math.abs(wholeScoops * powder.gPerScoop - exact) <= exact * 0.05 ? `${wholeScoops} scoop${wholeScoops === 1 ? '' : 's'}` : null
   return {
     with: 'powder',
-    spoons: quarters ? spoonText(quarters) : 'less than ¼ teaspoon',
+    spoons: steps ? spoonText(steps) : 'less than ⅛ teaspoon',
     scoops,
     grams,
     scaleGrams: Math.round(exact * 10) / 10,
     powderName: f.powder === 'standard' || f.powder === 'custom' ? 'powder' : powder.name,
     kcalPerOz: mixed.kcalPerOz,
     ml: mixed.ml,
-    tooSmall: quarters === 0 || Math.abs(mixed.kcalPerOz - f.kcalPerOz) > MEASURE_TOLERANCE,
+    tooSmall: steps === 0 || Math.abs(mixed.kcalPerOz - f.kcalPerOz) > MEASURE_TOLERANCE,
   }
 }
 
@@ -185,10 +189,19 @@ export function smallestBatchOz(f: FortifySettings): number | null {
   return null
 }
 
-/** One line of what to add: "½ teaspoon (0.9 g) of Bobbie" / "15 mL of liquid concentrate". */
+/**
+ * One line of what to add: "½ teaspoon of Bobbie, or 0.9 g on a scale" / "15 mL of liquid concentrate". The spoons and
+ * the grams are two ways to measure, not the same amount: the grams are exact, the spoons the nearest level ⅛ teaspoon
+ * (⅜ teaspoon of Bobbie weighs about 0.93 g), so they are never written as if one were the other.
+ */
 export function recipeText(r: Recipe): string {
   if (r.with === 'concentrate') return `${r.addMl} mL of liquid concentrate`
-  return `${r.spoons} (${gramsText(r.scaleGrams)}) of ${r.powderName}${r.scoops ? `, or ${r.scoops}` : ''}`
+  return `${r.spoons} of ${r.powderName}${r.scoops ? ` (${r.scoops})` : ''}, or ${gramsText(r.scaleGrams)} on a scale`
+}
+
+/** How far the rounded spoons of these recipes land from their strength at worst, kcal/oz (the scale is exact). */
+export function spoonDrift(recipes: Recipe[], target: number): number {
+  return recipes.reduce((m, r) => (r.with === 'powder' && !r.tooSmall ? Math.max(m, Math.abs(r.kcalPerOz - target)) : m), 0)
 }
 
 /** "0.9 g", "12 g". */

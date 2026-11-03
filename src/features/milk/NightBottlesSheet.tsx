@@ -204,7 +204,7 @@ function FortifyStep({ ml, fortify }: { ml: number; fortify: FortifySettings }) 
   const r = recipeFor(ml, fortify)
   return (
     <span className={r.tooSmall ? 'xs text-pumping' : 'xs night-plan-mix'}>
-      {r.tooSmall ? `Too little milk to measure ${strengthText(fortify.kcalPerOz)} for; make it bigger or mix a batch.` : `Add ${recipeText(r)} → ${strengthText(r.kcalPerOz)}`}
+      {r.tooSmall ? `Too little milk to measure ${strengthText(fortify.kcalPerOz)} for; make it bigger or mix a batch.` : `Add ${recipeText(r)}`}
     </span>
   )
 }

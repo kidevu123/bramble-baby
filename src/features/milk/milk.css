@@ -769,5 +769,8 @@
 .fortify-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
 .fortify-table th { text-align: left; font-weight: 600; color: var(--text-muted); padding: 4px 0; border-bottom: 1px solid var(--line); }
 .fortify-table td { padding: 6px 0; border-bottom: 1px solid var(--line); }
-.fortify-table td:first-child { width: 34%; font-variant-numeric: tabular-nums; }
+.fortify-table td:first-child { width: 30%; }
+.fortify-table td { font-variant-numeric: tabular-nums; }
+.fortify-table td:nth-child(2) { width: 24%; }
+.fortify-note { margin: var(--space-1) 0 0; }
 .night-plan-mix { font-weight: 600; }
