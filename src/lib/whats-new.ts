@@ -12,6 +12,13 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.54.1',
+    date: 'Nov 3',
+    items: [
+      'Fixed: Print or PDF did nothing on the phone (an app on the Home Screen has no print dialog). The report page now has Save PDF: the page is drawn in the app and opens in the share sheet, where you can print it, AirDrop or mail it, or save it to Files.',
+    ],
+  },
+  {
     version: '1.54.0',
     date: 'Nov 3',
     items: [

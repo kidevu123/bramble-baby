@@ -1,5 +1,5 @@
 import { addDays, differenceInCalendarDays, endOfDay, format, parseISO, startOfDay } from 'date-fns'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { TopBar } from '../../components/nav/TopBar'
 import { Button } from '../../components/ui/Button'
 import { TextField } from '../../components/ui/Field'
@@ -11,6 +11,8 @@ import { usePrefs } from '../../hooks/usePrefs'
 import { buildDoctorReport, MAX_VISIT_DAYS, reportText, type DoctorReport, type ReportAverage, type ReportWindow } from '../../lib/doctor-report'
 import { ageBasis } from '../../lib/preterm'
 import { calorieTracking } from '../../lib/calories'
+import { isStandalone } from '../../lib/push'
+import { deliverPdf, reportToPdf } from '../../lib/report-pdf'
 import { formatDurationShort } from '../../lib/time'
 import { formatVolume } from '../../lib/units'
 import { LB_STEPS, weightTick } from './format'
@@ -22,8 +24,9 @@ import './report.css'
 const DEFAULT_DAYS = 14
 
 /**
- * The report for the pediatrician: one page, from the last visit to this one, that prints (iOS: Print, then pinch
- * the preview to save a PDF) or shares as plain text into a message or a patient portal. Growth with the weight
+ * The report for the pediatrician: one page, from the last visit to this one, saved as a PDF (drawn in the app and
+ * handed to the share sheet: a Home Screen app on iOS has no print dialog, so `window.print()` is only offered in a
+ * browser) or shared as plain text into a message or a patient portal. Growth with the weight
  * chart against the WHO curves and the doctor's goal, feeding with the bottles a day, diapers and sleep, the weeks
  * side by side, fevers and medicines. The two visit dates are typed here and remembered for the child.
  * Reached from Reports › Summary › Overview; Back returns there.
@@ -33,6 +36,24 @@ export function DoctorReportPage() {
   const { prefs } = usePrefs()
   const { settings, update } = useChildSettings(child?.id ?? null)
   const [status, setStatus] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [paper, setPaper] = useState(false)
+  const articleRef = useRef<HTMLElement>(null)
+  // While the browser prints, the article wears the paper layout (the PDF draws an off-screen copy wearing it).
+  useEffect(() => {
+    const on = () => setPaper(true)
+    const off = () => setPaper(false)
+    window.addEventListener('beforeprint', on)
+    window.addEventListener('afterprint', off)
+    const mq = window.matchMedia?.('print')
+    const onMq = (e: MediaQueryListEvent) => setPaper(e.matches)
+    mq?.addEventListener?.('change', onMq)
+    return () => {
+      window.removeEventListener('beforeprint', on)
+      window.removeEventListener('afterprint', off)
+      mq?.removeEventListener?.('change', onMq)
+    }
+  }, [])
   const now = useNow(60_000)
   const todayKey = format(now, 'yyyy-MM-dd')
   const lastVisit = settings.visits?.last ?? ''
@@ -57,6 +78,23 @@ export function DoctorReportPage() {
   const wUnit = prefs.units.weight
 
   const setVisits = (patch: { last?: string | null; this?: string | null }) => update((latest) => ({ visits: { ...(latest.visits ?? {}), ...patch } }))
+
+  async function savePdf() {
+    if (!articleRef.current || busy) return
+    setStatus(null)
+    setBusy(true)
+    try {
+      const title = `${child!.first_name}: pediatrician report, ${format(report!.range.to, 'MMM d, yyyy')}`
+      const blob = await reportToPdf(articleRef.current, title)
+      const how = await deliverPdf(blob, `${child!.first_name.toLowerCase()}-pediatrician-${format(report!.range.to, 'yyyy-MM-dd')}.pdf`, title)
+      setStatus(how === 'shared' ? null : 'The PDF was downloaded.')
+    } catch (err) {
+      if ((err as { name?: string })?.name === 'AbortError') return
+      setStatus('Could not make the PDF. Share as text instead, or open the report in Safari and print from there.')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   async function share() {
     setStatus(null)
@@ -106,16 +144,22 @@ export function DoctorReportPage() {
           </div>
           <p className="xs muted" style={{ margin: 0 }}>
             {lastVisit ? `The report covers the visit on ${format(parseISO(lastVisit), 'MMM d')} to ${report.range.to.getTime() < startOfDay(parseISO(thisVisit)).getTime() ? 'today' : format(report.range.to, 'MMM d')}.` : `No last visit on record: the report covers the last ${DEFAULT_DAYS} days. Set the date of the last visit to cover everything since it.`}
-            {' '}On iPhone, Print opens a preview: pinch it open to share it as a PDF.
+            {' '}Save PDF opens the share sheet: print it, AirDrop or mail it to the office, or save it to Files.
           </p>
           <div className="row">
-            <Button variant="primary" block onClick={() => window.print()}>
-              Print or PDF
+            <Button variant="primary" block loading={busy} onClick={() => void savePdf()}>
+              Save PDF
             </Button>
             <Button variant="secondary" block onClick={() => void share()}>
               Share as text
             </Button>
           </div>
+          {/* A browser has a print dialog of its own; a Home Screen app on iOS does not, so the button is not offered there. */}
+          {!isStandalone() ? (
+            <button type="button" className="link-btn" onClick={() => window.print()}>
+              Print from this browser
+            </button>
+          ) : null}
           {status ? (
             <p className="small" role="status">
               {status}
@@ -123,7 +167,7 @@ export function DoctorReportPage() {
           ) : null}
         </div>
 
-        <article className="report card card-pad" aria-label="Report for the pediatrician">
+        <article ref={articleRef} className={paper ? 'report card card-pad paper' : 'report card card-pad'} aria-label="Report for the pediatrician">
           <header className="report-head">
             <h1 className="report-title">{report.child.name}</h1>
             <p className="report-kicker">{report.range.visit ? `Pediatrician visit · ${format(report.range.visit.this, 'MMMM d, yyyy')}` : `Pediatrician report · ${format(now, 'MMMM d, yyyy')}`}</p>

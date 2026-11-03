@@ -2,7 +2,7 @@
  * The report for the pediatrician: Reports › Summary › Overview → Report for the pediatrician → /report: one page from
  * the last visit to this one (the two dates typed on the page, remembered for the child), with the weight chart against
  * the goal and the WHO curves, the gain since the last visit, the bottles-a-day chart, the daily figures with the typical
- * band, a week-by-week (or day-by-day) table, fevers and medicines; Share as text; a one-page PDF; Back returns to Reports.
+ * band, a week-by-week (or day-by-day) table, fevers and medicines; Share as text; Save PDF (drawn in the app, one letter page); Back returns to Reports.
  *   node e2e/doctor-report.mjs <out-dir> <base-url> [light|dark]
  * Start from a fresh mock stack (the script creates the child and seeds a week of entries).
  */
@@ -121,10 +121,12 @@ check('… the last full week carries its averages (today, in progress, is not i
 check('the dates are remembered for the child', (await (await page.request.get(BASE + '/bramble/settings/' + child.id, { headers })).json()).visits?.last === ymd(daysAgo(28)))
 await shot('report-visit')
 
-// ---- printed: one letter page
+// ---- printed from a browser: the paper layout (put on by beforeprint, which the harness's PDF does not fire) is one letter page
+await page.evaluate(() => document.querySelector('.report')?.classList.add('paper'))
 await page.emulateMedia({ media: 'print' })
 const pdf = await page.pdf({ format: 'Letter', printBackground: true, preferCSSPageSize: true })
 await page.emulateMedia({ media: null })
+await page.evaluate(() => document.querySelector('.report')?.classList.remove('paper'))
 const pages = (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) ?? []).length
 check('the report prints on one letter page', pages === 1, `${pages} pages, ${pdf.length} bytes`)
 // ---- share as text (no share sheet in the harness: the text goes to the clipboard, or the fallback line shows)
@@ -132,7 +134,16 @@ await page.getByRole('button', { name: 'Share as text' }).click()
 await settle(600)
 const status = page.getByRole('status')
 check('Share as text copies the report or says how to select it', (await status.count()) === 1 && /(Copied as text|Could not share)/.test(await status.innerText()), (await status.count()) ? await status.innerText() : 'no status')
-check('the print button is there', (await page.getByRole('button', { name: 'Print or PDF' }).count()) === 1)
+// ---- Save PDF: drawn in the app (no share sheet in the harness, so it downloads); one letter page with the picture
+const [download] = await Promise.all([page.waitForEvent('download', { timeout: 30000 }), page.getByRole('button', { name: 'Save PDF' }).click()])
+const pdfPath = `${OUT}/saved-${SCHEME}.pdf`
+await download.saveAs(pdfPath)
+const saved = (await import('node:fs')).readFileSync(pdfPath)
+const savedPages = (saved.toString('latin1').match(/\/Type\s*\/Page[^s]/g) ?? []).length
+check('Save PDF makes a one-page PDF with the report drawn in it', download.suggestedFilename() === `oscar-pediatrician-${ymd(new Date())}.pdf` && saved.subarray(0, 5).toString() === '%PDF-' && savedPages === 1 && saved.length > 60000 && /\/DCTDecode/.test(saved.toString('latin1')), `${download.suggestedFilename()} · ${savedPages} pages · ${saved.length} bytes`)
+await settle(500)
+check('… and says so', /The PDF was downloaded/.test(await status.innerText()))
+check('a browser is offered its own print dialog too (a Home Screen app is not)', (await page.getByRole('button', { name: 'Print from this browser' }).count()) === 1)
 
 // ---- a 320 px phone: the day table scrolls inside its own box, the page never sideways
 const size = page.viewportSize()

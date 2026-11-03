@@ -228,12 +228,140 @@
   }
 }
 
+/* The paper layout: one letter page in two columns, black ink. The article carries `paper` while the browser prints
+   (beforeprint) and on the off-screen copy the PDF is drawn from (`reportToPdf`); the phone never sees it. */
+.report-paper-host {
+  position: fixed;
+  left: -20000px;
+  top: 0;
+  width: 816px;
+  background: #fff;
+  pointer-events: none;
+}
+.report-paper-host .report {
+  width: 816px;
+  min-height: 1056px;
+  box-sizing: border-box;
+  padding: 45px 45px 40px;
+  border-radius: 0;
+  box-shadow: none;
+}
+.report.paper {
+  gap: 6mm;
+  font-size: 10.5pt;
+  color: #000;
+  background: #fff;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.report.paper .report-grid {
+  grid-template-columns: 1fr 1fr;
+  gap: 7mm 9mm;
+}
+.report.paper .report-grid .report-wide {
+  grid-column: 1 / -1;
+}
+.report.paper .report-section {
+  gap: 2.5mm;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.report.paper .report-head {
+  border-bottom-color: #000;
+  padding-bottom: 2mm;
+}
+.report.paper .report-title {
+  font-size: 22pt;
+  color: #000;
+}
+.report.paper .report-kicker {
+  font-size: 12pt;
+  color: #000;
+}
+.report.paper .report-sub,
+.report.paper .report-note,
+.report.paper .report-section h2,
+.report.paper .report-stat dt,
+.report.paper .report-foot,
+.report.paper .report-table thead th {
+  color: #444;
+  font-size: 8.5pt;
+}
+.report.paper .report-stat dd,
+.report.paper .report-table th,
+.report.paper .report-table td,
+.report.paper .report-list {
+  color: #000;
+}
+.report.paper .report-stat dd {
+  font-size: 15pt;
+}
+.report.paper .report-stat.is-low dd {
+  color: #b45309;
+}
+.report.paper .report-stats {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2.5mm 3mm;
+}
+.report.paper .report-table,
+.report.paper .report-list {
+  font-size: 9.5pt;
+}
+.report.paper .report-days {
+  font-size: 9pt;
+}
+.report.paper .report-table th,
+.report.paper .report-table td {
+  padding: 1.8mm 0;
+  border-color: #ccc;
+}
+.report.paper .report-days-scroll {
+  overflow: visible;
+}
+.report.paper .report-foot {
+  border-top-color: #ccc;
+}
+.report.paper .rc-grid {
+  stroke: #ddd;
+}
+.report.paper .rc-tick,
+.report.paper .rc-curve-label {
+  fill: #444;
+  font-size: 8px;
+}
+.report.paper .rc-curve {
+  stroke: #888;
+}
+.report.paper .rc-goal {
+  stroke: #c2410c;
+}
+.report.paper .rc-line,
+.report.paper .rc-dot {
+  stroke: #0f766e;
+  fill: #0f766e;
+}
+.report.paper .rc-line {
+  fill: none;
+}
+.report.paper .rc-bar {
+  fill: #5eead4;
+}
+.report.paper .rc-avg,
+.report.paper .rc-avg-label {
+  stroke: #000;
+  fill: #000;
+}
+.report.paper .rc-avg {
+  fill: none;
+}
+
 @media print {
   .topbar,
   .tabbar,
   .report-actions,
   .update-banner,
-  .print-notice {
+  .print-notice,
+  .report-paper-host {
     display: none !important;
   }
   html,
@@ -250,111 +378,6 @@
     box-shadow: none !important;
     border-radius: 0 !important;
     padding: 0 !important;
-    gap: 6mm;
-    font-size: 10.5pt;
-    color: #000;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-  .report-grid {
-    grid-template-columns: 1fr 1fr;
-    gap: 7mm 9mm;
-  }
-  .report-grid .report-wide {
-    grid-column: 1 / -1;
-  }
-  .report-section {
-    gap: 2.5mm;
-    break-inside: avoid;
-    page-break-inside: avoid;
-  }
-  .report-head {
-    border-bottom-color: #000;
-    padding-bottom: 2mm;
-  }
-  .report-title {
-    font-size: 22pt;
-    color: #000;
-  }
-  .report-kicker {
-    font-size: 12pt;
-    color: #000;
-  }
-  .report-sub,
-  .report-note,
-  .report-section h2,
-  .report-stat dt,
-  .report-foot,
-  .report-table thead th {
-    color: #444 !important;
-    font-size: 8.5pt;
-  }
-  .report-section h2 {
-    font-size: 8.5pt;
-  }
-  .report-stat dd,
-  .report-table th,
-  .report-table td,
-  .report-list {
-    color: #000 !important;
-  }
-  .report-stat dd {
-    font-size: 15pt;
-  }
-  .report-stat.is-low dd {
-    color: #b45309 !important;
-  }
-  .report-stats {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 2.5mm 3mm;
-  }
-  .report-table,
-  .report-list {
-    font-size: 9.5pt;
-  }
-  .report-days {
-    font-size: 9pt;
-  }
-  .report-table th,
-  .report-table td {
-    padding: 1.8mm 0;
-    border-color: #ccc !important;
-  }
-  .report-days-scroll {
-    overflow: visible !important;
-  }
-  .rc-grid {
-    stroke: #ddd;
-  }
-  .rc-tick,
-  .rc-curve-label {
-    fill: #444;
-    font-size: 8px;
-  }
-  .rc-curve {
-    stroke: #888;
-  }
-  .rc-goal {
-    stroke: #c2410c;
-  }
-  .rc-line,
-  .rc-dot {
-    stroke: #0f766e;
-    fill: #0f766e;
-  }
-  .rc-line {
-    fill: none;
-  }
-  .rc-bar {
-    fill: #5eead4;
-  }
-  .rc-avg,
-  .rc-avg-label {
-    stroke: #000;
-    fill: #000;
-  }
-  .rc-avg {
-    fill: none;
   }
   @page {
     size: letter;
