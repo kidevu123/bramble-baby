@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Child } from './api/types'
-import { buildDoctorReport, reportText } from './doctor-report'
+import { buildDoctorReport, MAX_VISIT_DAYS, reportText } from './doctor-report'
 import type { EventSets } from './events'
 import { DEFAULT_UNITS } from './units'
 
@@ -137,6 +137,44 @@ describe('buildDoctorReport', () => {
     expect(avg.value).toBe('48')
     expect(rep.averages.find((a) => a.key === 'kcal')?.value).toBe('108 kcal')
   })
+  it('runs from the last visit to this one, with the gain the doctor compares and the chart against the goal', () => {
+    const visit = buildDoctorReport(events, growth, child, DEFAULT_UNITS, 'female', 20, { lastVisit: new Date('2026-10-01'), thisVisit: new Date('2026-10-09') }, now)
+    expect(visit.range.visit).toEqual({ last: new Date('2026-10-01T00:00:00'), this: new Date('2026-10-09T00:00:00') })
+    expect(visit.range.days).toBe(9)
+    // the weighing on the visit day is the one it starts from: 5.0 → 5.35 lb is +159 g over 8 days = 20 g/day
+    expect(visit.visitGain).toMatchObject({ grams: 159, days: 8, perDay: 20, vsGoal: "on the doctor's 20 g/day" })
+    expect(visit.visitGain?.from.value).toBe('5 lb')
+    expect(visit.chart?.weights.map((w) => w.value)).toEqual([5, 5.35])
+    expect(visit.chart?.goal?.gramsPerDay).toBe(20)
+    expect(visit.chart?.goal?.to.value).toBeGreaterThan(5.35)
+    expect(visit.chart?.curves.map((c) => c.label)).toEqual(['2nd', '50th', '98th'])
+    expect(reportText(visit)).toContain('Since the visit on Oct 1')
+    expect(reportText(visit)).toContain('Since the last visit: 5 lb (Oct 1) → 5 lb 6 oz (Oct 9), +159 g over 8 days = 20 g/day, on the doctor\'s 20 g/day')
+    // a goal missed by more than a tenth says by how much
+    expect(buildDoctorReport(events, growth, child, DEFAULT_UNITS, 'female', 30, { lastVisit: new Date('2026-10-01'), thisVisit: new Date('2026-10-09') }, now).visitGain?.vsGoal).toBe("10 g/day short of the doctor's 30")
+    // no sex: no curves, the rest stands
+    expect(buildDoctorReport(events, growth, child, DEFAULT_UNITS, null, null, { lastVisit: new Date('2026-10-01'), thisVisit: new Date('2026-10-09') }, now).chart?.curves).toEqual([])
+  })
+
+  it('never runs past today nor longer than a page holds', () => {
+    const future = buildDoctorReport(events, growth, child, DEFAULT_UNITS, null, null, { lastVisit: new Date('2026-10-01'), thisVisit: new Date('2026-10-20') }, now)
+    expect(future.range.to).toEqual(new Date('2026-10-09T00:00:00'))
+    const long = buildDoctorReport(events, growth, child, DEFAULT_UNITS, null, null, { lastVisit: new Date('2026-01-01'), thisVisit: new Date('2026-10-09') }, now)
+    expect(long.range.days).toBe(MAX_VISIT_DAYS)
+    expect(long.weeks.length).toBe(13)
+  })
+
+  it('folds a long window into weeks averaged over the days logged, with the latest weighing of each', () => {
+    const r = buildDoctorReport(events, growth, child, DEFAULT_UNITS, 'female', 20, { lastVisit: new Date('2026-09-18'), thisVisit: new Date('2026-10-09') }, now)
+    expect(r.weeks.map((w) => [w.from.getDate(), w.to.getDate(), w.loggedDays])).toEqual([[18, 24, 0], [25, 1, 0], [2, 8, 1]])
+    const last = r.weeks[2]
+    expect(last.feeds).toBe(1) // Oct 8 alone: one bottle (the solid food is not a feed); Oct 9 is today, still in progress
+    expect(last.wet).toBe(1)
+    expect(last.weight).toBeNull()
+    expect(r.weeks[1].weight?.value).toBe('5 lb')
+    expect(reportText(r)).toContain('WEEK BY WEEK')
+  })
+
   it('copes with no growth and an expecting child', () => {
     const bare = buildDoctorReport(empty, undefined, child, DEFAULT_UNITS, null, null, 14, now)
     expect(bare.growth).toEqual([])

@@ -125,7 +125,7 @@ export function SummaryView({ events, child, now, span, onSpan, filters, cat, on
             </span>
             <span className="grow">
               <span className="strong">Report for the pediatrician</span>
-              <span className="small muted doctor-link-sub">Growth, feeds, diapers and sleep · print to PDF or share</span>
+              <span className="small muted doctor-link-sub">One page since the last visit: growth chart, feeds, diapers, sleep · print to PDF or share</span>
             </span>
             <ChevronRightIcon className="chev" aria-hidden />
           </Link>

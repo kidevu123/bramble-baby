@@ -12,6 +12,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.54.0',
+    date: 'Nov 3',
+    items: [
+      'The pediatrician report is one printable page from the last visit to this one: type the two dates on the report page and it remembers them.',
+      'It shows {name}\u2019s weight as a chart against the doctor\u2019s goal and the WHO curves, the gain since the last visit in grams a day, bottles a day as a chart, feeds, diapers and sleep with what is typical, the weeks side by side, and any fevers or medicines.',
+      'Reports › Summary › Overview › Report for the pediatrician, then Print or PDF.',
+    ],
+  },
+  {
     version: '1.53.3',
     date: 'Nov 3',
     items: [

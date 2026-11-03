@@ -1,21 +1,31 @@
-/* The report for the pediatrician: a plain document on screen, a plain page on paper. */
+/* The report for the pediatrician: a clean document on screen, one letter page on paper. */
 .report-page {
   gap: var(--space-4);
 }
 .report-actions .row > * {
   flex: 1;
 }
+.report-visits {
+  display: flex;
+  gap: var(--space-3);
+}
+.report-visits > * {
+  flex: 1;
+  min-width: 0;
+}
 .report {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+  min-width: 0;
 }
 .report-head {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px var(--space-3);
   padding-bottom: var(--space-3);
-  border-bottom: 1px solid var(--line);
+  border-bottom: 2px solid var(--text-strong);
 }
 .report-title {
   margin: 0;
@@ -23,18 +33,27 @@
   font-weight: var(--w-head);
   color: var(--text-strong);
 }
+.report-kicker {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--w-label);
+  color: var(--text-strong);
+}
 .report-sub {
   margin: 0;
   font-size: var(--text-sm);
   color: var(--text-muted);
+  flex-basis: 100%;
+}
+.report-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
 }
 .report-section {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  min-width: 0;
-}
-.report {
   min-width: 0;
 }
 .report-section h2 {
@@ -45,6 +64,45 @@
   text-transform: uppercase;
   color: var(--text-muted);
 }
+/* The headline figures of a section: the number large, its meaning under it. */
+.report-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+}
+.report-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.report-stat dt {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.report-stat dd {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--w-head);
+  color: var(--text-strong);
+  line-height: 1.15;
+}
+.report-stat .report-note {
+  display: block;
+}
+.report-stat.is-low dd {
+  color: var(--orange-ink, #b45309);
+}
+.report-chart {
+  width: 100%;
+  margin: 0;
+}
+.report-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
 .report-table {
   width: 100%;
   border-collapse: collapse;
@@ -52,7 +110,7 @@
 }
 .report-table th,
 .report-table td {
-  padding: 6px 0;
+  padding: 5px 0;
   text-align: left;
   vertical-align: top;
   border-bottom: 1px solid var(--line);
@@ -109,6 +167,66 @@
   font-size: var(--text-sm);
   color: var(--text);
 }
+.report-foot {
+  margin: 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* The charts: ink that reads on screen and on paper. */
+.rc-grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.rc-tick,
+.rc-curve-label,
+.rc-avg-label {
+  font-size: 9px;
+  fill: var(--text-muted);
+}
+.rc-curve {
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 1;
+  opacity: 0.55;
+}
+.rc-goal {
+  fill: none;
+  stroke: var(--orange, #e8893a);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+}
+.rc-line {
+  fill: none;
+  stroke: var(--teal-ink, #0f766e);
+  stroke-width: 2;
+}
+.rc-dot {
+  fill: var(--teal-ink, #0f766e);
+}
+.rc-bar {
+  fill: var(--teal, #2dd4bf);
+}
+.rc-avg {
+  stroke: var(--text-strong);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+.rc-avg-label {
+  fill: var(--text-strong);
+}
+
+/* Two columns once there is room (a tablet, a laptop, and the printed page). */
+@media (min-width: 720px) {
+  .report-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .report-grid .report-wide {
+    grid-column: 1 / -1;
+  }
+}
 
 @media print {
   .topbar,
@@ -118,6 +236,7 @@
   .print-notice {
     display: none !important;
   }
+  html,
   body,
   .page,
   .report-page {
@@ -125,34 +244,120 @@
     color: #000 !important;
     padding: 0 !important;
     margin: 0 !important;
+    min-height: 0 !important;
   }
   .report {
     box-shadow: none !important;
     border-radius: 0 !important;
     padding: 0 !important;
+    gap: 6mm;
+    font-size: 10.5pt;
+    color: #000;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
-  .report-title,
-  .report-table th,
-  .report-table td,
-  .report-list,
-  .report-section h2,
-  .report-sub,
-  .report-note {
-    color: #000 !important;
+  .report-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 7mm 9mm;
+  }
+  .report-grid .report-wide {
+    grid-column: 1 / -1;
+  }
+  .report-section {
+    gap: 2.5mm;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .report-head {
+    border-bottom-color: #000;
+    padding-bottom: 2mm;
+  }
+  .report-title {
+    font-size: 22pt;
+    color: #000;
+  }
+  .report-kicker {
+    font-size: 12pt;
+    color: #000;
   }
   .report-sub,
   .report-note,
-  .report-section h2 {
+  .report-section h2,
+  .report-stat dt,
+  .report-foot,
+  .report-table thead th {
     color: #444 !important;
+    font-size: 8.5pt;
+  }
+  .report-section h2 {
+    font-size: 8.5pt;
+  }
+  .report-stat dd,
+  .report-table th,
+  .report-table td,
+  .report-list {
+    color: #000 !important;
+  }
+  .report-stat dd {
+    font-size: 15pt;
+  }
+  .report-stat.is-low dd {
+    color: #b45309 !important;
+  }
+  .report-stats {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2.5mm 3mm;
+  }
+  .report-table,
+  .report-list {
+    font-size: 9.5pt;
+  }
+  .report-days {
+    font-size: 9pt;
   }
   .report-table th,
   .report-table td {
+    padding: 1.8mm 0;
     border-color: #ccc !important;
   }
   .report-days-scroll {
     overflow: visible !important;
   }
+  .rc-grid {
+    stroke: #ddd;
+  }
+  .rc-tick,
+  .rc-curve-label {
+    fill: #444;
+    font-size: 8px;
+  }
+  .rc-curve {
+    stroke: #888;
+  }
+  .rc-goal {
+    stroke: #c2410c;
+  }
+  .rc-line,
+  .rc-dot {
+    stroke: #0f766e;
+    fill: #0f766e;
+  }
+  .rc-line {
+    fill: none;
+  }
+  .rc-bar {
+    fill: #5eead4;
+  }
+  .rc-avg,
+  .rc-avg-label {
+    stroke: #000;
+    fill: #000;
+  }
+  .rc-avg {
+    fill: none;
+  }
   @page {
-    margin: 14mm;
+    size: letter;
+    margin: 12mm;
   }
 }

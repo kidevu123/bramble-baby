@@ -1,17 +1,19 @@
 /**
- * The report for the pediatrician: everything the visit asks about, over the last N days, in one page that
- * prints or shares as text. Pure: the page only renders what this returns.
+ * The report for the pediatrician: everything the visit asks about, since the last visit (or over the last
+ * N days), in one page that prints or shares as text. Pure: the page only renders what this returns.
  *
  * Growth leads (the latest weight, height and head with the WHO percentile and the change since the one
- * before, and the gain per day in grams against the doctor's goal), then the daily averages with the
- * age-typical band beside each, then a day-by-day table, then temperatures and medicines in the range.
+ * before, the gain since the last visit in grams a day against the doctor's goal), then the daily averages
+ * with the age-typical band beside each, a week-by-week (or day-by-day) table, temperatures and medicines
+ * in the range, and the points for the page's two charts (weight over the window against the WHO curves
+ * and the goal, intake by day).
  */
-import { addDays, differenceInCalendarDays, format, isSameDay, startOfDay } from 'date-fns'
+import { addDays, differenceInCalendarDays, endOfDay, format, isSameDay, startOfDay } from 'date-fns'
 import type { Child, GrowthEntry, Medication, Temperature } from './api/types'
 import { summarizeDay, type EventSets, type GrowthSets } from './events'
-import { growthAt, growthChange, growthPercentile } from './reports'
-import { asBasis, correctedAgeText, describeWeeks, judgedAge, type AgeFrom } from './preterm'
-import { describePercentile, diaperNormFor, feedingNormFor, feverStatus, fToC, sleepNormFor, type Sex } from './science'
+import { ageMonthsOn, growthAt, growthChange, growthPercentile } from './reports'
+import { asBasis, correctedAgeText, describeWeeks, judgedAge, whoFrom, type AgeFrom } from './preterm'
+import { describePercentile, diaperNormFor, feedingNormFor, feverStatus, fToC, sleepNormFor, valueAtPercentile, type Sex } from './science'
 import { formatAge, formatDurationShort, parseDate, parseDuration } from './time'
 import { dayCalories, TYPICAL_KCAL_PER_KG, weightForDay } from './calories'
 import type { FortifySettings } from './fortify'
@@ -60,11 +62,62 @@ export interface ReportCalories {
   fortify: FortifySettings | null
 }
 
+/** One week of the window (the last one may be shorter), averaged over its logged days like the daily averages. */
+export interface ReportWeek {
+  from: Date
+  to: Date
+  /** Whole days in the week that carried any entry. */
+  loggedDays: number
+  feeds: number
+  bottle: number
+  kcalPerKg: number | null
+  wet: number
+  dirty: number
+  sleepHours: number
+  pumped: number
+  /** The latest weighing in the week, in the phone's unit. */
+  weight: { value: string; at: Date } | null
+}
+
+/** The gain between the weighing the last visit started from and the latest one: what the doctor compares. */
+export interface VisitGain {
+  from: { value: string; at: Date }
+  to: { value: string; at: Date }
+  grams: number
+  days: number
+  perDay: number
+  /** "on the doctor's 20 g/day" / "4 g/day short of the doctor's 20" / null without a goal. */
+  vsGoal: string | null
+}
+
+export interface ChartPoint {
+  at: Date
+  /** In the phone's weight unit. */
+  value: number
+}
+
+/** The page's charts: weights over the window with the WHO curves and the goal line, intake by day. */
+export interface ReportChart {
+  /** Every weighing in the window, plus the one it starts from. */
+  weights: ChartPoint[]
+  /** From the first weighing of the window, rising at the doctor's goal, to the end; null without a goal. */
+  goal: { from: ChartPoint; to: ChartPoint; gramsPerDay: number } | null
+  /** The WHO 2nd, 50th and 98th for the child's sex across the window; empty without a sex or before term. */
+  curves: { label: string; points: ChartPoint[] }[]
+  from: Date
+  to: Date
+}
+
 export interface DoctorReport {
   child: { name: string; birthDate: string; age: string; sex: Sex | null }
-  /** `wholeDays`: the days before today, the ones the averages are taken over. */
-  range: { from: Date; to: Date; days: number; wholeDays: number }
+  /** `wholeDays`: the days before today, the ones the averages are taken over. `visit`: the last visit and this one when
+   *  the report is for a visit (the window runs from the one to the other). */
+  range: { from: Date; to: Date; days: number; wholeDays: number; visit: { last: Date; this: Date } | null }
   growth: ReportGrowthRow[]
+  /** The gain since the last visit's weighing; null without a visit window or two weighings. */
+  visitGain: VisitGain | null
+  weeks: ReportWeek[]
+  chart: ReportChart | null
   gain: { sinceLast: string | null; week: string | null; /** The gain since the day the goal was given. */ sinceGoal: string | null; perDay: string | null; verdict: string | null; goal: number | null } | null
   averages: ReportAverage[]
   days: ReportDay[]
@@ -87,9 +140,33 @@ function avgOf<T>(rows: T[], value: (r: T) => number, logged: (r: T) => boolean 
   return { value: active.length ? active.reduce((s, r) => s + value(r), 0) / active.length : 0, days: active.length }
 }
 
-export function buildDoctorReport(events: EventSets, growth: GrowthSets | undefined, child: Child, units: UnitPrefs, sex: Sex | null, goal: number | null | undefined, days: number, now: Date = new Date(), goalSince?: string | null, age: AgeFrom = child.birth_date, calories: ReportCalories | null = null): DoctorReport {
-  const to = startOfDay(now)
-  const from = addDays(to, -(days - 1))
+/** The report's window: the last N days, or a visit (from the last visit to this one, never past today). */
+export type ReportWindow = number | { lastVisit: Date; thisVisit: Date }
+
+/** A visit window is never longer than this: a one-page report cannot hold more, and well visits come sooner. */
+export const MAX_VISIT_DAYS = 91
+/** How far before the window a weighing may lie and still be the one it starts from. */
+export const ANCHOR_DAYS = 7
+
+export function buildDoctorReport(events: EventSets, growth: GrowthSets | undefined, child: Child, units: UnitPrefs, sex: Sex | null, goal: number | null | undefined, window: ReportWindow, now: Date = new Date(), goalSince?: string | null, age: AgeFrom = child.birth_date, calories: ReportCalories | null = null): DoctorReport {
+  const today = startOfDay(now)
+  let from: Date
+  let to: Date
+  let visit: DoctorReport['range']['visit'] = null
+  if (typeof window === 'number') {
+    to = today
+    from = addDays(to, -(window - 1))
+  } else {
+    // The visit: from the last one to this one, clipped to today and to what fits a page.
+    const thisVisit = startOfDay(window.thisVisit) > today ? today : startOfDay(window.thisVisit)
+    let last = startOfDay(window.lastVisit)
+    if (last > thisVisit) last = thisVisit
+    if (differenceInCalendarDays(thisVisit, last) + 1 > MAX_VISIT_DAYS) last = addDays(thisVisit, -(MAX_VISIT_DAYS - 1))
+    from = last
+    to = thisVisit
+    visit = { last: startOfDay(window.lastVisit), this: thisVisit }
+  }
+  const days = differenceInCalendarDays(to, from) + 1
   const dayList = Array.from({ length: days }, (_, i) => addDays(from, i))
   // Settings › Born early: corrected age for the bands and percentiles; none at all in the NICU or before term.
   const ctx = judgedAge(age, now)
@@ -129,6 +206,60 @@ export function buildDoctorReport(events: EventSets, growth: GrowthSets | undefi
     }
   }
 
+  // ---- the gain the doctor compares: the weighing the last visit started from (the latest on or before that day,
+  // else the first in the window) against the latest in the window
+  let visitGain: VisitGain | null = null
+  let chart: ReportChart | null = null
+  if (growth) {
+    const windowEnd = endOfDay(to)
+    const sorted = [...growth.weights].sort((a, b) => growthAt(a).getTime() - growthAt(b).getTime()).filter((w) => growthAt(w) <= windowEnd)
+    // The weighing the window starts from: the latest on or before its first day, as long as it is recent (the visit's
+    // own weighing, or one within the week before); else the first inside the window.
+    const before = sorted.filter((w) => growthAt(w) <= endOfDay(from) && growthAt(w) >= addDays(from, -ANCHOR_DAYS))
+    const anchor = before.length ? before[before.length - 1] : sorted.find((w) => growthAt(w) >= from) ?? null
+    const latest = sorted.length ? sorted[sorted.length - 1] : null
+    const inWindow = sorted.filter((w) => growthAt(w) >= from && (!anchor || w.id !== anchor.id))
+    const point = (w: GrowthEntry & { weight: number }): ChartPoint => ({ at: growthAt(w), value: w.weight })
+    if (anchor && latest && anchor.id !== latest.id) {
+      const grams = convertWeight(latest.weight - anchor.weight, units.weight, 'kg') * 1000
+      const spanD = (growthAt(latest).getTime() - growthAt(anchor).getTime()) / 86_400_000
+      const perDay = spanD > 0 ? grams / spanD : 0
+      let vsGoal: string | null = null
+      if (goal && spanD > 0) {
+        const diff = Math.round(perDay - goal)
+        vsGoal = Math.abs(diff) <= Math.max(1, goal * 0.1) ? `on the doctor's ${goal} g/day` : diff < 0 ? `${-diff} g/day short of the doctor's ${goal}` : `${diff} g/day over the doctor's ${goal}`
+      }
+      if (visit) visitGain = { from: { value: formatWeight(anchor.weight, units.weight), at: growthAt(anchor) }, to: { value: formatWeight(latest.weight, units.weight), at: growthAt(latest) }, grams: Math.round(grams), days: Math.round(spanD * 10) / 10, perDay: Math.round(perDay), vsGoal }
+    }
+    const weights = [...(anchor ? [point(anchor)] : []), ...inWindow.map(point)]
+    if (weights.length) {
+      const first = weights[0]
+      const gramsPerDay = goal ?? 0
+      const goalLine = goal
+        ? { from: first, to: { at: windowEnd, value: first.value + convertWeight(((gramsPerDay / 1000) * (windowEnd.getTime() - first.at.getTime())) / 86_400_000, 'kg', units.weight) }, gramsPerDay }
+        : null
+      const curves: ReportChart['curves'] = []
+      if (sex) {
+        const start = weights[0].at < from ? weights[0].at : from
+        const samples: Date[] = []
+        for (let d = startOfDay(start); d <= windowEnd; d = addDays(d, 3)) samples.push(d)
+        samples.push(windowEnd)
+        for (const [p, label] of [[2.3, '2nd'], [50, '50th'], [97.7, '98th']] as [number, string][]) {
+          const points: ChartPoint[] = []
+          for (const at of samples) {
+            const basisDay = whoFrom(age, at)
+            if (basisDay === null) continue
+            const months = ageMonthsOn(format(at, 'yyyy-MM-dd'), basisDay)
+            if (months > 24) continue
+            points.push({ at, value: convertWeight(valueAtPercentile('weight', sex, months, p), 'kg', units.weight) })
+          }
+          if (points.length >= 2) curves.push({ label, points })
+        }
+      }
+      chart = { weights, goal: goalLine, curves, from: weights[0].at < from ? weights[0].at : from, to: windowEnd }
+    }
+  }
+
   // ---- day by day
   const weighings = (growth?.weights ?? []).map((w) => ({ kg: convertWeight(w.weight, units.weight, 'kg'), at: growthAt(w) }))
   const dayRows: ReportDay[] = dayList.map((d) => {
@@ -141,6 +272,31 @@ export function buildDoctorReport(events: EventSets, growth: GrowthSets | undefi
   // Today is still in progress: it stays in the day-by-day table but not in the averages (2 feeds by 7 AM
   // is not a day of 2 feeds), as the supply trend and the stash runway leave it out too.
   const whole = dayRows.filter((d) => d.date.getTime() < startOfDay(now).getTime())
+
+  // ---- week by week, from the start of the window (the last week may be short); today, in progress, is left out
+  const weeks: ReportWeek[] = []
+  for (let i = 0; i < whole.length; i += 7) {
+    const chunk = whole.slice(i, i + 7)
+    const logged = (d: ReportDay) => d.feeds > 0 || d.diaperCount > 0 || d.sleepHours > 0 || d.pumped > 0
+    const active = chunk.filter(logged)
+    const avg = (value: (d: ReportDay) => number, rows: ReportDay[] = active) => (rows.length ? rows.reduce((s, d) => s + value(d), 0) / rows.length : 0)
+    const withKcal = active.filter((d) => d.kcalPerKg !== null)
+    const wkEnd = endOfDay(chunk[chunk.length - 1].date)
+    const wkWeights = (growth?.weights ?? []).filter((w) => growthAt(w) >= chunk[0].date && growthAt(w) <= wkEnd).sort((a, b) => growthAt(b).getTime() - growthAt(a).getTime())
+    weeks.push({
+      from: chunk[0].date,
+      to: chunk[chunk.length - 1].date,
+      loggedDays: active.length,
+      feeds: avg((d) => d.feeds),
+      bottle: avg((d) => d.bottle),
+      kcalPerKg: withKcal.length ? avg((d) => d.kcalPerKg ?? 0, withKcal) : null,
+      wet: avg((d) => d.wet, active.filter((d) => d.diaperCount > 0)),
+      dirty: avg((d) => d.dirty, active.filter((d) => d.diaperCount > 0)),
+      sleepHours: avg((d) => d.sleepHours, active.filter((d) => d.sleepHours > 0)),
+      pumped: avg((d) => d.pumped, active.filter((d) => d.pumped > 0)),
+      weight: wkWeights.length ? { value: formatWeight(wkWeights[0].weight, units.weight), at: growthAt(wkWeights[0]) } : null,
+    })
+  }
 
   // ---- averages with the age-typical band
   const averages: ReportAverage[] = []
@@ -197,8 +353,11 @@ export function buildDoctorReport(events: EventSets, growth: GrowthSets | undefi
 
   return {
     child: { name: child.first_name, birthDate: format(birth, 'MMM d, yyyy'), age: [formatAge(child.birth_date, now), correctedAgeText(basis, now), basis.bornAtDays !== null ? `born at ${describeWeeks(basis.bornAtDays)}` : null].filter(Boolean).join(' · '), sex },
-    range: { from, to, days: differenceInCalendarDays(to, from) + 1, wholeDays: whole.length },
+    range: { from, to, days, wholeDays: whole.length, visit },
     growth: rows,
+    visitGain,
+    weeks,
+    chart,
     gain,
     averages,
     days: dayRows,
@@ -212,11 +371,12 @@ export function buildDoctorReport(events: EventSets, growth: GrowthSets | undefi
 export function reportText(r: DoctorReport): string {
   const lines: string[] = []
   lines.push(`${r.child.name} · born ${r.child.birthDate} · ${r.child.age}${r.child.sex ? ` · ${r.child.sex === 'male' ? 'boy' : 'girl'}` : ''}`)
-  lines.push(`${format(r.range.from, 'MMM d')} – ${format(r.range.to, 'MMM d, yyyy')} (${r.range.days} days), from Bramble`)
+  lines.push(`${r.range.visit ? `Since the visit on ${format(r.range.visit.last, 'MMM d')}: ` : ''}${format(r.range.from, 'MMM d')} – ${format(r.range.to, 'MMM d, yyyy')} (${r.range.days} days), from Bramble`)
   if (r.growth.length) {
     lines.push('')
     lines.push('GROWTH')
     for (const g of r.growth) lines.push(`${g.label}: ${g.value} on ${g.date}${g.percentile ? ` · ${g.percentile}` : ''}${g.change ? ` · ${g.change}` : ''}`)
+    if (r.visitGain) lines.push(`Since the last visit: ${r.visitGain.from.value} (${format(r.visitGain.from.at, 'MMM d')}) → ${r.visitGain.to.value} (${format(r.visitGain.to.at, 'MMM d')}), ${r.visitGain.grams >= 0 ? '+' : ''}${r.visitGain.grams} g over ${r.visitGain.days} days = ${r.visitGain.perDay} g/day${r.visitGain.vsGoal ? `, ${r.visitGain.vsGoal}` : ''}`)
     if (r.gain) {
       if (r.gain.sinceLast) lines.push(`Gain: ${r.gain.sinceLast}`)
       if (r.gain.week) lines.push(`Gain: ${r.gain.week}`)
@@ -229,11 +389,20 @@ export function reportText(r: DoctorReport): string {
     lines.push(`DAILY AVERAGES (over the ${r.range.wholeDays} full days before today)`)
     for (const a of r.averages) lines.push(`${a.label}: ${a.value}${a.typical ? ` (typical ${a.typical})` : ''}${a.loggedDays < r.range.wholeDays ? ` · ${a.loggedDays} of ${r.range.wholeDays} days logged` : ''}`)
   }
-  lines.push('')
-  lines.push('DAY BY DAY')
-  lines.push(`date · feeds · bottle · wet/dirty · sleep · pumped`)
-  for (const d of r.days) {
-    lines.push(`${format(d.date, 'MMM d')} · ${d.feeds} · ${d.bottle ? formatVolume(d.bottle, r.units.volume) : '–'} · ${d.wet}/${d.dirty} · ${d.sleepHours ? formatDurationShort(d.sleepHours * 3600) : '–'} · ${d.pumped ? formatVolume(d.pumped, r.units.volume) : '–'}`)
+  if (r.weeks.length > 2) {
+    lines.push('')
+    lines.push('WEEK BY WEEK (averages over the days logged)')
+    lines.push(`week · feeds/day · bottle/day · wet/dirty · sleep · weight`)
+    for (const w of r.weeks) {
+      lines.push(`${format(w.from, 'MMM d')}–${format(w.to, 'MMM d')} · ${one(w.feeds)} · ${w.bottle ? formatVolume(w.bottle, r.units.volume) : '–'} · ${one(w.wet)}/${one(w.dirty)} · ${w.sleepHours ? formatDurationShort(w.sleepHours * 3600) : '–'} · ${w.weight ? `${w.weight.value} (${format(w.weight.at, 'MMM d')})` : '–'}`)
+    }
+  } else {
+    lines.push('')
+    lines.push('DAY BY DAY')
+    lines.push(`date · feeds · bottle · wet/dirty · sleep · pumped`)
+    for (const d of r.days) {
+      lines.push(`${format(d.date, 'MMM d')} · ${d.feeds} · ${d.bottle ? formatVolume(d.bottle, r.units.volume) : '–'} · ${d.wet}/${d.dirty} · ${d.sleepHours ? formatDurationShort(d.sleepHours * 3600) : '–'} · ${d.pumped ? formatVolume(d.pumped, r.units.volume) : '–'}`)
+    }
   }
   if (r.temperatures.length) {
     lines.push('')
