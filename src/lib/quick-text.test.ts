@@ -118,4 +118,12 @@ describe('parseQuickText', () => {
     expect(parse('note slept badly 3pm')?.prefill).toEqual({ kind: 'note', text: 'slept badly 3pm', at: at(15) })
     expect(parse('note 20 min ago hiccups')?.prefill).toMatchObject({ text: '20 min ago hiccups', at: at(15, 10) })
   })
+  it('reads "with diaper" on a weight as a weighing taken with a diaper on, not a diaper change', () => {
+    const r = parse('weight 5 lb 7 oz with diaper')!
+    expect(r.prefill.kind).toBe('growth')
+    expect(r.prefill.kind === 'growth' && r.prefill.diaperOn).toBe(true)
+    expect(r.summary).toContain('diaper on')
+    expect(parse('wet diaper')!.prefill.kind).toBe('diaper')
+  })
+
 })

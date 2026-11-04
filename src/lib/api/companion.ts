@@ -95,6 +95,8 @@ export interface ChildSettings {
   calorieGoal?: number | null
   /** Breast milk fortified with formula to a strength (Settings › Calories & fortifying, `src/lib/fortify.ts`); null when not. */
   fortify?: FortifySettings | null
+  /** Settings › Weighing: a dry diaper's weight in grams; the growth sheet takes it off a weighing taken with one on. */
+  diaperGrams?: number | null
   /** The pediatrician visits the report is for (yyyy-MM-dd): the report runs from the last to this one. Set on the report page. */
   visits?: { last?: string | null; this?: string | null } | null
   /** Days of bottles to have banked in the stash (Settings › Pumps); the Stash tab measures progress against it. */

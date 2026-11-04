@@ -19,7 +19,7 @@ export type QuickPrefill =
   | { kind: 'pumping'; amount?: number; minutes?: number; end?: Date }
   | { kind: 'sleep'; start?: Date; end?: Date; nap?: boolean; notes?: string }
   | { kind: 'tummy'; minutes?: number; end?: Date }
-  | { kind: 'growth'; growthKind: GrowthKind; value?: number; at?: Date }
+  | { kind: 'growth'; growthKind: GrowthKind; value?: number; at?: Date; /** "weight 5 lb 7 oz with diaper": the growth sheet opens with Diaper on. */ diaperOn?: boolean }
   | { kind: 'temperature'; value?: number; at?: Date }
   | { kind: 'note'; text: string; at?: Date }
 
@@ -215,11 +215,13 @@ function kindOf(text: string): Kind | null {
   if (has(/\btummy\b/)) return 'tummy'
   // "diaper both" is a mixed diaper and "dirty diaper bm" a bowel movement, not a side or breast milk.
   const diaperWord = has(DIAPER_WORDS)
+  // "weight 5 lb 7 oz with diaper" is a weighing taken with a diaper on, not a diaper change.
+  if (has(WEIGHT_WORDS) && has(/\b(with|on)\b/) && has(/\bdiaper\b/)) return 'growth'
   if (has(/\b(nurs(e|ed|ing)|breastf(ed|eed|eeding)|boob|latch(ed)?)\b/) || (has(/\b(left|right|both)\b/) && !diaperWord && !has(/\b(bottle|formula)\b/))) return 'nursing'
   if (has(/\b(bottle|formula|fed|feed|feeding|ate|drank|ebm)\b/) || has(/\bbreast milk\b/) || (has(/\bbm\b/) && !diaperWord)) return 'bottle'
   if (diaperWord) return 'diaper'
   if (has(/\b(nap|napped|sleep|sleeping|slept|asleep|woke|bedtime|bed|night)\b/)) return 'sleep'
-  if (has(/\b(weight|weigh|weighs|weighed|lb|lbs|pounds?|kg|kilos?|grams?)\b/)) return 'growth'
+  if (has(WEIGHT_WORDS)) return 'growth'
   if (has(/\b(height|length|long|tall)\b/)) return 'growth'
   if (has(/\bhead\b/)) return 'growth'
   if (has(/\b(temp|temperature|fever)\b/) || /°/.test(t)) return 'temperature'
@@ -230,6 +232,7 @@ function kindOf(text: string): Kind | null {
 }
 
 const DIAPER_WORDS = /\b(diaper|nappy|wet|dirty|poo|poop|pooped|pee|peed|dry)\b/
+const WEIGHT_WORDS = /\b(weight|weigh|weighs|weighed|lb|lbs|pounds?|kg|kilos?|grams?)\b/
 const DIRTY = /\b(dirty|poo|poop|pooped|soiled|stool|bm)\b/i
 const WET = /\b(wet|pee|peed)\b/i
 
@@ -361,7 +364,8 @@ export function parseQuickText(input: string, units: UnitPrefs, now: Date = new 
     }
     const label = growthKind === 'weight' ? 'Weight' : growthKind === 'height' ? 'Height' : 'Head'
     const shown = value === undefined ? undefined : growthKind === 'weight' ? formatWeight(value, units.weight) : formatLength(value, units.length)
-    return { prefill: { kind, growthKind, value, at: times.at }, summary: [label, shown, times.at ? clockText(times.at, now) : undefined].filter(Boolean).join(' · ') }
+    const diaperOn = growthKind === 'weight' && /\bdiaper\b/i.test(rest) ? true : undefined
+    return { prefill: { kind, growthKind, value, at: times.at, diaperOn }, summary: [label, shown, diaperOn ? 'diaper on' : undefined, times.at ? clockText(times.at, now) : undefined].filter(Boolean).join(' · ') }
   }
   if (kind === 'temperature') {
     const rest = times.rest.replace(/\b(temp|temperature|fever)\b/i, ' ')

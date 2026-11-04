@@ -8,13 +8,14 @@ import { usePrefs } from '../../hooks/usePrefs'
 import * as ep from '../../lib/api/endpoints'
 import type { Child, GrowthEntry, GrowthKind, HeadCircumference, Height, Medication, Note, Temperature, Weight } from '../../lib/api/types'
 import { GROWTH_LABEL } from '../../lib/events'
-import { decodeGrowthNote, encodeGrowthNote, growthEntryTime } from '../../lib/growth-note'
+import { decodeGrowthNote, diaperInUnit, diaperText, encodeGrowthNote, growthEntryTime } from '../../lib/growth-note'
+import { useChildSettings } from '../../hooks/useChildSettings'
 import { parseDate, toIso } from '../../lib/time'
 import { SheetFooter } from './SheetFooter'
 import { useSaver } from './useSaver'
 import { useUnitBoundary } from '../../hooks/useStorageUnits'
 import { temperatureCheck } from './plausible'
-import { joinPounds, splitPounds } from '../../lib/units'
+import { formatWeight, joinPounds, splitPounds } from '../../lib/units'
 
 type GrowthEditing = { kind: GrowthKind; entry: GrowthEntry } | null
 
@@ -24,10 +25,18 @@ export function GrowthSheet({ child, editing, initial, prefill, onClose }: { chi
   // Baby Buddy keeps only a date for growth; the clock lives in the note's time segment (growth-note.ts).
   // An older entry without one opens with no time chosen, and stays that way unless one is picked.
   const [note] = useState(() => decodeGrowthNote(editing?.entry.notes))
+  const { settings } = useChildSettings(child.id)
+  // Settings › Weighing: a dry diaper's grams. A weighing taken with one on is stored naked, and the note says so
+  // (growth-note.ts); the sheet always shows the scale's own reading, so an edit of such an entry opens with the
+  // diaper back on and the switch on.
+  const diaperSetting = settings.diaperGrams ?? null
+  const [diaperOn, setDiaperOn] = useState(() => (editing ? note.diaperGrams !== null : Boolean(prefill?.diaperOn && diaperSetting)))
+  const diaperGrams = editing && note.diaperGrams !== null ? note.diaperGrams : diaperSetting
   const [time, setTime] = useState<Date | null>(() => (editing ? growthEntryTime(editing.entry) : prefill?.at ?? new Date()))
   const [initialValue] = useState(() => {
     if (!editing) return prefill?.value !== undefined ? String(prefill.value) : ''
     const e = editing.entry as Weight & Height & HeadCircumference
+    if (editing.kind === 'weight' && note.diaperGrams !== null) return String(e.weight + diaperInUnit(note.diaperGrams, prefs.units.weight))
     return String(e.weight ?? e.height ?? e.head_circumference ?? '')
   })
   const [value, setValue] = useState(initialValue)
@@ -44,14 +53,17 @@ export function GrowthSheet({ child, editing, initial, prefill, onClose }: { chi
   const units = useUnitBoundary(child.id)
   const unit = kind === 'weight' ? prefs.units.weight : prefs.units.length
   const poundsField = kind === 'weight' && unit === 'lb'
-  const num = poundsField ? (joinPounds(lbText, ozText) ?? NaN) : Number(value)
+  const reading = poundsField ? (joinPounds(lbText, ozText) ?? NaN) : Number(value)
+  const takeOff = kind === 'weight' && diaperOn && diaperGrams ? diaperGrams : null
+  // What is stored: the scale's reading less the dry diaper when one was on.
+  const num = takeOff ? Math.round((reading - diaperInUnit(takeOff, prefs.units.weight)) * 1000) / 1000 : reading
   const ozTooMany = poundsField && Number(ozText) >= 16
-  // Both fields as they opened: the weight was not touched, so it stays out of the PATCH.
-  const untouched = poundsField ? lbText === initialParts.lb && ozText === initialParts.oz : value === initialValue
+  // Both fields as they opened (and the diaper switch as it was): the weight was not touched, so it stays out of the PATCH.
+  const untouched = (poundsField ? lbText === initialParts.lb && ozText === initialParts.oz : value === initialValue) && diaperOn === (note.diaperGrams !== null)
   const field = kind === 'weight' ? 'weight' : kind === 'height' ? 'height' : 'head_circumference'
   const api = kind === 'weight' ? ep.weight : kind === 'height' ? ep.height : ep.headCircumference
   const date = time ? format(time, 'yyyy-MM-dd') : editing?.entry.date ?? ''
-  const noteWithTime = () => encodeGrowthNote(notes, time, note.slot)
+  const noteWithTime = () => encodeGrowthNote(notes, time, note.slot, takeOff)
   // Typed in this phone's unit; stored in the household's storage unit (see useStorageUnits). An edit
   // that did not touch the number leaves it out, so display rounding never rewrites the stored value.
   const body = () => {
@@ -94,6 +106,27 @@ export function GrowthSheet({ child, editing, initial, prefill, onClose }: { chi
           />
         </div>
       )}
+      {kind === 'weight' && diaperGrams ? (
+        <div className="value-with-hint" data-testid="diaper-switch">
+          <Segmented
+            label="Weighed with"
+            size="sm"
+            options={[
+              { value: 'bare', label: 'No diaper' },
+              { value: 'diaper', label: 'Diaper on' },
+            ]}
+            value={diaperOn ? 'diaper' : 'bare'}
+            onChange={(v) => setDiaperOn(v === 'diaper')}
+          />
+          <p className="log-hint" data-testid="diaper-hint">
+            {diaperOn
+              ? `A dry diaper is ${diaperText(diaperGrams, prefs.units.weight)}: ${reading > 0 && num > 0 ? `saved as ${formatWeight(num, prefs.units.weight)}` : 'it comes off the reading'}.`
+              : 'The reading is saved as it is.'}
+          </p>
+        </div>
+      ) : kind === 'weight' && !editing ? (
+        <p className="xs muted">Weighed with a diaper on? Set its dry weight in Settings › Weighing and it comes off by itself.</p>
+      ) : null}
       <TimeField label="Time:" value={time} onChange={setTime} max={new Date()} placeholder={editing ? `${format(parseDate(editing.entry.date), 'MMM d, yyyy')} · add a time` : undefined} quick={editing ? undefined : setTime} />
       {editing ? (
         <p className="xs muted">

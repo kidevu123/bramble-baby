@@ -12,6 +12,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.55.0',
+    date: 'Nov 4',
+    items: [
+      'Settings › Weighing: the weight of a dry diaper. A weighing taken with a diaper on (the doctor\u2019s scale) gets a Diaper on switch in the weight sheet, and {name}\u2019s naked weight is what gets saved; the entry says what was taken off.',
+      'Only a dry diaper can be taken off: a wet one weighs more than a day\u2019s growth, so ask for a naked weight or a fresh diaper at the office.',
+      'Type it understands "weight 5 lb 7 oz with diaper".',
+    ],
+  },
+  {
     version: '1.54.1',
     date: 'Nov 3',
     items: [

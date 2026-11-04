@@ -38,6 +38,8 @@ import { HatchSheet } from './HatchSheet'
 import { LabelSettingsSheet } from './LabelSettingsSheet'
 import { PeopleSheet } from './PeopleSheet'
 import { PretermSheet } from './PretermSheet'
+import { WeighingSheet } from './WeighingSheet'
+import { diaperText } from '../../lib/growth-note'
 import { CaloriesSheet } from './CaloriesSheet'
 import { powderOf } from '../../lib/fortify'
 import { calorieTracking, type CalorieTracking } from '../../lib/calories'
@@ -47,7 +49,7 @@ import { ageBasis, pretermState } from '../../lib/preterm'
 import { DEFAULT_PUMPS } from '../../lib/pumps'
 import './more.css'
 
-type Section = 'units' | 'notifications' | 'labels' | 'hatch' | 'people' | 'export' | 'pumps' | 'preterm' | 'calories'
+type Section = 'units' | 'notifications' | 'labels' | 'hatch' | 'people' | 'export' | 'pumps' | 'preterm' | 'calories' | 'weighing'
 
 /**
  * Settings: every configuration the app has, grouped, each row opening a focused sheet. A daily-use
@@ -195,6 +197,7 @@ export function MorePage() {
           <SettingsRow icon={<PumpIcon />} title="Pumps" value={pumpSummary} onClick={() => setOpen('pumps')} />
           <SettingsRow icon={<BottleIcon />} title="Calories & fortifying" value={calorieSummary(calorieTracking(childSettings))} onClick={() => setOpen('calories')} />
           <SettingsRow icon={<ScaleIcon />} title="Hatch scale" value={hatchRowSummary(hatch.status)} onClick={() => setOpen('hatch')} />
+          <SettingsRow icon={<ScaleIcon />} title="Weighing" value={childSettings.diaperGrams ? `Dry diaper ${diaperText(childSettings.diaperGrams, prefs.units.weight)} · taken off a weighing with one on` : 'Take a dry diaper off a weighing'} onClick={() => setOpen('weighing')} />
           <SettingsRow icon={<HeartIcon />} title="Born early" value={pretermSummary === 'Off' ? 'Corrected age and the NICU stay' : pretermSummary} onClick={() => setOpen('preterm')} />
         </SettingsGroup>
 
@@ -279,6 +282,7 @@ export function MorePage() {
       <PeopleSheet open={open === 'people'} onClose={close} />
       <PumpsSheet open={open === 'pumps'} onClose={close} />
       <PretermSheet open={open === 'preterm'} onClose={close} />
+      <WeighingSheet open={open === 'weighing'} onClose={close} />
       <CaloriesSheet open={open === 'calories'} onClose={close} />
       <WhatsNewSheet open={news} releases={releasesUpTo(BUILD.version)} onClose={() => setNews(false)} />
 
