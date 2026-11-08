@@ -12,6 +12,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.55.1',
+    date: 'Nov 8',
+    items: [
+      'Nursing logged after the fact works again: type the minutes and the feed ends just now, with Save live (it used to say the feed would end in the future until Just now was tapped).',
+      'Saving a nursing feed or a formula bottle no longer ends on "Cannot reach the server" with the sheet left open (the entry was saved all along; the sheet now closes).',
+    ],
+  },
+  {
     version: '1.55.0',
     date: 'Nov 4',
     items: [

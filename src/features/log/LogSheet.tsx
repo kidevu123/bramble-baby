@@ -74,13 +74,13 @@ export function LogSheet({ request, child, recentFeedings = [], recent = [], nam
         break
       case 'feeding':
       case 'nursing':
-        body = <FeedingSheet child={child} initial="nursing" editing={editing?.raw as Feeding | null} prefill={pre?.kind === 'nursing' ? pre : undefined} onClose={onClose} />
+        body = <FeedingSheet child={child} initial="nursing" editing={(editing?.raw as Feeding | undefined) ?? null} prefill={pre?.kind === 'nursing' ? pre : undefined} onClose={onClose} />
         break
       case 'bottle':
-        body = <FeedingSheet child={child} initial="bottle" editing={editing?.raw as Feeding | null} bag={request.bag ?? null} prefill={pre?.kind === 'bottle' ? pre : undefined} onClose={onClose} />
+        body = <FeedingSheet child={child} initial="bottle" editing={(editing?.raw as Feeding | undefined) ?? null} bag={request.bag ?? null} prefill={pre?.kind === 'bottle' ? pre : undefined} onClose={onClose} />
         break
       case 'solids':
-        body = <SolidsSheet child={child} editing={editing?.raw as Feeding | null} recentFeedings={recentFeedings} onClose={onClose} />
+        body = <SolidsSheet child={child} editing={(editing?.raw as Feeding | undefined) ?? null} recentFeedings={recentFeedings} onClose={onClose} />
         break
       case 'diaper':
         body = <DiaperSheet child={child} initial="diaper" editing={editing?.raw as DiaperChange | null} prefill={pre?.kind === 'diaper' ? pre : undefined} onClose={onClose} />

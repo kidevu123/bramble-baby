@@ -66,15 +66,19 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
   const [picking, setPicking] = useState(false)
   const invalidateMilk = useInvalidateMilk()
   const [mode, setMode] = useState<Mode>(() => (initialBag ? 'bottle' : initial ?? initialMode(editing)))
-  const [start, setStart] = useState<Date>(() => {
-    if (editing) return parseDate(editing.start)
-    // "nursed left 12 min": a feed that just finished, so it starts 12 minutes back and never ends in the future.
+  // A new feed is anchored on when it finished (just now, until a time is set by hand), so typing the minutes moves
+  // the start back; the old start-anchored default made every typed feed "end in the future" and locked Save. A
+  // start set by hand, a Type it time, or an edited entry anchor on the start, so the finish follows the minutes.
+  const [anchor, setAnchor] = useState<{ on: 'start' | 'end'; at: Date }>(() => {
+    if (editing) return { on: 'start', at: parseDate(editing.start) }
+    // "nursed left 12 min at 3pm": the feed starts then; "nursed left 12 min" with no time just finished.
     if (prefill?.kind === 'nursing' && prefill.minutes) {
       const latest = Date.now() - prefill.minutes * 60_000
-      return new Date(Math.min(prefill.at?.getTime() ?? latest, latest))
+      return prefill.at ? { on: 'start', at: new Date(Math.min(prefill.at.getTime(), latest)) } : { on: 'end', at: new Date() }
     }
-    return prefill?.at ?? new Date()
+    return prefill?.at ? { on: 'start', at: prefill.at } : { on: 'end', at: new Date() }
   })
+  const setStart = (d: Date) => setAnchor({ on: 'start', at: d })
   // A nursing entry keeps its per-side minutes in the first notes line ("Left 5m · Right 7m"). Read
   // them back so a both-breasts entry opens filled in, and strip that line so it is not written twice.
   const [initialSides] = useState(() => (editing && editing.method !== 'bottle' && editing.type !== 'solid food' ? parseSideNote(editing.notes) : null))
@@ -105,6 +109,9 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
   const [milk, setMilk] = useState<FeedingType>(() => (editing && editing.type !== 'solid food' ? editing.type : (prefill?.kind === 'bottle' && prefill.milk) || 'breast milk'))
   const [initialAmount] = useState<string>(() => (editing?.amount ? String(editing.amount) : ''))
   const [amount, setAmount] = useState<string>(() => (initialBag ? String(fillAmount(initialBag.remaining_ml, prefs.units.volume)) : prefill?.kind === 'bottle' && prefill.amount !== undefined ? String(prefill.amount) : initialAmount))
+  const nursingMinutes = (Number(leftMin) || 0) + (Number(rightMin) || 0)
+  /** When the feed began: the anchor itself, or the finish less the minutes typed (a bottle has no length). */
+  const start = anchor.on === 'start' || mode !== 'nursing' ? anchor.at : new Date(anchor.at.getTime() - nursingMinutes * 60_000)
   const [notes, setNotes] = useState(() => (editing && editing.type !== 'solid food' ? (initialSides?.found ? initialSides.rest : editing.notes ?? '') : ''))
   const { run, busy, error } = useSaver(child.id, onClose)
   const units = useUnitBoundary(child.id)
@@ -174,7 +181,10 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
     saved.current = entry
     const takes = plan ? plan.takes.filter((t) => t.takeMl > 0).map((t) => ({ bag: t.bag.id, amount_ml: t.takeMl })) : []
     // An edited stash bottle that became nursing or formula gives everything back, even if its bags had not loaded.
-    const leftStash = !fromStash && editing !== null && editing.method === 'bottle' && editing.type !== 'formula' && (linkedTakes.length > 0 || !linked.isSuccess)
+    // `editing` is null or undefined for a new entry, so it is tested as a value, never against null: `editing !== null`
+    // read undefined as an edit and threw after the feeding was saved (1.24.0 to 1.55.0), leaving the sheet open on
+    // "Cannot reach the server" for every new nursing feed and formula bottle.
+    const leftStash = !fromStash && Boolean(editing) && editing!.method === 'bottle' && editing!.type !== 'formula' && (linkedTakes.length > 0 || !linked.isSuccess)
     if ((plan && takeChanged) || (!bags.length && leaving.length) || leftStash) {
       try {
         await companion.milk.setTakes(entry.id, leftStash ? [] : takes)
@@ -231,12 +241,11 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
   /** Breast milk (or fortified) by bottle: the only feeding that draws on the stash. */
   const fromStash = mode === 'bottle' && milk !== 'formula'
   const bottleFromStash = fromStash
-  const nursingMinutes = (Number(leftMin) || 0) + (Number(rightMin) || 0)
   const nursingEnd = new Date(start.getTime() + nursingMinutes * 60_000)
   /** A feed that would end in the future (a start set by hand close to now): refused here, not by Baby Buddy later. */
   const endsInFuture = mode === 'nursing' && nursingEnd.getTime() > Date.now() + 60_000
-  /** "Finished 15 min ago": the whole feed moves and keeps its length. */
-  const finishedAt = (at: Date) => setStart(new Date(at.getTime() - nursingMinutes * 60_000))
+  /** "Finished 15 min ago": the feed is anchored on that moment and keeps its length whatever the minutes become. */
+  const finishedAt = (at: Date) => setAnchor({ on: 'end', at })
   const implausible = mode === 'bottle' ? bottleCheck(Number(amount) || 0, unit) : null
   const sliderMax = SLIDER_MAX[unit]
   const sliderStep = SLIDER_STEP[unit]

@@ -73,6 +73,58 @@ describe('FeedingSheet', () => {
     expect(new Date(body.end).getTime() - new Date(body.start).getTime()).toBe(12 * 60_000)
   })
 
+  it('typing the minutes on a new sheet makes a feed that just finished, and Save stays live', async () => {
+    mount({ initial: 'nursing' })
+    fireEvent.change(screen.getByLabelText('Left (min)'), { target: { value: '12' } })
+    fireEvent.change(screen.getByLabelText('Right (min)'), { target: { value: '8' } })
+    expect(screen.queryByText(/would end in the future/)).toBeNull()
+    expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await settle()
+    const body = create.mock.calls[0][0] as { start: string; end: string; method: string; notes: string }
+    expect(Math.abs(new Date(body.end).getTime() - Date.now())).toBeLessThan(60_000)
+    expect(new Date(body.end).getTime() - new Date(body.start).getTime()).toBe(20 * 60_000)
+    expect(body.method).toBe('both breasts')
+    expect(body.notes).toBe('Left 12m · Right 8m')
+  })
+
+  it('a new feed saved with `editing` undefined (as the log sheet passes it) saves once and closes the sheet', async () => {
+    const onClose = vi.fn()
+    mount({ initial: 'nursing', editing: undefined as unknown as null, onClose })
+    fireEvent.change(screen.getByLabelText('Left (min)'), { target: { value: '10' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await settle()
+    expect(create).toHaveBeenCalledTimes(1)
+    expect(setTakes).not.toHaveBeenCalled()
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('a new formula bottle saved with `editing` undefined saves once and closes the sheet', async () => {
+    const onClose = vi.fn()
+    mount({ initial: 'bottle', editing: undefined as unknown as null, onClose })
+    fireEvent.click(screen.getByRole('radio', { name: 'Formula' }))
+    fireEvent.change(screen.getByRole('spinbutton', { name: /Amount in/ }), { target: { value: '60' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await settle()
+    expect(create).toHaveBeenCalledTimes(1)
+    expect(setTakes).not.toHaveBeenCalled()
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('a start set by hand stays put, and the finish follows the minutes', async () => {
+    mount({ initial: 'nursing' })
+    const twoHoursAgo = new Date(Date.now() - 2 * 3600_000)
+    twoHoursAgo.setSeconds(0, 0)
+    fireEvent.change(screen.getByLabelText('Started:'), { target: { value: `${twoHoursAgo.getFullYear()}-${String(twoHoursAgo.getMonth() + 1).padStart(2, '0')}-${String(twoHoursAgo.getDate()).padStart(2, '0')}T${String(twoHoursAgo.getHours()).padStart(2, '0')}:${String(twoHoursAgo.getMinutes()).padStart(2, '0')}` } })
+    fireEvent.change(screen.getByLabelText('Left (min)'), { target: { value: '15' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await settle()
+    const body = create.mock.calls[0][0] as { start: string; end: string }
+    expect(new Date(body.start).getTime()).toBe(twoHoursAgo.getTime())
+    expect(new Date(body.end).getTime() - new Date(body.start).getTime()).toBe(15 * 60_000)
+  })
+
   it('the nursing chips move the whole feed so it ends at the chosen moment', async () => {
     mount({ initial: 'nursing' })
     fireEvent.change(screen.getByLabelText('Left (min)'), { target: { value: '20' } })

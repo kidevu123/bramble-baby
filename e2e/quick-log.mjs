@@ -185,6 +185,31 @@ async function run(scheme, width = 390) {
   await sheet().getByRole('button', { name: 'Close' }).click()
   await settle(300)
 
+  // ---- nursing: the minutes typed on a fresh sheet make a feed that just finished (it used to end in the
+  // future, which locked Save until "Just now" was tapped)
+  await page.locator('.tile-nursing .tile-main').click()
+  await settle(600)
+  await sheet().getByRole('spinbutton', { name: 'Left (min)' }).fill('12')
+  await sheet().getByRole('spinbutton', { name: 'Right (min)' }).fill('8')
+  await settle(200)
+  t = await times()
+  ok('nursing: typed minutes end just now and start 20 min back', closeTo(t[1], nowMinutes()) && closeTo(t[1] - t[0], 20), `${t[0]} → ${t[1]}`)
+  ok('nursing: no "would end in the future" line', (await sheet().getByText(/would end in the future/).count()) === 0)
+  ok('nursing: Save is live', !(await sheet().getByRole('button', { name: 'Save', exact: true }).isDisabled()))
+  await shot('nursing-typed')
+  await sheet().getByRole('button', { name: 'Save', exact: true }).click()
+  await settle(1200)
+  ok('nursing: the sheet closed on Save', (await sheet().count()) === 0)
+  {
+    const feeds = await (await page.request.get(`${BASE}/api/feedings/?limit=5`, { headers })).json()
+    const f = (feeds.results ?? []).find((x) => x.method === 'both breasts' && x.notes?.startsWith('Left 12m'))
+    ok('nursing: saved as both breasts, 20 min, ending now', Boolean(f) && Math.abs(new Date(f.end).getTime() - Date.now()) < 90_000 && new Date(f.end).getTime() - new Date(f.start).getTime() === 20 * 60_000, JSON.stringify(f && { start: f.start, end: f.end, notes: f.notes }))
+    // Gone again: the next pass saves the same feed (the mock refuses an overlap), and the pumping entry stays the first row.
+    if (f) await page.request.delete(`${BASE}/api/feedings/${f.id}/`, { headers })
+    await page.goto(BASE + '/')
+    await settle(800)
+  }
+
   // ---- every other add sheet has the chips too
   for (const kind of ['nursing', 'bottle', 'solids', 'potty', 'tummy', 'activity', 'growth', 'temperature', 'medicine', 'note']) {
     const tile = page.locator(`.tile-${kind} .tile-main`)

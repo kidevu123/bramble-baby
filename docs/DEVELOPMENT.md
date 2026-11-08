@@ -42,7 +42,7 @@ node e2e/time-zone.mjs ./e2e/out/time-zone http://localhost:5173 light   # the h
 node e2e/rearrange-bottles.mjs ./e2e/out/rearrange-bottles http://localhost:5173 light   # Stash › Premade bottles › Rearrange: move to an empty spot, swap with a filled one, cancel, Done (also: dark)
 node e2e/born-early.mjs ./e2e/out/born-early http://localhost:5173 light   # Settings › Born early: weeks at birth + NICU stay; Home band, Child page, Reports without age verdicts, NICU pumping tiles, the NICU stash (colostrum, Take to the NICU), came home, cleared (also: dark)
 node e2e/whats-new.mjs ./e2e/out/whats-new light http://localhost:5173   # What's new: nothing on a fresh sign-in, the card after an update, Got it, Settings › What's new (also: dark)
-node e2e/quick-log.mjs ./e2e/out/quick-log http://localhost:5173       # one-tap time chips on every sheet, pumping prefilled from the last session
+node e2e/quick-log.mjs ./e2e/out/quick-log http://localhost:5173       # one-tap time chips on every sheet, pumping prefilled from the last session, a typed nursing feed ends just now and saves
 node e2e/auto-print.mjs ./e2e/out/auto-print http://localhost:5173 [label-dir]   # save prints the sticker (needs BRAMBLE_PRINTER=file://<label-dir> on the companion)
 node e2e/multi-bag.mjs ./e2e/out/multi-bag http://localhost:5173 light  # one bottle from several bags (also: dark)
 node e2e/quick-text.mjs ./e2e/out/quick-text http://localhost:5173 light  # Type it on Home: typed lines open prefilled sheets, nothing saved (also: dark)
