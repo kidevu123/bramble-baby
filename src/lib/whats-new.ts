@@ -12,6 +12,13 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.55.2',
+    date: 'Nov 8',
+    items: [
+      'Nothing new in this copy: 1.55.2 changes the Philips Avent monitor link, which the public release does not include.',
+    ],
+  },
+  {
     version: '1.55.1',
     date: 'Nov 8',
     items: [
