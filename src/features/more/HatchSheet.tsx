@@ -15,7 +15,7 @@ import './connection.css'
 type Hatch = ReturnType<typeof useHatch>
 
 /**
- * Settings › Hatch scale. Sign in to the Hatch account once; the Bramble server then brings every
+ * Settings › Integrations › Hatch scale. Sign in to the Hatch account once; the Bramble server then brings every
  * weighing from the Hatch Grow into the child's weights. Everything about the connection lives here:
  * which baby, when it last checked, how many weights came in, Sync now, Disconnect, and one
  * plain-language line when something is wrong.

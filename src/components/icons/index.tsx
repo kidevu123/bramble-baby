@@ -429,7 +429,7 @@ export const MilkBagIcon = (p: P) => (
   </svg>
 )
 
-/** A baby scale: weighing tray on a body with a dial (Settings › Hatch scale). */
+/** A baby scale: weighing tray on a body with a dial (Settings › Integrations › Hatch scale). */
 export const ScaleIcon = (p: P) => (
   <svg {...base(p)}>
     <path d="M4 4.5h16" />
@@ -437,6 +437,15 @@ export const ScaleIcon = (p: P) => (
     <rect x="4" y="8" width="16" height="12" rx="3" />
     <path d="M8.5 15.5a3.5 3.5 0 0 1 7 0" />
     <path d="M12 15.5l1.9-2.3" />
+  </svg>
+)
+/** A plug: two prongs, a body and its lead (Settings › Integrations). */
+export const PlugIcon = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M9 3v5" />
+    <path d="M15 3v5" />
+    <path d="M6.5 8h11v3a5.5 5.5 0 0 1-11 0z" />
+    <path d="M12 16.5V21" />
   </svg>
 )
 export const MonitorIcon = (p: P) => (

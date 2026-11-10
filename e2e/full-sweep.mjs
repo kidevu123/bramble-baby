@@ -2,7 +2,7 @@
  * Live functional + visual sweep of the whole app at iPhone width: every tab, top-bar destination, sheet,
  * log type, timer, Reports view, Sleep Plans, Child page, Settings sheet, Insights, nap window, Contractions,
  * the Stash (typed-code scan fallback, bottle, move, discard, undo, reprint), "Add milk you already have",
- * the server print path (file:// backend) and Settings › Hatch scale against mock-hatch.mjs.
+ * the server print path (file:// backend) and Settings › Integrations › Hatch scale against mock-hatch.mjs.
  *
  * Runs against the isolated stack from the README, once per colour scheme at 390 and once at 320 (light), with
  * the console and every failed request captured. Every screen gets a screenshot plus an automated layout audit
@@ -650,7 +650,11 @@ async function run(scheme, viewport, reducedMotion = 'no-preference') {
     const idle = async () => { await settle(400); await page.waitForFunction(() => !document.querySelector('dialog[open] .conn-sync .btn[aria-busy]') && !/Checking Hatch/.test(document.body.innerText), null, { timeout: 20000 }); await settle(300) }
     const weights = async () => (await api('GET', `/api/weight/?child=${child.id}&limit=100`)).body.results
     await page.goto(BASE + '/settings'); await settle(900)
-    const row = page.getByRole('button', { name: /Hatch scale/ })
+    // The device sheets sit one level down: Settings › Integrations › the device.
+    await page.getByRole('button', { name: /^Integrations/ }).click(); await settle(500)
+    ok('Settings › Integrations lists the Hatch scale', (await page.getByRole('button', { name: /^Hatch scale/ }).count()) === 1)
+    await shot('integrations-list')
+    const row = page.getByRole('button', { name: /^Hatch scale/ })
     await row.click(); await settle(600)
     ok('Hatch opens on the sign-in view', (await view()) === 'signin')
     await shot('hatch-signin')
@@ -727,7 +731,10 @@ async function run(scheme, viewport, reducedMotion = 'no-preference') {
     ok('choosing recognises the same weights and doubles nothing', (await weights()).length === n1, String((await weights()).length))
     await shot('hatch-chosen')
     await closeSheet()
-    await shot('settings-hatch-row-connected')
+    await shot('integrations-hatch-row-connected')
+    await closeSheet()
+    ok('closing the list is back on Settings, whose Integrations row says Hatch is connected', /Hatch scale connected/.test(await page.getByRole('button', { name: /^Integrations/ }).innerText()))
+    await shot('settings-integrations-row-connected')
   })
 
   // ---------------------------------------------------------------- sign out and back in returns where you were

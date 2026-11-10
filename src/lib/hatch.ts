@@ -1,9 +1,10 @@
 /**
- * Wording and state for Settings › Hatch scale. The companion (server/hatch.py) does the work; this
+ * Wording and state for Settings › Integrations › Hatch scale. The companion (server/hatch.py) does the work; this
  * turns its status into the one screen the sheet shows and the few words the Settings row shows.
  */
 import { ApiError, describeApiError } from './api/client'
 import type { HatchBaby, HatchProblemCode, HatchStatus } from './api/companion'
+import type { IntegrationState } from './integrations'
 import { formatAgo } from './time'
 
 export type HatchView = 'loading' | 'signin' | 'signin-again' | 'choose' | 'connected'
@@ -32,7 +33,16 @@ export function hatchTotals(status: HatchStatus): string[] {
   return parts
 }
 
-/** The value line of the Settings row. */
+/** Where the connection stands, for the Integrations row on the Settings page. */
+export function hatchState(status: HatchStatus | undefined): IntegrationState {
+  const view = hatchView(status)
+  if (!status || view === 'loading') return 'loading'
+  if (view === 'signin') return 'off'
+  if (view !== 'connected') return 'attention'
+  return status.problem && problemTone(status.problem.code) === 'error' ? 'attention' : 'on'
+}
+
+/** The value line of the Hatch row in Settings › Integrations. */
 export function hatchRowSummary(status: HatchStatus | undefined, now: Date = new Date()): string {
   const view = hatchView(status)
   if (!status || view === 'loading') return 'Weights from the Hatch Grow scale'

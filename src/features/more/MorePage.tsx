@@ -2,13 +2,13 @@ import { BackButton } from '../../components/nav/BackButton'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BellIcon, BottleIcon, ChartIcon, ChevronRightIcon, FaceIcon, GearIcon, HeartIcon, MoonIcon, PumpIcon, ScaleIcon, SlidersIcon, SunIcon, TagIcon } from '../../components/icons'
+import { BellIcon, BottleIcon, ChartIcon, FaceIcon, GearIcon, HeartIcon, MoonIcon, PlugIcon, PumpIcon, ScaleIcon, SlidersIcon, SunIcon, TagIcon } from '../../components/icons'
 import { Button } from '../../components/ui/Button'
 import { Segmented } from '../../components/ui/Segmented'
 import { Sheet } from '../../components/ui/Sheet'
 import { useChildren } from '../../hooks/useChildren'
 import { useGoBack } from '../../hooks/useGoBack'
-import { useHatch } from '../../hooks/useHatch'
+import { useIntegrations } from '../../hooks/useIntegrations'
 import { rangeDays, useChildEvents, useGrowth } from '../../hooks/useEvents'
 import { usePrinterStatus } from '../../hooks/useMilk'
 import { usePeople } from '../../hooks/usePeople'
@@ -19,7 +19,7 @@ import { qk } from '../../lib/api/keys'
 import { downloadText, timelineToCsv } from '../../lib/csv'
 import { buildTimeline } from '../../lib/events'
 import foodCredits from '../../lib/food-credits.json'
-import { hatchRowSummary } from '../../lib/hatch'
+import { integrationsSummary } from '../../lib/integrations'
 import { labelSize } from '../../lib/labels'
 import { capitalise, peopleSummary } from '../../lib/people'
 import type { Theme } from '../../lib/prefs'
@@ -34,7 +34,8 @@ import { NudgeSettings } from '../notifications/NudgeSettings'
 import { useNotifications, type PushState } from '../notifications/useNotifications'
 import { useNudges } from '../notifications/useNudges'
 import { clockLabel } from '../../lib/nudges'
-import { HatchSheet } from './HatchSheet'
+import { IntegrationsSheet } from './IntegrationsSheet'
+import { SettingsRow } from './SettingsRow'
 import { LabelSettingsSheet } from './LabelSettingsSheet'
 import { PeopleSheet } from './PeopleSheet'
 import { PretermSheet } from './PretermSheet'
@@ -49,7 +50,7 @@ import { ageBasis, pretermState } from '../../lib/preterm'
 import { DEFAULT_PUMPS } from '../../lib/pumps'
 import './more.css'
 
-type Section = 'units' | 'notifications' | 'labels' | 'hatch' | 'people' | 'export' | 'pumps' | 'preterm' | 'calories' | 'weighing'
+type Section = 'units' | 'notifications' | 'labels' | 'integrations' | 'people' | 'export' | 'pumps' | 'preterm' | 'calories' | 'weighing'
 
 /**
  * Settings: every configuration the app has, grouped, each row opening a focused sheet. A daily-use
@@ -80,7 +81,7 @@ export function MorePage() {
   const notifications = useNotifications(child?.id ?? null)
   const nudges = useNudges(child?.id ?? null, open === 'notifications')
   const printer = usePrinterStatus()
-  const hatch = useHatch(false)
+  const integrations = useIntegrations()
   const { settings: childSettings } = useChildSettings(child?.id ?? null)
   const pumpNames = (childSettings.pumps ?? DEFAULT_PUMPS).map((p) => p.name)
   const health = useQuery({ queryKey: ['companion-health'], queryFn: () => companion.health().catch(() => null), staleTime: 60_000 })
@@ -196,9 +197,9 @@ export function MorePage() {
           <SettingsRow icon={<TagIcon />} title="Milk labels & printer" value={labelSummary(labelSize(prefs.labels.size).label, printer.data, prefs.labels.autoPrint)} onClick={() => setOpen('labels')} />
           <SettingsRow icon={<PumpIcon />} title="Pumps" value={pumpSummary} onClick={() => setOpen('pumps')} />
           <SettingsRow icon={<BottleIcon />} title="Calories & fortifying" value={calorieSummary(calorieTracking(childSettings))} onClick={() => setOpen('calories')} />
-          <SettingsRow icon={<ScaleIcon />} title="Hatch scale" value={hatchRowSummary(hatch.status)} onClick={() => setOpen('hatch')} />
           <SettingsRow icon={<ScaleIcon />} title="Weighing" value={childSettings.diaperGrams ? `Dry diaper ${diaperText(childSettings.diaperGrams, prefs.units.weight)} · taken off a weighing with one on` : 'Take a dry diaper off a weighing'} onClick={() => setOpen('weighing')} />
           <SettingsRow icon={<HeartIcon />} title="Born early" value={pretermSummary === 'Off' ? 'Corrected age and the NICU stay' : pretermSummary} onClick={() => setOpen('preterm')} />
+          <SettingsRow icon={<PlugIcon />} title="Integrations" value={integrationsSummary(integrations)} onClick={() => setOpen('integrations')} />
         </SettingsGroup>
 
         <SettingsGroup title="Household">
@@ -277,7 +278,7 @@ export function MorePage() {
 
       <LabelSettingsSheet open={open === 'labels'} onClose={close} />
 
-      <HatchSheet open={open === 'hatch'} onClose={close} />
+      <IntegrationsSheet open={open === 'integrations'} items={integrations} onClose={close} />
 
       <PeopleSheet open={open === 'people'} onClose={close} />
       <PumpsSheet open={open === 'pumps'} onClose={close} />
@@ -411,32 +412,6 @@ function calorieSummary(tracking: CalorieTracking | null): string {
   return parts.join(' · ')
 }
 
-function SettingsRow({ icon, title, value, onClick, href }: { icon: ReactNode; title: string; value: string; onClick?: () => void; href?: string }) {
-  const body = (
-    <>
-      <span className="settings-row-icon" aria-hidden>
-        {icon}
-      </span>
-      <span className="grow settings-row-text">
-        <span className="settings-row-title">{title}</span>
-        <span className="small muted settings-row-value">{value}</span>
-      </span>
-      {href ? <ExternalIcon className="chev" /> : <ChevronRightIcon className="chev" aria-hidden />}
-    </>
-  )
-  if (href) {
-    return (
-      <a className="settings-row" href={href} target="_blank" rel="noreferrer">
-        {body}
-      </a>
-    )
-  }
-  return (
-    <button type="button" className="settings-row" onClick={onClick}>
-      {body}
-    </button>
-  )
-}
 
 /* Three small marks only this page uses, drawn like the shared set (24 grid, 1.8 stroke, round caps). */
 function Glyph({ children, className }: { children: ReactNode; className?: string }) {
@@ -459,14 +434,6 @@ function SignOutIcon() {
     <Glyph>
       <path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" />
       <path d="M10 8l-4 4 4 4M6 12h10" />
-    </Glyph>
-  )
-}
-function ExternalIcon({ className }: { className?: string }) {
-  return (
-    <Glyph className={className}>
-      <path d="M14 5h5v5M19 5l-8 8" />
-      <path d="M17 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h4" />
     </Glyph>
   )
 }

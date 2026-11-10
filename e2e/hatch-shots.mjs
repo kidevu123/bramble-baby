@@ -1,5 +1,5 @@
 /**
- * Walks Settings › Hatch scale through every state against the mock stack and saves a screenshot of each.
+ * Walks Settings › Integrations › Hatch scale through every state against the mock stack and saves a screenshot of each.
  * It is also a probe: it exits non-zero when a step does not behave (see `check`).
  *
  *   node e2e/mock-babybuddy.mjs 8000 &  node e2e/mock-hatch.mjs 8231 &
@@ -30,7 +30,7 @@ const shot = (name, opts = {}) => page.screenshot({ path: `${OUT}/${name}-${THEM
 const settle = (ms = 500) => page.waitForTimeout(ms)
 const check = (name, ok, detail = '') => { checks.push({ name, ok: Boolean(ok), detail }); console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${detail ? ` — ${detail}` : ''}`) }
 const mock = (body) => fetch(`${HATCH}/__mock`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-const sheet = () => page.locator('dialog[open]')
+const sheet = () => page.locator('dialog[open]:has(> .sheet-body > .conn-sheet)')
 const view = () => sheet().locator('.conn-sheet').getAttribute('data-hatch-view')
 // A sync runs on the companion's own thread: wait until the sheet (and the Settings row behind it) stop saying it is checking.
 const idle = async () => { await settle(400); await page.waitForFunction(() => !document.querySelector('dialog[open] .conn-sync .btn[aria-busy]') && !/Checking Hatch/.test(document.body.innerText), null, { timeout: 15000 }); await settle(300) }
@@ -62,8 +62,13 @@ const weights = async () => (await (await page.request.get(`${BASE}/api/weight/?
 // ---- Settings row, not connected
 await page.goto(BASE + '/settings')
 await settle(900)
-const row = page.getByRole('button', { name: /Hatch scale/ })
-check('Settings › Tracking has a Hatch scale row', await row.count() === 1, (await row.innerText()).replace(/\n/g, ' · '))
+const outer = page.getByRole('button', { name: /^Integrations/ })
+// The device sheets sit one level down: Settings › Integrations › the device.
+const openList = async () => { await outer.click(); await settle(500) }
+await openList()
+const row = page.getByRole('button', { name: /^Hatch scale/ })
+check('Settings has one Integrations row and no Hatch row of its own', await page.locator('main .settings-row').filter({ hasText: /^Hatch scale/ }).count() === 0 && await page.locator('main .settings-row').filter({ hasText: /^Integrations/ }).count() === 1)
+check('Settings › Integrations has a Hatch scale row', await row.count() === 1, (await row.innerText()).replace(/\n/g, ' · '))
 await shot('01-settings-row')
 
 // ---- Sign in
@@ -113,7 +118,10 @@ check('syncing again does not double it', (await weights()).length === 8)
 // ---- Weights appear where weights already appear
 await sheet().getByLabel('Close').click()
 await settle(400)
-check('the Settings row shows the count', /6 weights imported/.test(await row.innerText()), (await row.innerText()).replace(/\n/g, ' · '))
+check('the Hatch row shows the count', /6 weights imported/.test(await row.innerText()), (await row.innerText()).replace(/\n/g, ' · '))
+await page.locator('dialog[open]').first().getByLabel('Close').first().click()
+await settle(400)
+check('closing the list is back on Settings, whose row says Hatch is connected', await page.locator('dialog[open]').count() === 0 && /Hatch scale connected/.test(await outer.innerText()), (await outer.innerText()).replace(/\n/g, ' · '))
 await shot('07-settings-row-connected')
 await page.goto(BASE + '/child')
 await settle(1200)
@@ -125,6 +133,7 @@ await shot('08-child-weights')
 await mock({ listKey: 'weightList', weigh: 3200 })
 await page.goto(BASE + '/settings')
 await settle(700)
+await openList()
 await row.click()
 await settle(500)
 await sheet().getByRole('button', { name: 'Sync now' }).click()
@@ -139,7 +148,9 @@ await sheet().locator('.conn-report').scrollIntoViewIfNeeded()
 await shot('10-problem-report')
 await page.goto(BASE + '/settings')
 await settle(700)
-check('the Settings row says it needs attention', /Needs attention/.test(await row.innerText()))
+await openList()
+check('the Hatch row says it needs attention', /Needs attention/.test(await row.innerText()))
+check('and so does the Integrations row on Settings', /Hatch scale needs attention/.test(await outer.innerText()), (await outer.innerText()).replace(/\n/g, ' · '))
 await shot('11-settings-row-attention')
 await mock({ listKey: 'weights' })
 await row.click()
@@ -158,6 +169,7 @@ await page.route('**/bramble/hatch', async (route) => {
 })
 await page.goto(BASE + '/settings')
 await settle(700)
+await openList()
 await row.click()
 await sheet().locator('.conn-problem.warn').waitFor({ timeout: 10000 })
 await settle(600) // let the sheet finish sliding in
@@ -168,6 +180,7 @@ await page.unroute('**/bramble/hatch')
 await mock({ expire: true })
 await page.goto(BASE + '/settings')
 await settle(700)
+await openList()
 await row.click()
 await settle(500)
 await sheet().getByRole('button', { name: 'Sync now' }).click()
@@ -177,6 +190,7 @@ check('an ended session asks to sign in again', /Hatch signed Bramble out/.test(
 await shot('13-signin-again')
 await page.goto(BASE + '/settings')
 await settle(700)
+await openList()
 check('the Settings row says Sign in again', /Sign in again/.test(await row.innerText()))
 await shot('14-settings-row-signin-again')
 await row.click()
@@ -216,7 +230,7 @@ await shot('17-chosen')
 // ---- No horizontal overflow at 320
 await page.setViewportSize({ width: 320, height: 640 })
 await settle(400)
-check('no horizontal overflow at 320 px', await page.evaluate(() => { const d = document.querySelector('dialog[open] .sheet-body'); return d.scrollWidth <= d.clientWidth + 1 }))
+check('no horizontal overflow at 320 px', await page.evaluate(() => { const d = document.querySelector('dialog[open] .sheet-body:has(> .conn-sheet)'); return d.scrollWidth <= d.clientWidth + 1 }))
 await shot('18-connected-320')
 
 await browser.close()

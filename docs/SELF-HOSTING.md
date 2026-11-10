@@ -53,7 +53,7 @@ staff login), nothing on the server:
   **time zone** the times in notifications are written in. The admin's phone records its own zone the first time it
   opens the app; a phone in another zone can move it there with one tap. Until a zone is set the server's own is used,
   and a container left in UTC writes every clock 4–5 hours off for a family in the US.
-- **Settings › Hatch scale**: that family's own Hatch sign-in, kept on
+- **Settings › Integrations › Hatch scale**: that family's own Hatch sign-in, kept on
   their server (`data/hatch.json`, mode 0600), never on GitHub or in this repo.
 - **Settings › Pumps**: their own pumps (a new household starts with none), **Units**, and the Child tab.
 

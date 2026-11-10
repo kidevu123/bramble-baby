@@ -12,6 +12,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.59.0',
+    date: 'Nov 10',
+    items: [
+      'Settings › Integrations: the Hatch scale now lives behind one Integrations row, where other devices will join it.',
+      'The row says what is connected, and names one that needs you (a sign-in that ended, a choice to make) without opening the list.',
+    ],
+  },
+  {
     version: '1.58.0',
     date: 'Nov 10',
     items: ['Nothing new in this copy: 1.58.0 adds an integration the public release does not include.'],

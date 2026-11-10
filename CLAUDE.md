@@ -7,6 +7,9 @@ installing and deploying; `README.md` is the public front page (screenshots from
 
 ## Working rules
 
+- **Devices and accounts Bramble signs in to live under Settings › Integrations**: one entry in `useIntegrations` and one sheet in
+  `IntegrationsSheet`, never a row of their own on the Settings page. Each reports a state (`off`, `on`, `attention`) so the one Settings
+  row can say which needs a person.
 - **Configuration lives in Settings.** Daily-use screens (log sheets, label sheet, Home) never carry their own
   settings panels or unit toggles. Settings is a grouped list of rows that open focused sheets (`MorePage.tsx`).
   When a daily-use screen needs one of those sheets, it renders the same shared sheet component nested in
