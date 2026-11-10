@@ -87,6 +87,13 @@
   padding: var(--space-2) 0;
   border-bottom: 1px solid var(--line);
 }
+/* A list row that opens its entry. */
+.plain-row-btn {
+  width: 100%;
+  min-height: 44px;
+  text-align: left;
+  color: var(--text);
+}
 .food-selected-chip.static {
   cursor: default;
 }

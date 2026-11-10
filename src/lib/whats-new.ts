@@ -12,10 +12,20 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.56.0',
+    date: 'Nov 10',
+    items: [
+      'Reports › Milestones is now the CDC checklist for {name}’s age: what most children do by 2, 4, 6, 9 months and on to 5 years. Tap an item when you see it; the list keeps the date.',
+      'It says how much of the list is seen, when the next one starts, and when the pediatrician is due to run a screening. An item that stays unmarked is something to mention at the next visit.',
+      'After a NICU stay of 5 days or more it reminds you of the hearing test due by 9 months.',
+      'The milestone sheet on Home offers the same list, and milestones you already logged count.',
+    ],
+  },
+  {
     version: '1.55.2',
     date: 'Nov 8',
     items: [
-      'Nothing new in this copy: 1.55.2 changes the Philips Avent monitor link, which the public release does not include.',
+      'Nothing new in this copy: 1.55.2 changes an integration the public release does not include.',
     ],
   },
   {

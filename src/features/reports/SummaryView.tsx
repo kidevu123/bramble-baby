@@ -31,6 +31,8 @@ import { comparePumps, pumpOf } from '../../lib/pumps'
 import { SUPPLY_SPAN, supplyTrend, supplyVerdict, supplyWindowLine } from '../../lib/supply'
 import { checkDetail, checkRate, checkTally, DAY_TO_DAY_SWING_G, formatGrams, formatPerDay, gainVerdict, MISSES_IN_A_ROW, stepCompares, stepNoiseNote, weekBesideGoal, weightChecks, weightGain } from '../../lib/weight-gain'
 import { PumpChart } from './PumpChart'
+import { MilestoneChecklist, milestoneItem } from './MilestoneChecklist'
+import type { LogRequest } from '../log/LogSheet'
 import { calorieTracking, dayCalories, judgeCalories, mlForGoal, TYPICAL_KCAL_PER_KG, weightForDay, type CalorieTracking } from '../../lib/calories'
 import { MILK_KCAL_PER_OZ, strengthText, type FortifySettings } from '../../lib/fortify'
 import { ML_PER_OZ } from '../../lib/units'
@@ -61,7 +63,7 @@ const CATS: { key: Cat; label: string; filter: string }[] = [
 const TEAL = 'var(--teal)'
 const TEAL_LIGHT = 'var(--teal-light)'
 
-export function SummaryView({ events, child, now, span, onSpan, filters, cat, onCat, loading = false }: { loading?: boolean; events: EventSets; child: Child; now: Date; span: Span; onSpan: (s: Span) => void; filters: Record<string, boolean>; cat: Cat; onCat: (c: Cat) => void }) {
+export function SummaryView({ events, child, now, span, onSpan, filters, cat, onCat, onLog, loading = false }: { loading?: boolean; events: EventSets; child: Child; now: Date; span: Span; onSpan: (s: Span) => void; filters: Record<string, boolean>; cat: Cat; onCat: (c: Cat) => void; /** Opens a log sheet (the milestone checklist marks items through it). */ onLog: (request: LogRequest) => void }) {
   const { prefs } = usePrefs()
   const childId = child.id
   const { settings } = useChildSettings(childId)
@@ -141,7 +143,20 @@ export function SummaryView({ events, child, now, span, onSpan, filters, cat, on
       {shown === 'activity' ? <ActivitySummary days={days} events={ranged} label={label} now={now} /> : null}
       {shown === 'medicine' ? <ListSummary title="Medicine" rows={ranged.medication.map((m) => ({ id: m.id, when: m.time, text: `${m.name} · ${m.dosage} ${m.dosage_unit}` }))} /> : null}
       {shown === 'temperature' ? <TemperatureSummary events={ranged} unit={prefs.units.temp} ageMonths={ctx.ageMonths} /> : null}
-      {shown === 'milestones' ? <ListSummary title="Milestones" rows={events.milestones.map((m) => ({ id: m.id, when: m.date, text: `${m.title}${m.category ? ` · ${MILESTONE_CATEGORY[m.category] ?? m.category}` : ''}` }))} /> : null}
+      {shown === 'milestones' ? (
+        <>
+          <MilestoneChecklist child={child} age={age} now={now} logged={events.milestones} onLog={onLog} />
+          <ListSummary
+            title="Everything logged"
+            empty="No milestones logged yet."
+            rows={events.milestones.map((m) => ({ id: m.id, when: m.date, text: `${m.title}${m.category ? ` · ${MILESTONE_CATEGORY[m.category] ?? m.category}` : ''}` }))}
+            onOpen={(id) => {
+              const m = events.milestones.find((x) => x.id === id)
+              if (m) onLog({ kind: 'milestones', editing: milestoneItem(m) })
+            }}
+          />
+        </>
+      ) : null}
       {shown === 'feed' ? <FeedSummary days={days} events={events} label={label} unit={prefs.units.volume} ageMonths={ctx.ageMonths} dayOfLife={ctx.dayOfLife} hold={ctx.hold} now={now} weights={growth.data?.weights ?? []} name={child.first_name} tracking={calorieTracking(settings)} /> : null}
       {shown === 'diaper' ? <DiaperSummary days={days} summaries={summaries} changes={events.changes} label={label} dayOfLife={ctx.dayOfLife} hold={ctx.hold} now={now} /> : null}
       {shown === 'pump' ? <PumpSummary days={days} summaries={summaries} label={label} unit={prefs.units.volume} events={events} child={child} now={now} age={age} /> : null}
@@ -807,21 +822,34 @@ function TemperatureSummary({ events, unit, ageMonths }: { events: EventSets; un
   )
 }
 
-function ListSummary({ title, rows }: { title: string; rows: { id: number; when: string; text: string }[] }) {
+function ListSummary({ title, rows, empty = 'Nothing logged in this period.', onOpen }: { title: string; rows: { id: number; when: string; text: string }[]; empty?: string; /** Rows open their entry when given. */ onOpen?: (id: number) => void }) {
   const sorted = [...rows].sort((a, b) => parseDate(b.when).getTime() - parseDate(a.when).getTime())
+  const cells = (r: { when: string; text: string }) => (
+    <>
+      <span className="muted small" style={{ minWidth: 88 }}>
+        {format(parseDate(r.when), r.when.length > 10 ? 'MMM d, h:mm a' : 'MMM d, yyyy')}
+      </span>
+      <span className="strong">{r.text}</span>
+    </>
+  )
   return (
     <section className="card card-pad stack">
       <h3>{title}</h3>
-      {sorted.length === 0 ? <p className="muted small">Nothing logged in this period.</p> : null}
+      {sorted.length === 0 ? <p className="muted small">{empty}</p> : null}
       <ul className="plain-list">
-        {sorted.map((r) => (
-          <li key={r.id} className="plain-row">
-            <span className="muted small" style={{ minWidth: 88 }}>
-              {format(parseDate(r.when), r.when.length > 10 ? 'MMM d, h:mm a' : 'MMM d, yyyy')}
-            </span>
-            <span className="strong">{r.text}</span>
-          </li>
-        ))}
+        {sorted.map((r) =>
+          onOpen ? (
+            <li key={r.id}>
+              <button type="button" className="plain-row plain-row-btn" onClick={() => onOpen(r.id)}>
+                {cells(r)}
+              </button>
+            </li>
+          ) : (
+            <li key={r.id} className="plain-row">
+              {cells(r)}
+            </li>
+          ),
+        )}
       </ul>
     </section>
   )

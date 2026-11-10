@@ -179,7 +179,7 @@ function ReportsBody({ child }: { child: Child }) {
             ))}
           </div>
         ) : null}
-        {view === 'summary' ? <SummaryView loading={loading} events={events} child={child} now={now} span={span} onSpan={setSpan} filters={filters} cat={cat} onCat={setCat} /> : null}
+        {view === 'summary' ? <SummaryView loading={loading} events={events} child={child} now={now} span={span} onSpan={setSpan} filters={filters} cat={cat} onCat={setCat} onLog={setRequest} /> : null}
       </main>
       <LogSheet request={request} child={child} recentFeedings={events.feedings} recent={timeline} names={names} onClose={() => setRequest(null)} />
       <ReportSettingsSheet open={settingsOpen} child={child} onClose={() => setSettingsOpen(false)} />

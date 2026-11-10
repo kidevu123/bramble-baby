@@ -130,6 +130,8 @@ run in light and dark mode without touching real data.
 - Growth percentiles: the WHO Child Growth Standards (© World Health Organization), reproduced with attribution for
   reference in `src/lib/science/growth-data.ts`; that data is not covered by the MIT licence. Breast-milk storage
   times follow CDC guidance.
+- Developmental milestones: the checklists of CDC's "Learn the Signs. Act Early." program (2022 revision with the
+  American Academy of Pediatrics), in `src/lib/milestones.ts`. Use of CDC material does not imply endorsement by CDC.
 - The Niimbot printer protocol in `server/niimbot_proto.py` is vendored from
   [niimprint](https://github.com/AndBondStyle/niimprint) (MIT, © 2023 kjy00302); its licence is kept in that file.
 - Food photos: CC0, from rawpixel (list in `src/lib/food-credits.json`). Fonts: Nunito and Fraunces (SIL Open Font

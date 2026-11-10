@@ -1,6 +1,6 @@
 import { usePeople } from '../../hooks/usePeople'
 import { Sheet } from '../../components/ui/Sheet'
-import type { Activity, Milestone, MilkBag } from '../../lib/api/companion'
+import type { Activity, Milestone, MilestoneCategory, MilkBag } from '../../lib/api/companion'
 import type { QuickPrefill } from '../../lib/quick-text'
 import type { Child, DiaperChange, Feeding, GrowthEntry, Medication, Note, Pumping, Sleep, Temperature, TummyTime, GrowthKind } from '../../lib/api/types'
 import { caregiverName } from '../../lib/caregiver'
@@ -26,6 +26,8 @@ export interface LogRequest {
   growthKind?: GrowthKind
   /** Bottle only: the stash bag this bottle is made from (scan out). */
   bag?: MilkBag | null
+  /** Milestones only: the checklist item being marked as seen (Reports › Milestones). */
+  milestone?: { title: string; category: MilestoneCategory }
 }
 
 interface Props {
@@ -98,7 +100,7 @@ export function LogSheet({ request, child, recentFeedings = [], recent = [], nam
         body = <ActivitySheet child={child} editing={editing ? { kind: 'activity', entry: editing.raw as Activity } : null} onClose={onClose} />
         break
       case 'milestones':
-        body = <MilestoneSheet child={child} editing={editing?.raw as Milestone | null} onClose={onClose} />
+        body = <MilestoneSheet child={child} editing={(editing?.raw as Milestone | undefined) ?? null} initial={editing ? undefined : request.milestone} onClose={onClose} />
         break
       case 'growth':
         body = <GrowthSheet child={child} initial={request.growthKind ?? (pre?.kind === 'growth' ? pre.growthKind : undefined)} editing={editing ? { kind: growthKindOf(editing.raw as GrowthEntry), entry: editing.raw as GrowthEntry } : null} prefill={pre?.kind === 'growth' ? pre : undefined} onClose={onClose} />

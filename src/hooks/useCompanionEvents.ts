@@ -1,4 +1,4 @@
-import { useQueries, useQueryClient } from '@tanstack/react-query'
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { companion, type Activity, type Contraction, type Milestone } from '../lib/api/companion'
 import type { Id } from '../lib/api/types'
@@ -36,6 +36,13 @@ export function useCompanionEvents(child: Id | null, sinceIso?: string) {
     [c.data, a.data, m.data, c.isLoading, a.isLoading, m.isLoading],
   )
 }
+
+/** Every milestone logged for the child (the same cache the event sets read). */
+export function useLoggedMilestones(child: Id): Milestone[] {
+  const q = useQuery({ queryKey: ck.milestones(child), queryFn: () => swallow<Milestone>(() => companion.milestones.list(child)) })
+  return q.data ?? EMPTY_MILESTONES
+}
+const EMPTY_MILESTONES: Milestone[] = []
 
 export function useInvalidateCompanion() {
   const qc = useQueryClient()

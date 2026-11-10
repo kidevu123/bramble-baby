@@ -27,6 +27,10 @@ installing and deploying; `README.md` is the public front page (screenshots from
   once after they update (Settings › What's new keeps them all).
 - **Age-typical figures count from `ageBasis` (`src/lib/preterm.ts`), never from `child.birth_date` directly**: corrected age for a baby
   born early, and `ageHold` (NICU or before the due date) means no verdict by age. Shown ages and Mom's days since delivery stay on the birth.
+- **Milestone checklists are CDC's own lists (`src/lib/milestones.ts`)**: an item is added, moved to another age or reworded only against CDC's
+  "Learn the Signs. Act Early." checklists, never from memory or another site, and its `text` is the title a logged milestone carries (a
+  changed `text` keeps the old one in `aliases`, or entries already logged stop counting). An unmarked item is "not marked", never "missed"
+  or "delayed": the app says to tell the doctor and does not diagnose.
 - `npm run check` (typecheck, lint, unit tests, build) must pass before any push. Server tests:
   `python3 -m unittest server/test_server.py server/test_hatch.py server/test_people.py server/test_nudges.py` (needs a venv with `pywebpush py-vapid cryptography Pillow`).
 - The mock backend in `e2e/mock-babybuddy.mjs` is not Baby Buddy; when in doubt about an API rule
