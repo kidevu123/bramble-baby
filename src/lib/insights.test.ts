@@ -27,9 +27,12 @@ describe('generateInsights', () => {
   })
   it('includes the age-appropriate developmental milestone', () => {
     const out = generateInsights({ ageMonths: 6, events: empty, now, expecting: false, childName: 'Oscar' })
-    expect(out.some((i) => i.badge === 'milestone' && /solids/i.test(i.title))).toBe(true)
+    // the guide's own period for the age (Child tab › What to expect), not a second set of texts
+    expect(out.some((i) => i.badge === 'milestone' && i.title === '6 months old: what to expect' && /first foods/.test(i.body))).toBe(true)
     const toddler = generateInsights({ ageMonths: 22, events: empty, now, expecting: false, childName: 'Oscar' })
-    expect(toddler.some((i) => /Two-word/.test(i.title))).toBe(true)
+    expect(toddler.some((i) => i.title === '18 months old: what to expect')).toBe(true)
+    const newborn = generateInsights({ ageMonths: 1.2, events: empty, now, expecting: false, childName: 'Oscar' })
+    expect(newborn.some((i) => i.title === '5 weeks old: what to expect')).toBe(true)
   })
   it('flags early first naps on 4+ of 7 days and ranks it first', () => {
     const sleeps = days.map((d, i) => sleep(i, `${d}T08:00:00`, `${d}T08:45:00`, true))

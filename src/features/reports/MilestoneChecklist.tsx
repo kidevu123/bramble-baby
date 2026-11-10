@@ -39,7 +39,7 @@ export function milestoneItem(m: Milestone): TimelineItem {
 }
 
 /**
- * Reports › Summary › Milestones: CDC's checklist for the child's age. The list whose age has been reached leads
+ * The guide's checklist for the child's own age (Child tab › What to expect): CDC's list. The list whose age has been reached leads
  * (before 2 months, the first one, as what is coming); a tap on an item logs it as seen, or opens the entry that
  * marked it. The next list and the earlier ones are folded under it.
  */
@@ -147,6 +147,25 @@ export function MilestoneChecklist({ child, age, now, logged, onLog }: { child: 
   )
 }
 
+/**
+ * The lists beside another age in the guide (not the child's own, which `MilestoneChecklist` shows with its line to act
+ * on): the list reached by that age, open, and the one coming after it, folded. Marking works the same way.
+ */
+export function PeriodChecklists({ months, now, logged, onLog }: { months: number; now: Date; logged: Milestone[]; onLog: (request: LogRequest) => void }) {
+  const { due, next } = checklistsFor(months)
+  const byTitle = loggedByTitle(logged)
+  const open = (item: ChecklistItem) => {
+    const entry = seenEntry(item, byTitle)
+    onLog(entry ? { kind: 'milestones', editing: milestoneItem(entry) } : { kind: 'milestones', milestone: { title: item.text, category: item.domain } })
+  }
+  return (
+    <>
+      {due ? <Fold checkpoint={due} title={`By ${due.label}`} byTitle={byTitle} now={now} onOpen={open} testId="ms-period-due" open /> : null}
+      {next ? <Fold checkpoint={next} title={`Coming up by ${next.label}`} byTitle={byTitle} now={now} onOpen={open} testId="ms-period-next" open={!due} /> : null}
+    </>
+  )
+}
+
 function ItemGroups({ checkpoint, byTitle, now, onOpen }: { checkpoint: Checkpoint; byTitle: Map<string, Milestone>; now: Date; onOpen: (item: ChecklistItem) => void }) {
   return (
     <>
@@ -183,10 +202,10 @@ function ItemGroups({ checkpoint, byTitle, now, onOpen }: { checkpoint: Checkpoi
 }
 
 /** Another age's list, closed until asked for: its name and how much of it is marked. */
-function Fold({ checkpoint, title, byTitle, now, onOpen, testId }: { checkpoint: Checkpoint; title: string; byTitle: Map<string, Milestone>; now: Date; onOpen: (item: ChecklistItem) => void; testId: string }) {
+function Fold({ checkpoint, title, byTitle, now, onOpen, testId, open = false }: { checkpoint: Checkpoint; title: string; byTitle: Map<string, Milestone>; now: Date; onOpen: (item: ChecklistItem) => void; testId: string; open?: boolean }) {
   const p = checkpointProgress(checkpoint, byTitle)
   return (
-    <details className="card ms-fold" data-testid={testId}>
+    <details className="card ms-fold" data-testid={testId} open={open}>
       <summary className="ms-fold-summary">
         <span className="grow strong">{title}</span>
         <span className="small muted">

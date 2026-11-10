@@ -132,6 +132,8 @@ run in light and dark mode without touching real data.
   times follow CDC guidance.
 - Developmental milestones: the checklists of CDC's "Learn the Signs. Act Early." program (2022 revision with the
   American Academy of Pediatrics), in `src/lib/milestones.ts`. Use of CDC material does not imply endorsement by CDC.
+- The guide by age (`src/lib/guide.ts`) states facts from pages of the American Academy of Pediatrics' HealthyChildren.org,
+  the NHS and CDC in Bramble's own words; each period lists the pages it rests on. Bramble is not affiliated with them.
 - The Niimbot printer protocol in `server/niimbot_proto.py` is vendored from
   [niimprint](https://github.com/AndBondStyle/niimprint) (MIT, © 2023 kjy00302); its licence is kept in that file.
 - Food photos: CC0, from rawpixel (list in `src/lib/food-credits.json`). Fonts: Nunito and Fraunces (SIL Open Font

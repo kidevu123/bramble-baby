@@ -12,6 +12,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.57.0',
+    date: 'Nov 10',
+    items: [
+      'Child tab › What to expect: a guide to {name}’s age, week by week for the first three months and month by month after. What you may notice, feeding and sleep, what helps, the check-up that is due, and when to call the doctor.',
+      'Browse any week or month, back or ahead. Every line comes from the American Academy of Pediatrics, the NHS or CDC, and each period lists its sources.',
+      'The milestone checklist moved in with it: mark what you have seen right under the week it belongs to. Reports › Milestones keeps the list of what was logged.',
+    ],
+  },
+  {
     version: '1.56.0',
     date: 'Nov 10',
     items: [

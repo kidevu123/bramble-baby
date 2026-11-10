@@ -1,0 +1,175 @@
+/* What to expect: the guide by age. */
+.guide-page {
+  gap: var(--space-4);
+}
+/* The ages in one sideways strip; the one in view is filled, the child's own carries a dot. */
+.guide-strip {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 calc(-1 * var(--space-4));
+  padding: 2px var(--space-4);
+}
+.guide-strip::-webkit-scrollbar {
+  display: none;
+}
+.guide-chip {
+  position: relative;
+  flex: none;
+  min-height: 44px;
+  min-width: 56px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  color: var(--text-strong);
+  font-size: var(--text-sm);
+  font-weight: var(--w-label);
+  white-space: nowrap;
+}
+.guide-chip.active {
+  background: var(--teal);
+  border-color: var(--teal);
+  color: var(--on-teal);
+}
+.guide-chip.is-now::after {
+  content: '';
+  position: absolute;
+  top: 5px;
+  right: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--orange);
+}
+.guide-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.guide-when {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+.guide-now {
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--orange-soft);
+  color: var(--orange-text);
+  font-weight: var(--w-head);
+  font-size: var(--text-xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.guide-title {
+  margin: 0;
+  font-size: var(--text-2xl);
+  font-weight: var(--w-head);
+  color: var(--text-strong);
+}
+.guide-headline {
+  margin: 0;
+  font-size: var(--text-lg);
+  color: var(--text);
+}
+.guide-lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.guide-lines h2,
+.guide-section-title {
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: var(--w-head);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.guide-section-title {
+  padding: var(--space-2) var(--space-1) 0;
+}
+.guide-lines ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.guide-lines li {
+  position: relative;
+  padding: var(--space-2) 0 var(--space-2) var(--space-5);
+  font-size: var(--text-base);
+  color: var(--text-strong);
+  line-height: 1.4;
+}
+.guide-lines li + li {
+  border-top: 1px solid var(--line);
+}
+.guide-lines li::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: calc(var(--space-2) + 0.55em);
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--teal);
+}
+.guide-lines.is-call {
+  border-left: 3px solid var(--orange);
+}
+.guide-lines.is-call li::before {
+  background: var(--orange);
+}
+.guide-about-card {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.guide-about-card .about {
+  border-top: 0;
+  margin-top: 0;
+}
+.guide-sources {
+  margin: 0;
+  padding-left: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+}
+.guide-sources a {
+  color: var(--teal-ink);
+}
+.guide-pager {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.guide-step {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 48px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  color: var(--text-strong);
+  font-weight: var(--w-label);
+  font-size: var(--text-sm);
+}
+.guide-step svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.guide-back-now {
+  align-self: center;
+}

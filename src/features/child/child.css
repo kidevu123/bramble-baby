@@ -281,3 +281,25 @@ button.growth-stat:active {
     font-size: var(--text-lg);
   }
 }
+
+/* The way in to the guide by age, right under the hero. */
+.guide-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--text-strong);
+  text-decoration: none;
+}
+.guide-link-kicker,
+.guide-link-headline {
+  display: block;
+}
+.guide-link-headline {
+  font-size: var(--text-base);
+}
+.guide-link .chev {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  color: var(--text-muted);
+}

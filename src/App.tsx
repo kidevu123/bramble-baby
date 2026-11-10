@@ -18,6 +18,7 @@ import { TimerPage } from './features/timer/TimerPage'
 import { ReportsPage } from './features/reports/ReportsPage'
 import { DoctorReportPage } from './features/reports/DoctorReportPage'
 import { NapPage } from './features/nap/NapPage'
+import { GuidePage } from './features/guide/GuidePage'
 import { ChildPage } from './features/child/ChildPage'
 import { MorePage } from './features/more/MorePage'
 import { MilkPage } from './features/milk/MilkPage'
@@ -130,6 +131,7 @@ export function App() {
                 <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/report" element={<DoctorReportPage />} />
                 <Route path="/nap" element={<NapPage />} />
+                <Route path="/guide" element={<GuidePage />} />
                 {/* The page's address until 1.47: old bookmarks and Home Screen history land on the new one. */}
                 <Route path="/child" element={<ChildPage />} />
                 <Route path="/plans" element={<SleepPlansPage />} />

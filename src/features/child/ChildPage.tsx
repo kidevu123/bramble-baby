@@ -1,13 +1,15 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { TopBar } from '../../components/nav/TopBar'
 import { Avatar } from '../../components/ui/Avatar'
 import { Button } from '../../components/ui/Button'
 import { TextField } from '../../components/ui/Field'
 import { Sheet } from '../../components/ui/Sheet'
-import { CalendarClockIcon, CheckIcon, ChevronRightIcon, MoonIcon, PlusIcon, RulerIcon } from '../../components/icons'
+import { CalendarClockIcon, CheckIcon, ChevronRightIcon, MilestoneIcon, MoonIcon, PlusIcon, RulerIcon } from '../../components/icons'
 import { describeDueDate, isExpecting } from '../../lib/child'
 import { ageBasis, beforeDue, correctedAgeText, holdLine } from '../../lib/preterm'
+import { GUIDE, guideIndexFor } from '../../lib/guide'
 import { DayNightCard, ScheduleCreatorSheet, NapSettingsSheet, WeightGoalCard } from './ChildSettingsSheets'
 import { buildGrowthItems, GROWTH_LABEL, growthKindOf, type TimelineItem } from '../../lib/events'
 import { useChildSettings } from '../../hooks/useChildSettings'
@@ -44,6 +46,7 @@ export function ChildPage() {
   // WHO percentiles counted from the due date.
   const basis = ageBasis(child, settings)
   const corrected = expecting ? null : correctedAgeText(basis)
+  const guideNow = GUIDE[guideIndexFor(basis, new Date())]
   const held = expecting ? null : holdLine(basis)
 
   // Newest first; two entries on one day order by the clock in their note (growth-note.ts).
@@ -106,6 +109,20 @@ export function ChildPage() {
             </Button>
           </div>
         </section>
+
+        {/* The one way in to the guide by age (what to expect, and CDC's checklist to mark). */}
+        {expecting ? null : (
+          <Link to="/guide" className="card card-pad guide-link" data-testid="guide-link">
+            <span className="icon-circle tone-milestones" aria-hidden>
+              <MilestoneIcon />
+            </span>
+            <span className="grow">
+              <span className="xs muted guide-link-kicker">What to expect · {guideNow.title}</span>
+              <span className="strong guide-link-headline">{guideNow.headline}</span>
+            </span>
+            <ChevronRightIcon className="chev" aria-hidden />
+          </Link>
+        )}
 
         <section className="card card-pad stack">
           <div className="row-between">

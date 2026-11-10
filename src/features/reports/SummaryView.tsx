@@ -31,7 +31,7 @@ import { comparePumps, pumpOf } from '../../lib/pumps'
 import { SUPPLY_SPAN, supplyTrend, supplyVerdict, supplyWindowLine } from '../../lib/supply'
 import { checkDetail, checkRate, checkTally, DAY_TO_DAY_SWING_G, formatGrams, formatPerDay, gainVerdict, MISSES_IN_A_ROW, stepCompares, stepNoiseNote, weekBesideGoal, weightChecks, weightGain } from '../../lib/weight-gain'
 import { PumpChart } from './PumpChart'
-import { MilestoneChecklist, milestoneItem } from './MilestoneChecklist'
+import { milestoneItem } from './MilestoneChecklist'
 import type { LogRequest } from '../log/LogSheet'
 import { calorieTracking, dayCalories, judgeCalories, mlForGoal, TYPICAL_KCAL_PER_KG, weightForDay, type CalorieTracking } from '../../lib/calories'
 import { MILK_KCAL_PER_OZ, strengthText, type FortifySettings } from '../../lib/fortify'
@@ -145,9 +145,8 @@ export function SummaryView({ events, child, now, span, onSpan, filters, cat, on
       {shown === 'temperature' ? <TemperatureSummary events={ranged} unit={prefs.units.temp} ageMonths={ctx.ageMonths} /> : null}
       {shown === 'milestones' ? (
         <>
-          <MilestoneChecklist child={child} age={age} now={now} logged={events.milestones} onLog={onLog} />
           <ListSummary
-            title="Everything logged"
+            title="Milestones logged"
             empty="No milestones logged yet."
             rows={events.milestones.map((m) => ({ id: m.id, when: m.date, text: `${m.title}${m.category ? ` · ${MILESTONE_CATEGORY[m.category] ?? m.category}` : ''}` }))}
             onOpen={(id) => {
@@ -155,6 +154,10 @@ export function SummaryView({ events, child, now, span, onSpan, filters, cat, on
               if (m) onLog({ kind: 'milestones', editing: milestoneItem(m) })
             }}
           />
+          {/* The checklist and the guide have one home; this says where, without being a second way in. */}
+          <p className="small muted" data-testid="milestones-pointer">
+            What to expect at each age, and the checklist to mark, are on the Child tab.
+          </p>
         </>
       ) : null}
       {shown === 'feed' ? <FeedSummary days={days} events={events} label={label} unit={prefs.units.volume} ageMonths={ctx.ageMonths} dayOfLife={ctx.dayOfLife} hold={ctx.hold} now={now} weights={growth.data?.weights ?? []} name={child.first_name} tracking={calorieTracking(settings)} /> : null}

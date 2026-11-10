@@ -1,7 +1,8 @@
 import type { EventSets } from './events'
 import { parseDate, parseDuration } from './time'
 import { ageWakeWindow } from './nap-window'
-import { DEVELOPMENT, EXPECTING, MINIPLANS, type Insight, type Miniplan } from './insights-content'
+import { EXPECTING, MINIPLANS, type Insight, type Miniplan } from './insights-content'
+import { GUIDE, type GuideEntry } from './guide'
 
 export { MINIPLANS, type Insight, type InsightCategory, type Miniplan } from './insights-content'
 
@@ -202,8 +203,25 @@ function patternInsights({ ageMonths, events, now, childName }: Ctx): Insight[] 
   return out
 }
 
+/** The guide's period for an age in months (the weeks of the first three months, then the month entries). */
+function guideEntryFor(ageMonths: number): GuideEntry {
+  if (ageMonths < 3) return GUIDE[Math.min(12, Math.max(0, Math.floor((ageMonths * 365.25) / 12 / 7)))]
+  return GUIDE.find((e) => e.unit === 'month' && ageMonths >= e.from && ageMonths < e.to) ?? GUIDE[GUIDE.length - 1]
+}
+
+/** What to expect now, from the guide by age (Child tab › What to expect holds every period and the checklist). */
 function developmentInsights(ageMonths: number): Insight[] {
-  return DEVELOPMENT.filter((d) => ageMonths >= d.min && ageMonths < d.max).map((d, i) => ({ id: `dev-${Math.round(d.min * 10)}-${i}`, ...d.insight }))
+  const e = guideEntryFor(ageMonths)
+  return [
+    {
+      id: `dev-${e.id}`,
+      category: 'development',
+      badge: 'milestone',
+      title: `${e.title}: what to expect`,
+      body: `${e.headline}. ${e.notice[0].text}`,
+      steps: e.helps.map((h) => h.text),
+    },
+  ]
 }
 
 function generalTips(ageMonths: number, childName: string): Insight[] {

@@ -13,7 +13,7 @@ const tabs = [
 ]
 
 /** Pages that belong to one tab: the doctor report is part of Reports, nap window opens from Home's band. */
-const OWNER: Record<string, string> = { '/report': '/reports', '/nap': '/' }
+const OWNER: Record<string, string> = { '/report': '/reports', '/nap': '/', '/guide': '/child' }
 
 /** The tab the user was last on, so a page opened from the top bar (Settings, Insights) keeps it lit. */
 let lastTab: string | null = null

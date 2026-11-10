@@ -38,8 +38,9 @@ export function useCompanionEvents(child: Id | null, sinceIso?: string) {
 }
 
 /** Every milestone logged for the child (the same cache the event sets read). */
-export function useLoggedMilestones(child: Id): Milestone[] {
-  const q = useQuery({ queryKey: ck.milestones(child), queryFn: () => swallow<Milestone>(() => companion.milestones.list(child)) })
+export function useLoggedMilestones(child: Id | null): Milestone[] {
+  const id = child ?? 0
+  const q = useQuery({ queryKey: ck.milestones(id), queryFn: () => swallow<Milestone>(() => companion.milestones.list(id)), enabled: child !== null })
   return q.data ?? EMPTY_MILESTONES
 }
 const EMPTY_MILESTONES: Milestone[] = []

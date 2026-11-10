@@ -27,6 +27,10 @@ installing and deploying; `README.md` is the public front page (screenshots from
   once after they update (Settings › What's new keeps them all).
 - **Age-typical figures count from `ageBasis` (`src/lib/preterm.ts`), never from `child.birth_date` directly**: corrected age for a baby
   born early, and `ageHold` (NICU or before the due date) means no verdict by age. Shown ages and Mom's days since delivery stay on the birth.
+- **The guide by age (`src/lib/guide.ts`) says only what a named page of the AAP's HealthyChildren.org, the NHS or CDC says**: every line carries
+  the ids of its pages in `GUIDE_SOURCES` (a test fails otherwise), is written as a range ("between 1 and 3 weeks", "around", "by"), and is put in
+  the period where that range begins or centres. Never add a line from memory, a commercial parenting site or a "leaps" calendar; read the page
+  first and add it to the sources. The guide describes and never judges the child: what was seen is marked on the checklist beside it.
 - **Milestone checklists are CDC's own lists (`src/lib/milestones.ts`)**: an item is added, moved to another age or reworded only against CDC's
   "Learn the Signs. Act Early." checklists, never from memory or another site, and its `text` is the title a logged milestone carries (a
   changed `text` keeps the old one in `aliases`, or entries already logged stop counting). An unmarked item is "not marked", never "missed"
