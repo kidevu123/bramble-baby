@@ -12,6 +12,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.68.0',
+    date: 'Nov 11',
+    items: [
+      'Premade bottles made together now make one reminder, not one each: “Milk expiring soon · 4 premade bottles”, with the bottles named. The same goes for bags that expire within ten minutes of each other.',
+      'The Notifications list shows them as one row too, so a batch of bottles no longer buries the nap window and the diaper check.',
+    ],
+  },
+  {
     version: '1.67.0',
     date: 'Nov 11',
     items: [

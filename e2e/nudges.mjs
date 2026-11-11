@@ -121,6 +121,13 @@ await shot('03-notifications-sheet-changed')
 await nudges.getByRole('switch', { name: 'Feeding due' }).click()
 await settle(600)
 
+// Four premade bottles made together, each with its two expiry reminders at the same minute: the Inbox shows them as
+// one row a kind, not eight.
+const pumpedAt = new Date(Date.now() - 3600_000).toISOString()
+const bagIds = []
+for (let i = 0; i < 4; i++) bagIds.push((await (await page.request.post(`${BASE}/bramble/milk`, { headers, data: { child: child.id, pumped_at: pumpedAt, volume_ml: 71, client_key: `probe-bag-${i}-${Date.now()}` } })).json()).id)
+const made = await page.request.post(`${BASE}/bramble/milk/bottles`, { headers, data: { child: child.id, bottles: bagIds.map((bag, i) => ({ spot: i + 2, takes: [{ bag, amount_ml: 71 }], client_key: `probe-bottle-${i}-${Date.now()}` })) } })
+check('four premade bottles are made for the Inbox check', made.ok(), `${made.status()} ${(await made.text()).slice(0, 160)}`)
 // Inbox lists the computed ones without a delete button.
 await page.goto(BASE + '/')
 await settle(900)
@@ -128,6 +135,8 @@ await page.getByRole('button', { name: /inbox|notifications/i }).first().click()
 await settle(900)
 const inbox = (await sheet().innerText()).replace(/\n/g, ' · ')
 check('inbox shows the planned nudges', /Pump due|Feeding due|Evening summary/.test(inbox), inbox.slice(0, 200))
+const milkRows = await sheet().locator('.reminder-item', { hasText: 'Milk expir' }).allInnerTexts()
+check('milk reminders that fall together are one row a kind, with the bottles named', milkRows.length === 2 && /Milk expiring soon · 4 premade bottles/.test(milkRows[0]) && /Bottles 2, 3, 4 and 5 · 71 mL \(2\.4 oz\) each/.test(milkRows[0]) && /Milk expired · 4 premade bottles/.test(milkRows[1]), milkRows.join(' | ').replace(/\n/g, ' '))
 await shot('04-inbox')
 await sheet().getByLabel('Close').click()
 await settle(400)

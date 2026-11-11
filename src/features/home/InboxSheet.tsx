@@ -5,6 +5,7 @@ import { TrashIcon, BellIcon } from '../../components/icons'
 import { ck, useInvalidateCompanion } from '../../hooks/useCompanionEvents'
 import { companion } from '../../lib/api/companion'
 import type { Child } from '../../lib/api/types'
+import { groupReminders } from '../../lib/inbox'
 import { clearDeliveredNotifications, inboxClearedAt, markInboxCleared, recentlySent } from '../../lib/push'
 import { formatWhen } from '../../lib/time'
 import { NotificationStatus } from '../notifications/NotificationStatus'
@@ -24,10 +25,11 @@ export function InboxSheet({ open, child, onClose }: { open: boolean; child: Chi
   const reminders = useQuery({ queryKey: ck.reminders(child.id), queryFn: () => companion.reminders.list(child.id).catch(() => []), enabled: open })
   const [clearedAt, setClearedAt] = useState(inboxClearedAt)
   const [allUpcoming, setAllUpcoming] = useState(false)
-  const upcoming = (reminders.data ?? []).filter((r) => !r.sent).sort((a, b) => a.at.localeCompare(b.at))
-  // A stash of twenty bags plans forty expiry reminders: the next few lead, the rest are a tap away.
+  // Milk reminders that fall together are one row (a batch of premade bottles has a reminder each at the same minute).
+  const upcoming = groupReminders((reminders.data ?? []).filter((r) => !r.sent).sort((a, b) => a.at.localeCompare(b.at)))
+  // A stash of twenty bags still plans many expiry reminders: the next few lead, the rest are a tap away.
   const shownUpcoming = allUpcoming || upcoming.length <= UPCOMING_PREVIEW + 1 ? upcoming : upcoming.slice(0, UPCOMING_PREVIEW)
-  const recent = recentlySent(reminders.data ?? [], clearedAt)
+  const recent = groupReminders(recentlySent(reminders.data ?? [], clearedAt, 40)).slice(0, 10)
   // Clear: this phone's list of what was sent, and Bramble's notifications still on its lock screen. The server
   // keeps its record of what went out (it is what stops a note from being sent twice).
   const clear = () => {
@@ -57,19 +59,24 @@ export function InboxSheet({ open, child, onClose }: { open: boolean; child: Chi
         <h3>Upcoming</h3>
         {upcoming.length === 0 ? <p className="small muted">Nothing scheduled. Nap window alerts appear here automatically once a sleep is logged; tap the alarm on any tile to add a reminder.</p> : null}
         <ul className="reminder-list">
-          {shownUpcoming.map((r) => (
-            <li key={r.id} className="reminder-item">
+          {shownUpcoming.map((row) => (
+            <li key={row.first.id} className="reminder-item">
               <span className="icon-circle sm tone-sleep">
                 <BellIcon />
               </span>
               <span className="grow">
-                <span className="strong">{r.title}</span>
+                <span className="strong">{row.title}</span>
+                {row.detail ? (
+                  <span className="xs" style={{ display: 'block' }} data-testid="inbox-detail">
+                    {row.detail}
+                  </span>
+                ) : null}
                 <span className="xs muted" style={{ display: 'block' }}>
-                  {label(r)} · {formatWhen(r.at)}
+                  {label(row.first)} · {formatWhen(row.first.at)}
                 </span>
               </span>
-              {computed(r.tag) ? null : (
-                <button type="button" className="sheet-icon-btn" aria-label="Delete" disabled={busy} onClick={() => run(() => companion.reminders.remove(r.id))}>
+              {computed(row.first.tag) ? null : (
+                <button type="button" className="sheet-icon-btn" aria-label="Delete" disabled={busy} onClick={() => run(() => companion.reminders.remove(row.first.id))}>
                   <TrashIcon />
                 </button>
               )}
@@ -91,12 +98,17 @@ export function InboxSheet({ open, child, onClose }: { open: boolean; child: Chi
             </button>
           </div>
           <ul className="reminder-list">
-            {recent.map((r) => (
-              <li key={r.id} className="reminder-item" style={{ opacity: 0.7 }}>
+            {recent.map((row) => (
+              <li key={row.first.id} className="reminder-item" style={{ opacity: 0.7 }}>
                 <span className="grow">
-                  <span className="strong">{r.title}</span>
+                  <span className="strong">{row.title}</span>
+                  {row.detail ? (
+                    <span className="xs" style={{ display: 'block' }}>
+                      {row.detail}
+                    </span>
+                  ) : null}
                   <span className="xs muted" style={{ display: 'block' }}>
-                    {formatWhen(r.at)}
+                    {formatWhen(row.first.at)}
                   </span>
                 </span>
               </li>

@@ -35,6 +35,33 @@ AUTH_NEGATIVE_TTL = 30
 AUTH_CACHE_MAX = 256
 DELIVERY_INTERVAL = 15
 STALE_AFTER = timedelta(hours=6)
+# Milk reminders of one kind that fall within this of each other go out as one push: a batch of premade bottles made
+# together expires together, and four notifications in the same minute say what one can.
+MILK_TOGETHER = timedelta(minutes=10)
+MILK_TITLE = re.compile(r"^(?P<head>.+?) \u00b7 (?P<volume>.+) \((?P<name>[^()]+)\)$")
+
+
+def milk_head(title: str) -> str | None:
+    """What a milk reminder is about ("Milk expiring soon"), or None when the title is not a milk.py one."""
+    m = MILK_TITLE.match(title or "")
+    return m.group("head") if m else None
+
+
+def merge_milk(rows: list[dict]) -> dict:
+    """One reminder standing for several of the same kind about different bags or premade bottles: the same heading
+    with how many, and each container on its own line (the first six, then how many more). milk.py writes the
+    titles as "<heading> · <volume> (<name>)"; the same reading is in the app's Inbox (src/lib/inbox.ts)."""
+    parts = [MILK_TITLE.match(r["title"]) for r in rows]
+    head = parts[0].group("head")
+    names = [p.group("name") for p in parts]
+    bottles = [n for n in names if n.startswith("premade bottle ")]
+    things = "premade bottles" if len(bottles) == len(names) else "bags" if not bottles else "containers"
+    lines = [f"{p.group('name')[0].upper()}{p.group('name')[1:]} \u00b7 {p.group('volume')}" for p in parts[:6]]
+    if len(parts) > 6:
+        lines.append(f"and {len(parts) - 6} more")
+    lines.append("Open the Stash in Bramble to see them.")
+    first = min(rows, key=lambda r: r["at"])
+    return {**first, "title": f"{head} \u00b7 {len(rows)} {things}", "body": "\n".join(lines), "tag": f"milk:together:{head}"}
 # Sent reminders older than this are deleted (once a day, from the delivery loop). The longest look-back on
 # sent rows is the supply nudge's three-day repeat; activity/feed/pump anchors are at most two days old.
 SENT_KEEP = timedelta(days=30)
@@ -509,7 +536,39 @@ class Delivery:
         self.prune(now)
         due = self.store.q("SELECT * FROM reminders WHERE sent=0 AND at <= ? ORDER BY at", (now.isoformat(timespec="seconds"),))
         claimed = 0
+        # Milk reminders of one kind for one child that fall together go out as one (merge_milk): those due now, and
+        # any due within MILK_TOGETHER, which leave a few minutes early rather than as a second push.
+        groups: dict[tuple, list[dict]] = {}
         for rem in due:
+            head = milk_head(rem["title"]) if rem.get("source") == "milk" else None
+            if head:
+                groups.setdefault((rem["child"], head), []).append(rem)
+        if groups:
+            ahead = self.store.q(
+                "SELECT * FROM reminders WHERE sent=0 AND source='milk' AND at > ? AND at <= ? ORDER BY at",
+                (now.isoformat(timespec="seconds"), (now + MILK_TOGETHER).isoformat(timespec="seconds")),
+            )
+            for rem in ahead:
+                key = (rem["child"], milk_head(rem["title"]))
+                if key in groups:
+                    groups[key].append(rem)
+        together = {r["id"] for rows in groups.values() if len(rows) > 1 for r in rows}
+        for rows in groups.values():
+            if len(rows) < 2:
+                continue
+            mine = [r for r in rows if self.store.x("UPDATE reminders SET sent=1 WHERE id=? AND sent=0", (r["id"],)).rowcount]
+            claimed += len(mine)
+            try:
+                fresh = [r for r in mine if parse_iso(r["at"]) >= now - STALE_AFTER]
+                if len(fresh) > 1:
+                    self._deliver(merge_milk(fresh))
+                elif fresh:
+                    self._deliver(fresh[0])
+            except Exception:  # never let one reminder take the loop down
+                log.exception("delivering %d milk reminders together failed", len(mine))
+        for rem in due:
+            if rem["id"] in together:
+                continue
             # Claim it before sending. /push/schedule (and a milk-bag change) replace the *unsent* reminders of
             # their kind; one arriving mid-send would otherwise delete this row and re-insert the same alert as
             # unsent, and the phone would get it twice. A claimed row survives the replace and the re-insert is

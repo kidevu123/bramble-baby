@@ -289,6 +289,34 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(self.delivery.run_once(), 0)
         self.assertEqual(self.sent, [])
 
+    def test_milk_reminders_that_fall_together_go_out_as_one_push(self):
+        self.subscribe("https://push/x", child=1)
+        now = datetime.now(timezone.utc)
+
+        def milk(tag, title, minutes, child=1):
+            at = (now + timedelta(minutes=minutes)).isoformat(timespec="seconds")
+            self.app.store.x("INSERT INTO reminders (child, at, title, body, tag, source, sent, created) VALUES (?,?,?,?,?,'milk',0,?)", (child, at, title, "Pumped Tue, in the fridge.", tag, bs.now_iso()))
+
+        # Four premade bottles made together expire together (the owner's Inbox, 2026-11-11): three due now, one in 4 minutes.
+        for n, minutes in ((2, -1), (3, -1), (4, -1), (5, 4)):
+            milk(f"milk:{n}", f"Milk expiring soon \u00b7 71 mL (2.4 oz) (premade bottle {n})", minutes)
+        milk("milk:9", "Milk expired \u00b7 60 mL (2.0 oz) (J23PFX)", -1)  # another kind: its own push
+        milk("milk:10", "Milk expiring soon \u00b7 80 mL (2.7 oz) (premade bottle 1)", 30)  # half an hour off: not yet
+        milk("milk:11", "Milk expiring soon \u00b7 50 mL (1.7 oz) (K7WQ2M)", -1, child=2)  # another child: its own
+        self.assertEqual(self.delivery.run_once(now), 6)
+        titles = sorted(p["title"] for _, p in self.sent)
+        self.assertEqual(titles, ["Milk expired \u00b7 60 mL (2.0 oz) (J23PFX)", "Milk expiring soon \u00b7 4 premade bottles", "Milk expiring soon \u00b7 50 mL (1.7 oz) (K7WQ2M)"])
+        merged = next(p for _, p in self.sent if p["title"].endswith("4 premade bottles"))
+        self.assertEqual(merged["body"].split("\n"), ["Premade bottle 2 \u00b7 71 mL (2.4 oz)", "Premade bottle 3 \u00b7 71 mL (2.4 oz)", "Premade bottle 4 \u00b7 71 mL (2.4 oz)", "Premade bottle 5 \u00b7 71 mL (2.4 oz)", "Open the Stash in Bramble to see them."])
+        self.assertEqual((merged["url"], merged["tag"]), ("/milk", "milk:together:Milk expiring soon:1"))
+        # Nothing is sent twice: the one that left four minutes early is done, the later one still waits.
+        self.assertEqual(self.delivery.run_once(now + timedelta(minutes=5)), 0)
+        self.assertEqual(self.delivery.run_once(now + timedelta(minutes=31)), 1)
+        self.assertEqual(self.sent[-1][1]["title"], "Milk expiring soon \u00b7 80 mL (2.7 oz) (premade bottle 1)")
+        # Bags and bottles together are "containers"; bags alone are "bags".
+        self.assertEqual(bs.merge_milk([{"at": "a", "title": "Milk expired \u00b7 60 mL (2.0 oz) (J23PFX)"}, {"at": "b", "title": "Milk expired \u00b7 71 mL (2.4 oz) (premade bottle 2)"}])["title"], "Milk expired \u00b7 2 containers")
+        self.assertEqual(bs.merge_milk([{"at": "a", "title": "Milk expired \u00b7 60 mL (2.0 oz) (J23PFX)"}, {"at": "b", "title": "Milk expired \u00b7 30 mL (1.0 oz) (ABC234)"}])["title"], "Milk expired \u00b7 2 bags")
+
     def test_schedule_skips_auto_alert_already_sent(self):
         past = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat(timespec="seconds")
         self.subscribe("https://push/x", child=1)
