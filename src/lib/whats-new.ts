@@ -12,6 +12,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.67.0',
+    date: 'Nov 11',
+    items: [
+      'The pediatrician report is rebuilt as a one-page visit summary: six headline figures, each drawn against its typical range or the doctor’s goal, with anything short marked.',
+      'Growth with the WHO range shaded and every weighing listed with its change; feeding with the intake per kilogram; and a daily pattern: each day as a row of 24 hours showing sleep, feeds and diapers.',
+      'It now also carries the CDC checklist as you have marked it and a box for your questions, typed above the report. Reports › Summary › Overview › Report for the pediatrician.',
+    ],
+  },
+  {
     version: '1.66.0',
     date: 'Nov 11',
     items: ['Nothing new in this copy: 1.66.0 adds to an integration the public release does not include.'],

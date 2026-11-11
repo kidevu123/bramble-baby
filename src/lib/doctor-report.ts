@@ -11,6 +11,7 @@
 import { addDays, differenceInCalendarDays, endOfDay, format, isSameDay, startOfDay } from 'date-fns'
 import type { Child, GrowthEntry, Medication, Temperature } from './api/types'
 import { summarizeDay, type EventSets, type GrowthSets } from './events'
+import { growthEntryTime } from './growth-note'
 import { ageMonthsOn, growthAt, growthChange, growthPercentile } from './reports'
 import { asBasis, correctedAgeText, describeWeeks, judgedAge, whoFrom, type AgeFrom } from './preterm'
 import { describePercentile, diaperNormFor, feedingNormFor, feverStatus, fToC, sleepNormFor, valueAtPercentile, type Sex } from './science'
@@ -30,9 +31,13 @@ export interface ReportGrowthRow {
 }
 
 export interface ReportAverage {
-  key: 'feeds' | 'bottle' | 'nursing' | 'wet' | 'dirty' | 'sleep' | 'naps' | 'pumped' | 'kcal' | 'kcalkg'
+  key: 'feeds' | 'bottle' | 'mlkg' | 'nursing' | 'wet' | 'dirty' | 'sleep' | 'naps' | 'pumped' | 'kcal' | 'kcalkg'
   label: string
   value: string
+  /** The same average as a number (in the unit `value` is written in), for drawing it against its band. */
+  num: number
+  /** The age-typical band as numbers in that unit, or null when the science has none for this age. */
+  band: [number, number] | null
   /** The age-typical band in the same words, or null when the science has none for this age. */
   typical: string | null
   /** How many whole days in the range carried this kind of entry (today, still in progress, is left out). */
@@ -108,6 +113,29 @@ export interface ReportChart {
   to: Date
 }
 
+/** One day of the daily-pattern picture: when she slept, fed and was changed, in hours since that day's midnight. */
+export interface ReportPatternDay {
+  date: Date
+  sleep: [number, number][]
+  feeds: number[]
+  wet: number[]
+  dirty: number[]
+}
+
+/** A weighing in the window with the change since the one before it. */
+export interface ReportWeighing {
+  at: Date
+  /** False when the weighing has only a date (no clock in its note). */
+  timed: boolean
+  value: string
+  /** Change since the previous weighing listed, in grams, and per day; null on the first. */
+  grams: number | null
+  perDay: number | null
+}
+
+/** The daily pattern shows at most this many days (the latest), so each day keeps a readable row on one page. */
+export const PATTERN_DAYS = 28
+
 export interface DoctorReport {
   child: { name: string; birthDate: string; age: string; sex: Sex | null }
   /** `wholeDays`: the days before today, the ones the averages are taken over. `visit`: the last visit and this one when
@@ -118,6 +146,10 @@ export interface DoctorReport {
   visitGain: VisitGain | null
   weeks: ReportWeek[]
   chart: ReportChart | null
+  /** The weighings the chart plots, oldest first, each with its change since the one before. */
+  weighings: ReportWeighing[]
+  /** The latest PATTERN_DAYS days of the window, oldest first, for the 24-hour picture. */
+  pattern: ReportPatternDay[]
   gain: { sinceLast: string | null; week: string | null; /** The gain since the day the goal was given. */ sinceGoal: string | null; perDay: string | null; verdict: string | null; goal: number | null } | null
   averages: ReportAverage[]
   days: ReportDay[]
@@ -260,6 +292,40 @@ export function buildDoctorReport(events: EventSets, growth: GrowthSets | undefi
     }
   }
 
+  // ---- the weighings the chart plots, each with its change since the one before
+  const timedAt = new Map((growth?.weights ?? []).map((w) => [growthAt(w).getTime(), growthEntryTime(w) !== null]))
+  const weighingRows: ReportWeighing[] = (chart?.weights ?? []).map((p, i, list) => {
+    const prev = i ? list[i - 1] : null
+    const grams = prev ? convertWeight(p.value - prev.value, units.weight, 'kg') * 1000 : null
+    const spanD = prev ? (p.at.getTime() - prev.at.getTime()) / 86_400_000 : 0
+    return { at: p.at, timed: timedAt.get(p.at.getTime()) ?? false, value: formatWeight(p.value, units.weight), grams: grams === null ? null : Math.round(grams), perDay: grams !== null && spanD >= 0.5 ? Math.round(grams / spanD) : null }
+  })
+
+  // ---- the daily pattern: each of the latest days as a row of 24 hours
+  const hourOf = (t: Date, day: Date) => (t.getTime() - day.getTime()) / 3_600_000
+  const pattern: ReportPatternDay[] = dayList.slice(-PATTERN_DAYS).map((day) => {
+    const next = addDays(day, 1)
+    const sleep: [number, number][] = []
+    for (const sl of events.sleep) {
+      const a = parseDate(sl.start)
+      const b = parseDate(sl.end)
+      if (b <= day || a >= next) continue
+      sleep.push([Math.max(0, hourOf(a, day)), Math.min(24, hourOf(b, day))])
+    }
+    const on = (t: string) => {
+      const d = parseDate(t)
+      return d >= day && d < next ? hourOf(d, day) : null
+    }
+    const hours = (list: (number | null)[]) => list.filter((h): h is number => h !== null).sort((x, y) => x - y)
+    return {
+      date: day,
+      sleep: sleep.sort((x, y) => x[0] - y[0]),
+      feeds: hours(events.feedings.filter((f) => f.type !== 'solid food').map((f) => on(f.start))),
+      wet: hours(events.changes.filter((c) => c.wet && !c.solid).map((c) => on(c.time))),
+      dirty: hours(events.changes.filter((c) => c.solid).map((c) => on(c.time))),
+    }
+  })
+
   // ---- day by day
   const weighings = (growth?.weights ?? []).map((w) => ({ kg: convertWeight(w.weight, units.weight, 'kg'), at: growthAt(w) }))
   const dayRows: ReportDay[] = dayList.map((d) => {
@@ -306,31 +372,41 @@ export function buildDoctorReport(events: EventSets, growth: GrowthSets | undefi
     const sleepNorm = sleepNormFor(ctx.ageMonths)
     const vol = volumeLabel(units.volume)
     const feeds = avgOf(whole, (d) => d.feeds)
-    averages.push({ key: 'feeds', label: 'Feeds a day', value: one(feeds.value), typical: ctx.hold ? null : band(feedNorm.feedsPerDay[0], feedNorm.feedsPerDay[1]), loggedDays: feeds.days })
+    averages.push({ key: 'feeds', label: 'Feeds a day', value: one(feeds.value), num: feeds.value, band: ctx.hold ? null : [feedNorm.feedsPerDay[0], feedNorm.feedsPerDay[1]], typical: ctx.hold ? null : band(feedNorm.feedsPerDay[0], feedNorm.feedsPerDay[1]), loggedDays: feeds.days })
     const bottle = avgOf(whole, (d) => d.bottle)
     if (bottle.days) {
-      const typicalDay = !ctx.hold && feedNorm.ozPerDay ? band(Math.round(convertVolume(feedNorm.ozPerDay[0], 'oz', units.volume)), Math.round(convertVolume(feedNorm.ozPerDay[1], 'oz', units.volume)), ` ${vol}`) : null
-      averages.push({ key: 'bottle', label: 'By bottle a day', value: formatVolume(bottle.value, units.volume), typical: typicalDay, loggedDays: bottle.days })
+      const dayBand: [number, number] | null = !ctx.hold && feedNorm.ozPerDay ? [Math.round(convertVolume(feedNorm.ozPerDay[0], 'oz', units.volume)), Math.round(convertVolume(feedNorm.ozPerDay[1], 'oz', units.volume))] : null
+      const typicalDay = dayBand ? band(dayBand[0], dayBand[1], ` ${vol}`) : null
+      averages.push({ key: 'bottle', label: 'By bottle a day', value: formatVolume(bottle.value, units.volume), num: bottle.value, band: dayBand, typical: typicalDay, loggedDays: bottle.days })
+      // Intake per kilogram, the figure a pediatrician reasons in: each day's bottles over the weight that applied.
+      // The 150–180 mL/kg band is for full feeds by bottle (row 90): none when she also nurses, is held, or is past 6 months.
+      const perKgDays = whole.filter((d) => d.bottle > 0).map((d) => ({ d, kg: weightForDay(weighings, addDays(d.date, 1)) })).filter((x): x is { d: ReportDay; kg: number } => x.kg !== null && x.kg > 0)
+      if (perKgDays.length) {
+        const mlkg = perKgDays.reduce((sum, x) => sum + convertVolume(x.d.bottle, units.volume, 'ml') / x.kg, 0) / perKgDays.length
+        const nurses = dayRows.some((d) => d.nursingMinutes > 0) // today's nursing counts too: she is not bottle-only
+        const applies = !ctx.hold && !nurses && ctx.dayOfLife >= 14 && ctx.ageMonths < 6
+        averages.push({ key: 'mlkg', label: 'Intake per kg a day', value: `${Math.round(mlkg)} mL/kg`, num: mlkg, band: applies ? [150, 180] : null, typical: applies ? '150–180 mL/kg' : nurses ? 'bottles only; nursing not counted' : null, loggedDays: perKgDays.length })
+      }
     }
     const kcal = avgOf(whole, (d) => d.kcal)
-    if (kcal.days) averages.push({ key: 'kcal', label: 'Calories by bottle a day', value: `${Math.round(kcal.value)} kcal`, typical: null, loggedDays: kcal.days })
+    if (kcal.days) averages.push({ key: 'kcal', label: 'Calories by bottle a day', value: `${Math.round(kcal.value)} kcal`, num: kcal.value, band: null, typical: null, loggedDays: kcal.days })
     const perKg = avgOf(whole, (d) => d.kcalPerKg ?? 0)
-    if (perKg.days && calories) averages.push({ key: 'kcalkg', label: calories.goal ? `kcal per kg a day (goal ${calories.goal})` : 'kcal per kg a day', value: String(Math.round(perKg.value)), typical: ctx.hold || ctx.ageMonths >= 6 ? null : band(TYPICAL_KCAL_PER_KG[0], TYPICAL_KCAL_PER_KG[1]), loggedDays: perKg.days })
+    if (perKg.days && calories) averages.push({ key: 'kcalkg', label: calories.goal ? `kcal per kg a day (goal ${calories.goal})` : 'kcal per kg a day', value: String(Math.round(perKg.value)), num: perKg.value, band: ctx.hold || ctx.ageMonths >= 6 ? null : [TYPICAL_KCAL_PER_KG[0], TYPICAL_KCAL_PER_KG[1]], typical: ctx.hold || ctx.ageMonths >= 6 ? null : band(TYPICAL_KCAL_PER_KG[0], TYPICAL_KCAL_PER_KG[1]), loggedDays: perKg.days })
     const nursing = avgOf(whole, (d) => d.nursingMinutes)
     // A day's total minutes has no band: the science gives minutes a side per feed, which beside a day's
     // total would read as six times over.
-    if (nursing.days) averages.push({ key: 'nursing', label: 'Nursing a day', value: `${Math.round(nursing.value)} min`, typical: null, loggedDays: nursing.days })
+    if (nursing.days) averages.push({ key: 'nursing', label: 'Nursing a day', value: `${Math.round(nursing.value)} min`, num: nursing.value, band: null, typical: null, loggedDays: nursing.days })
     const anyDiaper = (d: ReportDay) => d.diaperCount > 0
     const wet = avgOf(whole, (d) => d.wet, anyDiaper)
-    averages.push({ key: 'wet', label: 'Wet diapers a day', value: one(wet.value), typical: ctx.hold ? null : band(diaperNorm.wetPerDay[0], diaperNorm.wetPerDay[1]), loggedDays: wet.days })
+    averages.push({ key: 'wet', label: 'Wet diapers a day', value: one(wet.value), num: wet.value, band: ctx.hold ? null : [diaperNorm.wetPerDay[0], diaperNorm.wetPerDay[1]], typical: ctx.hold ? null : band(diaperNorm.wetPerDay[0], diaperNorm.wetPerDay[1]), loggedDays: wet.days })
     const dirty = avgOf(whole, (d) => d.dirty, anyDiaper)
-    averages.push({ key: 'dirty', label: 'Dirty diapers a day', value: one(dirty.value), typical: ctx.hold ? null : band(diaperNorm.dirtyPerDay[0], diaperNorm.dirtyPerDay[1]), loggedDays: dirty.days })
+    averages.push({ key: 'dirty', label: 'Dirty diapers a day', value: one(dirty.value), num: dirty.value, band: ctx.hold ? null : [diaperNorm.dirtyPerDay[0], diaperNorm.dirtyPerDay[1]], typical: ctx.hold ? null : band(diaperNorm.dirtyPerDay[0], diaperNorm.dirtyPerDay[1]), loggedDays: dirty.days })
     const sleep = avgOf(whole, (d) => d.sleepHours)
-    averages.push({ key: 'sleep', label: 'Sleep a day', value: formatDurationShort(sleep.value * 3600), typical: ctx.hold ? null : `${band(sleepNorm.totalHours[0], sleepNorm.totalHours[1])} h`, loggedDays: sleep.days })
+    averages.push({ key: 'sleep', label: 'Sleep a day', value: formatDurationShort(sleep.value * 3600), num: sleep.value, band: ctx.hold ? null : [sleepNorm.totalHours[0], sleepNorm.totalHours[1]], typical: ctx.hold ? null : `${band(sleepNorm.totalHours[0], sleepNorm.totalHours[1])} h`, loggedDays: sleep.days })
     const naps = avgOf(whole, (d) => d.naps, (d) => d.sleepHours > 0)
-    if (whole.some((d) => d.naps > 0)) averages.push({ key: 'naps', label: 'Naps a day', value: one(naps.value), typical: ctx.hold ? null : band(sleepNorm.napsPerDay[0], sleepNorm.napsPerDay[1]), loggedDays: naps.days })
+    if (whole.some((d) => d.naps > 0)) averages.push({ key: 'naps', label: 'Naps a day', value: one(naps.value), num: naps.value, band: ctx.hold ? null : [sleepNorm.napsPerDay[0], sleepNorm.napsPerDay[1]], typical: ctx.hold ? null : band(sleepNorm.napsPerDay[0], sleepNorm.napsPerDay[1]), loggedDays: naps.days })
     const pumped = avgOf(whole, (d) => d.pumped)
-    if (pumped.days) averages.push({ key: 'pumped', label: 'Pumped a day', value: formatVolume(pumped.value, units.volume), typical: null, loggedDays: pumped.days })
+    if (pumped.days) averages.push({ key: 'pumped', label: 'Pumped a day', value: formatVolume(pumped.value, units.volume), num: pumped.value, band: null, typical: null, loggedDays: pumped.days })
   }
 
   // ---- health in the range
@@ -358,6 +434,8 @@ export function buildDoctorReport(events: EventSets, growth: GrowthSets | undefi
     visitGain,
     weeks,
     chart,
+    weighings: weighingRows,
+    pattern,
     gain,
     averages,
     days: dayRows,

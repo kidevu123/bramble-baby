@@ -3,6 +3,13 @@ import { jpegToPdf, LETTER_PT } from './pdf'
 /** The paper at 96 px an inch: US letter is 816 × 1056. */
 export const PAPER_PX = { width: 816, height: 1056 }
 
+/** The faces the paper layout is set in (report.css `.report.paper`): asked for by name, since a font is only fetched
+ *  once something on the page uses it and the paper copy has just been added. A failure leaves the fallback. */
+export async function loadPaperFonts(): Promise<void> {
+  if (!document.fonts?.load) return
+  await Promise.all(['400 12px Inter', '500 12px Inter', '600 12px Inter', '700 12px Inter', '700 24px Fraunces'].map((f) => document.fonts.load(f).catch(() => [])))
+}
+
 /**
  * Draws a report article as it prints (the `paper` layout at letter width, off screen) into a JPEG and packs it
  * into a one-page PDF. The renderer is loaded on first use: it is a chunk the rest of the app never needs.
@@ -17,6 +24,7 @@ export async function reportToPdf(article: HTMLElement, title: string): Promise<
   host.appendChild(clone)
   document.body.appendChild(host)
   try {
+    await loadPaperFonts()
     await document.fonts?.ready
     const canvas = await html2canvas(clone, {
       scale: 2,

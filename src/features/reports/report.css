@@ -13,41 +13,140 @@
   flex: 1;
   min-width: 0;
 }
+.report-questions-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* ---- the document. Its colours are a small set of variables: the app's tokens on the phone (both themes), plain
+   print inks on paper (`.paper`, below). Charts read the same variables, so a chart is never themed on its own. */
 .report {
+  --rd-ink: var(--text-strong);
+  --rd-text: var(--text);
+  --rd-muted: var(--text-muted);
+  --rd-line: var(--line);
+  --rd-soft: var(--surface-2);
+  --rd-accent: var(--teal-ink, var(--teal));
+  --rd-flag: var(--orange);
+  --rd-sleep: var(--purple);
+  --rd-feed: var(--teal);
+  --rd-wet: var(--sky, #38a3d1);
+  --rd-dirty: #a16207;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  min-width: 0;
+  font-variant-numeric: tabular-nums;
 }
-.report-head {
+.rd-head {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px var(--space-3);
+  flex-direction: column;
+  gap: var(--space-3);
   padding-bottom: var(--space-3);
-  border-bottom: 2px solid var(--text-strong);
+  border-bottom: 3px solid var(--rd-accent);
 }
-.report-title {
+.rd-kicker {
   margin: 0;
-  font-size: var(--text-2xl);
+  font-size: var(--text-xs);
   font-weight: var(--w-head);
-  color: var(--text-strong);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--rd-accent);
 }
-.report-kicker {
+.rd-name {
+  margin: 2px 0 0;
+  font-family: 'Fraunces', Georgia, serif;
+  font-weight: 700;
+  font-size: 2rem;
+  line-height: 1.1;
+  color: var(--rd-ink);
+}
+.rd-who {
+  margin: 4px 0 0;
+  font-size: var(--text-sm);
+  color: var(--rd-text);
+}
+.rd-meta {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: var(--space-3) var(--space-4);
+  justify-content: start;
+}
+.rd-meta dt,
+.rd-kpi-label,
+.rd-fact dt {
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rd-muted);
+}
+.rd-meta dd {
   margin: 0;
   font-size: var(--text-sm);
   font-weight: var(--w-label);
-  color: var(--text-strong);
+  color: var(--rd-ink);
 }
-.report-sub {
-  margin: 0;
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-  flex-basis: 100%;
-}
-.report-grid {
+
+/* The headline row: six figures, each over its range bar. */
+.rd-kpis {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+.rd-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--rd-soft);
+  border-top: 2px solid transparent;
+}
+.rd-kpi.is-flag {
+  border-top-color: var(--rd-flag);
+}
+.rd-kpi-value {
+  font-size: 1.35rem;
+  font-weight: var(--w-head);
+  line-height: 1.15;
+  color: var(--rd-ink);
+  white-space: nowrap;
+}
+.rd-kpi.is-flag .rd-kpi-value {
+  color: var(--rd-flag);
+}
+.rd-kpi-note {
+  font-size: var(--text-xs);
+  color: var(--rd-muted);
+}
+.rb {
+  display: block;
+  width: 100%;
+  height: 12px;
+  margin: 3px 0 2px;
+}
+.rb-track {
+  fill: var(--rd-line);
+}
+.rb-band {
+  fill: var(--rd-accent);
+  opacity: 0.35;
+}
+.rb-goal {
+  fill: var(--rd-ink);
+}
+.rb-mark {
+  fill: var(--rd-ink);
+}
+.rb.is-flag .rb-mark {
+  fill: var(--rd-flag);
+}
+
+.rd-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
 }
 .report-section {
@@ -58,44 +157,15 @@
 }
 .report-section h2 {
   margin: 0;
+  padding-bottom: 4px;
   font-size: var(--text-xs);
   font-weight: var(--w-head);
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--text-muted);
-}
-/* The headline figures of a section: the number large, its meaning under it. */
-.report-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: var(--space-2) var(--space-3);
-  margin: 0;
-}
-.report-stat {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-.report-stat dt {
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-}
-.report-stat dd {
-  margin: 0;
-  font-size: var(--text-lg);
-  font-weight: var(--w-head);
-  color: var(--text-strong);
-  line-height: 1.15;
-}
-.report-stat .report-note {
-  display: block;
-}
-.report-stat.is-low dd {
-  color: var(--orange-ink, #b45309);
+  color: var(--rd-accent);
+  border-bottom: 1px solid var(--rd-line);
 }
 .report-chart {
-  width: 100%;
   margin: 0;
 }
 .report-chart svg {
@@ -103,133 +173,302 @@
   width: 100%;
   height: auto;
 }
+/* The daily pattern is a wide picture: on the phone it keeps a readable width and scrolls sideways in its own box
+   (the page never does); on paper it is the full width of the page. */
+.rd-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.rd-scroll svg {
+  min-width: 640px;
+}
+.rd-scroll .rd-key {
+  position: sticky;
+  left: 0;
+}
+/* A chart's key: a mark drawn like the chart's own, and a word or two. */
+.rd-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--space-3);
+  margin-top: 4px;
+  font-size: var(--text-xs);
+  color: var(--rd-muted);
+}
+.rd-key-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.rd-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 8px;
+  border-radius: 2px;
+}
+.rd-swatch.is-dot {
+  width: 8px;
+  border-radius: 50%;
+  background: var(--rd-accent);
+}
+.rd-swatch.is-dash {
+  height: 0;
+  border-top: 2px dashed var(--rd-flag);
+  border-radius: 0;
+}
+.rd-swatch.is-band {
+  background: var(--rd-line);
+}
+.rd-swatch.is-bar {
+  background: var(--rd-feed);
+}
+.rd-swatch.is-avg {
+  height: 0;
+  border-top: 2px dashed var(--rd-ink);
+  border-radius: 0;
+}
+.rd-swatch.is-target {
+  background: var(--rd-accent);
+  opacity: 0.25;
+}
+.rd-swatch.is-sleep {
+  background: var(--rd-sleep);
+  opacity: 0.55;
+}
+.rd-swatch.is-feed {
+  width: 3px;
+  height: 10px;
+  border-radius: 0;
+  background: var(--rd-accent);
+}
+.rd-swatch.is-wet,
+.rd-swatch.is-dirty {
+  width: 8px;
+  border-radius: 50%;
+}
+.rd-swatch.is-wet {
+  background: transparent;
+  border: 2px solid var(--rd-wet);
+  box-sizing: border-box;
+}
+.rd-swatch.is-dirty {
+  background: var(--rd-dirty);
+}
+
+/* Figures with the note they are read against. */
+.rd-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2) var(--space-3);
+}
+.rd-fact {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.rd-fact dd {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--w-head);
+  color: var(--rd-ink);
+}
+.rd-fact .report-note {
+  display: block;
+  font-weight: var(--w-body);
+}
+.rd-fact.is-low dd {
+  color: var(--rd-flag);
+}
+.report-note {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--rd-muted);
+}
+
 .report-table {
   width: 100%;
   border-collapse: collapse;
   font-size: var(--text-sm);
 }
-.report-table th,
-.report-table td {
-  padding: 5px 0;
+.report-table td,
+.report-table th {
+  padding: 5px 6px 5px 0;
   text-align: left;
-  vertical-align: top;
-  border-bottom: 1px solid var(--line);
-  color: var(--text);
+  border-bottom: 1px solid var(--rd-line);
+  color: var(--rd-text);
+  white-space: nowrap;
 }
 .report-table th[scope='row'] {
   font-weight: var(--w-label);
-  color: var(--text-strong);
-  width: 38%;
-  padding-right: var(--space-3);
+  color: var(--rd-ink);
 }
 .report-table thead th {
   font-size: var(--text-xs);
-  font-weight: var(--w-head);
-  color: var(--text-muted);
-  white-space: nowrap;
+  font-weight: var(--w-body);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--rd-muted);
+  border-bottom-color: var(--rd-ink);
+}
+.report-table tbody tr:last-child td,
+.report-table tbody tr:last-child th {
+  border-bottom: 0;
 }
 .report-days-scroll {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  max-width: 100%;
-}
-.report-days {
-  font-size: var(--text-xs);
-}
-.report-days th,
-.report-days td {
-  padding-right: 6px;
-}
-.report-days th:last-child,
-.report-days td:last-child {
-  padding-right: 0;
-}
-.report-days th[scope='row'] {
-  width: auto;
-  white-space: nowrap;
-}
-.report-days td {
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-.report-note {
-  display: block;
-  font-size: var(--text-xs);
-  color: var(--text-muted);
 }
 .report-list {
+  list-style: none;
   margin: 0;
   padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: 4px;
   font-size: var(--text-sm);
-  color: var(--text);
+  color: var(--rd-text);
+}
+.report-list li {
+  display: grid;
+  grid-template-columns: 11.5em minmax(0, 1fr);
+  gap: var(--space-2);
+}
+.report-list .rd-when {
+  color: var(--rd-muted);
+}
+.report-list li.is-flag .strong {
+  color: var(--rd-flag);
+}
+.rd-dev {
+  margin: 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--rd-line);
+  font-size: var(--text-sm);
+  color: var(--rd-text);
+}
+.rd-questions p {
+  margin: 0;
+  font-size: var(--text-sm);
+  white-space: pre-wrap;
+  color: var(--rd-ink);
+}
+.rd-questions {
+  padding: var(--space-3);
+  border: 1px solid var(--rd-line);
+  border-radius: var(--radius-sm);
 }
 .report-foot {
   margin: 0;
   padding-top: var(--space-2);
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--rd-line);
   font-size: var(--text-xs);
-  color: var(--text-muted);
+  color: var(--rd-muted);
 }
 
-/* The charts: ink that reads on screen and on paper. */
-.rc-grid {
-  stroke: var(--line);
-  stroke-width: 1;
-}
+/* ---- the charts */
 .rc-tick,
 .rc-curve-label,
 .rc-avg-label {
-  font-size: 9px;
-  fill: var(--text-muted);
+  font-size: 8px;
+  fill: var(--rd-muted);
+}
+.rc-grid {
+  stroke: var(--rd-line);
+  stroke-width: 0.6;
+}
+.rc-band {
+  fill: var(--rd-line);
+  opacity: 0.28;
 }
 .rc-curve {
   fill: none;
-  stroke: var(--text-muted);
-  stroke-width: 1;
-  opacity: 0.55;
+  stroke: var(--rd-muted);
+  stroke-width: 0.7;
+  opacity: 0.7;
+}
+.rc-curve-mid {
+  stroke-dasharray: 1.5 2;
 }
 .rc-goal {
   fill: none;
-  stroke: var(--orange, #e8893a);
-  stroke-width: 1.5;
+  stroke: var(--rd-flag);
+  stroke-width: 1.3;
   stroke-dasharray: 4 3;
 }
 .rc-line {
   fill: none;
-  stroke: var(--teal-ink, #0f766e);
-  stroke-width: 2;
+  stroke: var(--rd-accent);
+  stroke-width: 1.8;
+  stroke-linejoin: round;
 }
 .rc-dot {
-  fill: var(--teal-ink, #0f766e);
+  fill: var(--rd-accent);
+  stroke: var(--surface, #fff);
+  stroke-width: 1;
 }
 .rc-bar {
-  fill: var(--teal, #2dd4bf);
+  fill: var(--rd-feed);
+}
+.rc-target {
+  fill: var(--rd-accent);
+  opacity: 0.16;
 }
 .rc-avg {
-  stroke: var(--text-strong);
-  stroke-width: 1;
+  stroke: var(--rd-ink);
+  stroke-width: 0.9;
   stroke-dasharray: 3 3;
 }
 .rc-avg-label {
-  fill: var(--text-strong);
+  fill: var(--rd-ink);
+  font-weight: 700;
+}
+.rp-hour {
+  stroke: var(--rd-line);
+  stroke-width: 0.6;
+}
+.rp-stripe {
+  fill: var(--rd-soft);
+  opacity: 0.6;
+}
+.rp-sleep {
+  fill: var(--rd-sleep);
+  opacity: 0.45;
+}
+.rp-feed {
+  fill: var(--rd-accent);
+}
+.rp-wet {
+  fill: var(--surface, #fff);
+  stroke: var(--rd-wet);
+  stroke-width: 0.9;
+}
+.rp-dirty {
+  fill: var(--rd-dirty);
 }
 
-/* Two columns once there is room (a tablet, a laptop, and the printed page). */
 @media (min-width: 720px) {
-  .report-grid {
-    grid-template-columns: 1fr 1fr;
+  .rd-scroll svg {
+    min-width: 0;
   }
-  .report-grid .report-wide {
-    grid-column: 1 / -1;
+  .rd-head {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+  .rd-kpis {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .rd-cols {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .rd-facts-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
-/* The paper layout: one letter page in two columns, black ink. The article carries `paper` while the browser prints
-   (beforeprint) and on the off-screen copy the PDF is drawn from (`reportToPdf`); the phone never sees it. */
+/* ---- paper: one US letter page. The article carries `paper` while the browser prints (beforeprint) and on the
+   off-screen copy the PDF is drawn from (`reportToPdf`); the phone never sees it. Plain inks, Inter for the text (a
+   loaded web font: the PDF renderer spaces a fallback font unevenly), the name in the serif. */
 .report-paper-host {
   position: fixed;
   left: -20000px;
@@ -242,117 +481,139 @@
   width: 816px;
   min-height: 1056px;
   box-sizing: border-box;
-  padding: 45px 45px 40px;
+  padding: 34px 44px 28px;
   border-radius: 0;
   box-shadow: none;
 }
 .report.paper {
-  gap: 6mm;
-  font-size: 10.5pt;
-  color: #000;
+  --rd-ink: #111827;
+  --rd-text: #1f2937;
+  --rd-muted: #6b7280;
+  --rd-line: #d1d5db;
+  --rd-soft: #f3f4f6;
+  --rd-accent: #0f766e;
+  --rd-flag: #b45309;
+  --rd-sleep: #4f46e5;
+  --rd-feed: #0d9488;
+  --rd-wet: #0284c7;
+  --rd-dirty: #92400e;
+  gap: 8px;
+  /* Proportional figures on paper: the PDF renderer draws them that way whatever is asked, and spaces the text wrongly
+     when the page was laid out with tabular ones. */
+  font-variant-numeric: normal;
+  font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 8.5pt;
+  line-height: 1.3;
+  color: #1f2937;
   background: #fff;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
-.report.paper .report-grid {
-  grid-template-columns: 1fr 1fr;
-  gap: 7mm 9mm;
+.report.paper .rd-head {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding-bottom: 9px;
 }
-.report.paper .report-grid .report-wide {
-  grid-column: 1 / -1;
+.report.paper .rd-kicker {
+  font-size: 7pt;
 }
-.report.paper .report-section {
-  gap: 2.5mm;
-  break-inside: avoid;
-  page-break-inside: avoid;
+.report.paper .rd-name {
+  font-size: 25pt;
 }
-.report.paper .report-head {
-  border-bottom-color: #000;
-  padding-bottom: 2mm;
-}
-.report.paper .report-title {
-  font-size: 22pt;
-  color: #000;
-}
-.report.paper .report-kicker {
-  font-size: 12pt;
-  color: #000;
-}
-.report.paper .report-sub,
-.report.paper .report-note,
-.report.paper .report-section h2,
-.report.paper .report-stat dt,
-.report.paper .report-foot,
-.report.paper .report-table thead th {
-  color: #444;
-  font-size: 8.5pt;
-}
-.report.paper .report-stat dd,
-.report.paper .report-table th,
-.report.paper .report-table td,
-.report.paper .report-list {
-  color: #000;
-}
-.report.paper .report-stat dd {
-  font-size: 15pt;
-}
-.report.paper .report-stat.is-low dd {
-  color: #b45309;
-}
-.report.paper .report-stats {
-  grid-template-columns: repeat(3, 1fr);
-  gap: 2.5mm 3mm;
-}
-.report.paper .report-table,
-.report.paper .report-list {
-  font-size: 9.5pt;
-}
-.report.paper .report-days {
+.report.paper .rd-who {
   font-size: 9pt;
 }
-.report.paper .report-table th,
-.report.paper .report-table td {
-  padding: 1.8mm 0;
-  border-color: #ccc;
+.report.paper .rd-meta {
+  gap: 0 22px;
+  text-align: right;
+}
+.report.paper .rd-meta dt,
+.report.paper .rd-kpi-label,
+.report.paper .rd-fact dt {
+  font-size: 6.2pt;
+}
+.report.paper .rd-meta dd {
+  font-size: 9pt;
+}
+.report.paper .rd-kpis {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 7px;
+}
+.report.paper .rd-kpi {
+  padding: 6px 8px 5px;
+  border-radius: 4px;
+}
+.report.paper .rd-kpi-value {
+  font-size: 14pt;
+}
+.report.paper .rd-kpi-note,
+.report.paper .report-note,
+.report.paper .rd-key,
+.report.paper .report-foot {
+  font-size: 6.6pt;
+}
+.report.paper .rb {
+  height: 10px;
+}
+.report.paper .rd-cols {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+}
+.report.paper .report-section {
+  gap: 5px;
+  break-inside: avoid;
+}
+.report.paper .report-section h2 {
+  font-size: 7pt;
+  padding-bottom: 3px;
+}
+.report.paper .rd-facts {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px 10px;
+}
+.report.paper .rd-facts-row {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.report.paper .rd-fact dd {
+  font-size: 10pt;
+}
+.report.paper .report-table,
+.report.paper .report-list,
+.report.paper .rd-dev,
+.report.paper .rd-questions p {
+  font-size: 7.6pt;
+}
+.report.paper .report-table td,
+.report.paper .report-table th {
+  padding: 2.5px 6px 2.5px 0;
+}
+.report.paper .report-table thead th {
+  font-size: 6.2pt;
 }
 .report.paper .report-days-scroll {
   overflow: visible;
 }
-.report.paper .report-foot {
-  border-top-color: #ccc;
+.report.paper .rd-scroll {
+  overflow: visible;
 }
-.report.paper .rc-grid {
-  stroke: #ddd;
+.report.paper .rd-scroll svg {
+  min-width: 0;
 }
-.report.paper .rc-tick,
-.report.paper .rc-curve-label {
-  fill: #444;
-  font-size: 8px;
+.report.paper .rd-questions {
+  padding: 6px 9px;
+  border-radius: 4px;
 }
-.report.paper .rc-curve {
-  stroke: #888;
+/* Three lines of questions at most on paper: the page is one page. */
+.report.paper .rd-questions p {
+  max-height: 3.9em;
+  overflow: hidden;
 }
-.report.paper .rc-goal {
-  stroke: #c2410c;
-}
-.report.paper .rc-line,
 .report.paper .rc-dot {
-  stroke: #0f766e;
-  fill: #0f766e;
+  stroke: #fff;
 }
-.report.paper .rc-line {
-  fill: none;
-}
-.report.paper .rc-bar {
-  fill: #5eead4;
-}
-.report.paper .rc-avg,
-.report.paper .rc-avg-label {
-  stroke: #000;
-  fill: #000;
-}
-.report.paper .rc-avg {
-  fill: none;
+.report.paper .rp-wet {
+  fill: #fff;
 }
 
 @media print {
@@ -381,6 +642,6 @@
   }
   @page {
     size: letter;
-    margin: 12mm;
+    margin: 9mm 11mm;
   }
 }

@@ -98,7 +98,7 @@ export interface ChildSettings {
   /** Settings › Weighing: a dry diaper's weight in grams; the growth sheet takes it off a weighing taken with one on. */
   diaperGrams?: number | null
   /** The pediatrician visits the report is for (yyyy-MM-dd): the report runs from the last to this one. Set on the report page. */
-  visits?: { last?: string | null; this?: string | null } | null
+  visits?: { last?: string | null; this?: string | null; /** What the family wants to ask, printed on the report. */ questions?: string | null } | null
   /** Days of bottles to have banked in the stash (Settings › Pumps); the Stash tab measures progress against it. */
   stashGoalDays?: number | null
   /** Settings › Born early: weeks + days of pregnancy at birth, in days (25 wk 3 d = 178), for a baby born before

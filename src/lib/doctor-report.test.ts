@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Child } from './api/types'
-import { buildDoctorReport, MAX_VISIT_DAYS, reportText } from './doctor-report'
+import { buildDoctorReport, MAX_VISIT_DAYS, PATTERN_DAYS, reportText } from './doctor-report'
 import type { EventSets } from './events'
 import { DEFAULT_UNITS } from './units'
 
@@ -173,6 +173,54 @@ describe('buildDoctorReport', () => {
     expect(last.weight).toBeNull()
     expect(r.weeks[1].weight?.value).toBe('5 lb')
     expect(reportText(r)).toContain('WEEK BY WEEK')
+  })
+
+  it('carries each average as a number with its band, for drawing it against the range', () => {
+    const feeds = r.averages.find((a) => a.key === 'feeds')!
+    expect(feeds.num).toBeGreaterThan(0)
+    expect(feeds.band![0]).toBeLessThan(feeds.band![1])
+    expect(feeds.typical).toBe(`${feeds.band![0]}–${feeds.band![1]}`)
+    // In the NICU nothing is compared with an age: no band to draw either.
+    const held = buildDoctorReport(events, growth, child, DEFAULT_UNITS, 'female', 20, 7, now, undefined, { birth: '2026-09-18', due: null, nicu: { since: '2026-09-18', home: null } } as never)
+    expect(held.averages.every((a) => a.band === null)).toBe(true)
+  })
+
+  it('works out the intake per kilogram from each day\u2019s bottles and the weight that applied', () => {
+    // Oct 8: one 3 oz bottle (88.7 mL) at 5.0 lb (2.268 kg) is 39 mL/kg. Nursing is logged too, so no band is claimed.
+    const mlkg = r.averages.find((a) => a.key === 'mlkg')!
+    expect(Math.round(mlkg.num)).toBe(39)
+    expect(mlkg.value).toBe('39 mL/kg')
+    expect(mlkg.band).toBeNull()
+    expect(mlkg.typical).toBe('bottles only; nursing not counted')
+    // Bottles only, past two weeks old: the 150–180 mL/kg range applies.
+    const bottlesOnly = buildDoctorReport({ ...events, feedings: events.feedings.filter((f) => f.method === 'bottle') }, growth, child, DEFAULT_UNITS, 'female', 20, 7, now)
+    expect(bottlesOnly.averages.find((a) => a.key === 'mlkg')!.band).toEqual([150, 180])
+  })
+
+  it('lists the weighings the chart plots, each with its change since the one before', () => {
+    expect(r.weighings.map((w) => [w.value, w.grams, w.perDay, w.timed])).toEqual([
+      ['5 lb', null, null, true],
+      ['5 lb 6 oz', 159, 20, true],
+    ])
+  })
+
+  it('lays the latest days out hour by hour for the daily pattern', () => {
+    expect(r.pattern).toHaveLength(7)
+    const today = r.pattern[6]
+    expect(today.sleep).toEqual([[1, 4]])
+    expect(today.feeds).toEqual([6, 9]) // the bottle and the nursing; solids are not a feed here
+    expect(today.wet).toEqual([7])
+    expect(today.dirty).toEqual([12]) // wet and dirty counts as dirty: one mark a change
+    expect(r.pattern[5].feeds).toEqual([7])
+    expect(r.pattern[0]).toMatchObject({ sleep: [], feeds: [], wet: [], dirty: [] })
+    // A sleep across midnight is cut at the day's edge, on both days.
+    const over = buildDoctorReport({ ...empty, sleep: [{ id: 9, child: 1, start: iso('2026-10-08T22:30:00'), end: iso('2026-10-09T05:00:00'), nap: false, duration: '06:30:00', notes: '', tags: [] }] as EventSets['sleep'] }, growth, child, DEFAULT_UNITS, null, null, 7, now)
+    expect(over.pattern[5].sleep).toEqual([[22.5, 24]])
+    expect(over.pattern[6].sleep).toEqual([[0, 5]])
+    // A long window keeps the latest four weeks, so a row stays readable on one page.
+    const long = buildDoctorReport(empty, growth, child, DEFAULT_UNITS, null, null, { lastVisit: new Date('2026-08-01T00:00:00'), thisVisit: now }, now)
+    expect(long.pattern).toHaveLength(PATTERN_DAYS)
+    expect(long.pattern[PATTERN_DAYS - 1].date.getDate()).toBe(9)
   })
 
   it('copes with no growth and an expecting child', () => {
