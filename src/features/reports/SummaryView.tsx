@@ -37,7 +37,7 @@ import { calorieTracking, dayCalories, judgeCalories, mlForGoal, TYPICAL_KCAL_PE
 import { MILK_KCAL_PER_OZ, strengthText, type FortifySettings } from '../../lib/fortify'
 import { ML_PER_OZ } from '../../lib/units'
 import { nicuPumping } from '../../lib/nicu-pumping'
-import { averagedDays, clockRange, diaperSplit, fullDayAverage, keepToRange, LB_STEPS, ozRange, ozText, volumeRange, weightTick } from './format'
+import { averagedDays, clockRange, diaperSplit, fullDayAverage, hoursTick, keepToRange, LB_STEPS, ozRange, ozText, volumeRange, weightTick } from './format'
 import '../more/pumps.css'
 import './summary.css'
 
@@ -728,12 +728,6 @@ function sameStep(a: { days: number; grams: number }, b: { days: number; grams: 
   return a.days === b.days && Math.round(a.grams) === Math.round(b.grams)
 }
 
-/** "45m" under an hour, "1.5h" for fractional hours, "8h" otherwise. */
-export function hoursTick(v: number): string {
-  if (v === 0) return '0'
-  if (v < 1) return `${Math.round(v * 60)}m`
-  return Number.isInteger(Math.round(v * 2) / 2) ? `${Math.round(v)}h` : `${(Math.round(v * 2) / 2).toFixed(1)}h`
-}
 
 function Stat({ name, value, detail, tone, testId }: { name: string; value: string; /** A small line under the value. */ detail?: string | null; tone?: 'met' | 'missed'; testId?: string }) {
   return (

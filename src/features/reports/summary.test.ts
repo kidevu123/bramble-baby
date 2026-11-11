@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { hoursTick } from './SummaryView'
+import { hoursTick } from './format'
 
 describe('hoursTick', () => {
   it('shows minutes under an hour', () => expect(hoursTick(0.5)).toBe('30m'))

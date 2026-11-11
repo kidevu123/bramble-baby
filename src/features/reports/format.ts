@@ -162,3 +162,10 @@ export function barText(d: BarDay, say: (v: number) => string, sayPart: (v: numb
   const parts = named.length > 1 ? named.filter((p) => p.value > 0).map((p) => `${p.name} ${sayPart(p.value)}`).join(' · ') : ''
   return { value: say(total), when: d.date ? format(d.date, 'EEE, MMM d') : d.label, change: parts || null }
 }
+
+/** "45m" under an hour, "1.5h" for fractional hours, "8h" otherwise. */
+export function hoursTick(v: number): string {
+  if (v === 0) return '0'
+  if (v < 1) return `${Math.round(v * 60)}m`
+  return Number.isInteger(Math.round(v * 2) / 2) ? `${Math.round(v)}h` : `${(Math.round(v * 2) / 2).toFixed(1)}h`
+}
