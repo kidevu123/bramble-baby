@@ -745,6 +745,65 @@ class NudgeTest(unittest.TestCase):
         self.n.save_settings(CHILD, {"summary": False})
         self.assertEqual(self.n.run_once(later)[CHILD]["summary"]["note"], "Off")
 
+    # ---- morning report (a sleep sensor's last night)
+    def night(self, evening: str, light: int, deep: int, longest: int, wakings: int, partial=False, ongoing=False, worn=None) -> dict:
+        lo = datetime.fromisoformat(f"{evening}T18:00:00").replace(tzinfo=TZ)
+        hi = lo + timedelta(hours=14)
+        return {"date": evening, "start": iso(lo), "end": iso(hi), "worn": worn if worn is not None else light + deep + 30, "light": light, "deep": deep,
+                "longest": longest, "wakings": wakings, "sleeps": 1 + (wakings > 2), "partial": partial, "ongoing": ongoing, "pulse": 130.0, "oxygen": 98.0}
+
+    def test_morning_report_sends_last_night_beside_her_usual(self):
+        source = self.n.night_source
+        try:
+            # No sensor connected: the report is not offered at all.
+            self.n.night_source = lambda child, days, now: None
+            self.assertEqual(self.n.run_once(NOW)[CHILD]["morning"], {"at": None, "note": "No sleep sensor connected", "unavailable": True})
+            self.assertEqual(self.rows("nudge:morning"), [])
+            # … also while no phone has notifications on (every kind waits then).
+            self.app.store.x("DELETE FROM subscriptions")
+            self.assertTrue(self.n.run_once(NOW)[CHILD]["morning"]["unavailable"])
+            self.n.night_source = lambda child, days, now: []
+            self.assertEqual(self.n.run_once(NOW)[CHILD]["morning"], {"at": None, "note": "No phone has notifications on"})
+            self.subscribe("https://push.example/mom", 7)
+            nights = [
+                self.night("2026-10-03", 300, 240, 300, 2),
+                self.night("2026-10-04", 360, 180, 240, 3),
+                self.night("2026-10-05", 330, 210, 270, 1),
+                self.night("2026-10-06", 360, 240, 330, 2, ongoing=True),  # last night, ending at 8 AM on Oct 7
+            ]
+            self.n.night_source = lambda child, days, now: list(nights)
+            early = datetime(2026, 10, 7, 6, 30, tzinfo=TZ)  # in quiet hours, before the night ends
+            notes = self.n.run_once(early)[CHILD]
+            row = self.rows("nudge:morning", sent=0)[0]
+            self.assertEqual(datetime.fromisoformat(row["at"]).astimezone(TZ).strftime("%H:%M"), "08:00")
+            self.assertEqual(row["title"], "Oscar's night")
+            self.assertEqual(row["url"], "/reports")
+            self.assertEqual(row["body"].split("\n"), [
+                "Asleep 10 h (usual 9 h)",
+                "Longest stretch 5 h 30 min (usual 4 h 30 min)",
+                "Wakings 2 (usual 2)",
+                "Deep sleep 40%",
+            ])
+            self.assertEqual(notes["morning"]["note"], "Each morning at 8:00 AM, when the night ends")
+            self.assertNotIn("130", row["body"])  # no pulse or oxygen in a push
+            self.assertNotIn("98", row["body"])
+            # A night the sensor read only part of says so; fewer than three full nights before it means no "usual".
+            nights[:] = [self.night("2026-10-05", 330, 210, 270, 1), self.night("2026-10-06", 120, 60, 150, 0, partial=True, worn=200)]
+            self.n.run_once(early)
+            body = self.rows("nudge:morning", sent=0)[0]["body"].split("\n")
+            self.assertEqual(body, ["Asleep 3 h", "Longest stretch 2 h 30 min", "Wakings 0", "Deep sleep 33%", "The sensor read 3 h 20 min of the night, so this is only part of it."])
+            # Sent once; the next poll does not plan the same night again.
+            row = self.rows("nudge:morning", sent=0)[0]
+            self.delivery.run_once(datetime.fromisoformat(row["at"]) + timedelta(seconds=1))
+            self.assertIn("Sent for the last one", self.n.run_once(datetime(2026, 10, 7, 8, 5, tzinfo=TZ))[CHILD]["morning"]["note"])
+            # Nothing read as sleep is not reported; the switch turns it off.
+            nights[:] = [self.night("2026-10-07", 0, 0, 0, 0, ongoing=True, worn=20)]
+            self.assertIn("nothing read as sleep yet tonight", self.n.run_once(datetime(2026, 10, 7, 19, 0, tzinfo=TZ))[CHILD]["morning"]["note"])
+            self.n.save_settings(CHILD, {"morning": False})
+            self.assertEqual(self.n.run_once(early)[CHILD]["morning"]["note"], "Off")
+        finally:
+            self.n.night_source = source
+
     # ---- Hatch weight
     def test_hatch_weight_hook_pushes_the_change_since_the_previous_weighing(self):
         self.app.store.x(

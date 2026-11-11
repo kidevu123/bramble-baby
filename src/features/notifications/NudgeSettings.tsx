@@ -25,6 +25,8 @@ export function NudgeSettings({ child, childName }: { child: Id | null; childNam
   // The push text uses the units of the phone that last touched Settings; send ours along with every change.
   const set = (patch: Partial<Settings>) => update({ ...patch, units: { volume: prefs.units.volume, weight: prefs.units.weight } })
   const plan = (kind: NudgeKind) => describePlan(status?.next[kind], settings[kind])
+  // Offered only where the server can read a sleep sensor's nights (it says when it cannot).
+  const morning = Boolean(status?.next.morning && !status.next.morning.unavailable)
 
   if (child === null) return null
   const how: [string, string][] = [
@@ -35,6 +37,7 @@ export function NudgeSettings({ child, childName }: { child: Id | null; childNam
     ['Evening summary', 'One line each for feeds, diapers, sleep, pumping and the stash, at the time you pick.'],
     ['Weight from the Hatch', 'When a weighing lands, with the change since the last one. During quiet hours it waits for the morning.'],
     ['Pumping down', 'When each of the last three days comes in well under the daily average of the two weeks before. A day with nothing logged does not count as a drop. To the phone of whoever pumps, at most once every three days; the tap opens Reports.'],
+    ...(morning ? ([['Morning report', 'Last night as the sleep sensor read it: asleep, the longest stretch, wakings and deep sleep, each beside her usual over the full nights before. Sent when the night ends (the day start on the Child tab), never in quiet hours. Sleep only: no pulse or oxygen in a push.']] as [string, string][]) : []),
     ['When the other person logs', 'A short push to the other phones the moment someone saves a feed, a pump, a diaper or a sleep, so nobody logs it twice or asks. Never to the phone that logged it, never in quiet hours.'],
     ['A tap on a push', 'Opens Bramble on the matching log sheet, for just now.'],
   ]
@@ -76,6 +79,7 @@ export function NudgeSettings({ child, childName }: { child: Id | null; childNam
             </div>
           ) : null}
         </NudgeRow>
+        {morning ? <NudgeRow title="Morning report" detail={plan('morning')} on={settings.morning} onChange={(v) => set({ morning: v })} /> : null}
         <NudgeRow title="Weight from the Hatch" detail={plan('weight')} on={settings.weight} onChange={(v) => set({ weight: v })} />
         <NudgeRow title="Pumping down" detail={plan('supply')} on={settings.supply} onChange={(v) => set({ supply: v })} />
         <NudgeRow title="When the other person logs" detail={plan('activity')} on={settings.activity} onChange={(v) => set({ activity: v })} />

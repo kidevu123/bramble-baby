@@ -12,6 +12,11 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.61.0',
+    date: 'Nov 11',
+    items: ['Nothing new in this copy: 1.61.0 adds to an integration the public release does not include.'],
+  },
+  {
     version: '1.60.0',
     date: 'Nov 11',
     items: ['Nothing new in this copy: 1.60.0 adds to an integration the public release does not include.'],

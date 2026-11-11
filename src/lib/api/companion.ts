@@ -372,7 +372,7 @@ export interface HatchStatus {
 
 // ---- Nudges (companion `nudges.py`): reminders computed from what was logged, replaced on every poll
 
-export type NudgeKind = 'feed' | 'pump' | 'diaper' | 'summary' | 'weight' | 'supply' | 'activity'
+export type NudgeKind = 'feed' | 'pump' | 'diaper' | 'summary' | 'weight' | 'supply' | 'activity' | 'morning'
 
 /** Settings › Notifications: which nudges this household wants, shared by every phone (the server reads them). */
 export interface NudgeSettings {
@@ -392,6 +392,8 @@ export interface NudgeSettings {
   supply: boolean
   /** Pings to the other caregivers' phones when someone logs something; off by default. */
   activity: boolean
+  /** Last night's sleep each morning, where a sleep sensor is connected (the server says when it is not). */
+  morning: boolean
   quietStart: string
   quietEnd: string
   /** The units the push text uses; the phone that last saved Settings sets them. Null = the child's storage units. */
@@ -402,6 +404,8 @@ export interface NudgeSettings {
 export interface NudgePlan {
   at: string | null
   note: string
+  /** The server cannot offer this one here (the morning report with no sleep sensor): its row is hidden. */
+  unavailable?: boolean
   title?: string
   body?: string
 }

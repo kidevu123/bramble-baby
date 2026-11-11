@@ -12,6 +12,7 @@ export function ChartTip({ x, y, W, H, text }: { x: number; y: number; W: number
       <span className="lc-tip-when">{text.when}</span>
       {text.change ? <span className="lc-tip-change">{text.change}</span> : null}
       {text.check ? <span className={`lc-tip-check ${text.check.met ? 'is-met' : 'is-missed'}`}>{text.check.text}</span> : null}
+      {text.extra ? <span className="lc-tip-change">{text.extra}</span> : null}
     </div>
   )
 }
@@ -45,6 +46,8 @@ export interface BarDay {
   date?: Date
   /** Named parts are listed in the readout when a bar has more than one ("Night 8h · Naps 2h 10m"). */
   parts: { value: number; color: string; name?: string }[]
+  /** One more line in the readout, about the day itself ("Pulse 131 · oxygen 98%"). */
+  extra?: string | null
 }
 
 /**
@@ -135,7 +138,11 @@ export interface PointText {
   when: string
   change?: string | null
   /** A weighing judged against the last check: "needed +17 g · met". */
-  check?: { text: string; met: boolean } | null
+  check?: { text: string; met: boolean   /** One more plain line (a bar's `extra`). */
+  extra?: string | null
+} | null
+  /** One more plain line (a bar's `extra`). */
+  extra?: string | null
 }
 
 /** A dashed step from the last check to where the rate would have put the next one. */

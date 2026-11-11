@@ -189,11 +189,11 @@ describe('a daily band', () => {
 describe('a tapped bar', () => {
   const day = new Date(2026, 9, 22)
   it('says its total and its day', () => {
-    expect(barText({ label: 'T', date: day, parts: [{ value: 9, color: 'x' }] }, (v) => `${v} feeds`)).toEqual({ value: '9 feeds', when: 'Thu, Oct 22', change: null })
+    expect(barText({ label: 'T', date: day, parts: [{ value: 9, color: 'x' }] }, (v) => `${v} feeds`)).toEqual({ value: '9 feeds', when: 'Thu, Oct 22', change: null, extra: null })
   })
   it('lists the named parts of a stacked bar that have any, and falls back to the axis label without a date', () => {
     const d = { label: '22', parts: [{ value: 2, color: 'y', name: 'Wet' }, { value: 0, color: 'o', name: 'Wet and poo' }, { value: 1, color: 'b', name: 'Poo' }] }
-    expect(barText(d, (v) => String(v))).toEqual({ value: '3', when: '22', change: 'Wet 2 · Poo 1' })
+    expect(barText(d, (v) => String(v))).toEqual({ value: '3', when: '22', change: 'Wet 2 · Poo 1', extra: null })
     expect(barText(d, (v) => `${v} diapers`, (v) => String(v)).change).toBe('Wet 2 · Poo 1')
   })
 })

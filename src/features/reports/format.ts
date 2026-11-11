@@ -156,11 +156,11 @@ export function volumeRange(loMl: number, hiMl: number, unit: VolumeUnit): strin
 }
 
 /** What a tapped bar says: its total, its day, and the parts of a stacked bar. */
-export function barText(d: BarDay, say: (v: number) => string, sayPart: (v: number) => string = say): { value: string; when: string; change: string | null } {
+export function barText(d: BarDay, say: (v: number) => string, sayPart: (v: number) => string = say): { value: string; when: string; change: string | null; extra: string | null } {
   const named = d.parts.filter((p) => p.name)
   const total = d.parts.reduce((s, p) => s + p.value, 0)
   const parts = named.length > 1 ? named.filter((p) => p.value > 0).map((p) => `${p.name} ${sayPart(p.value)}`).join(' · ') : ''
-  return { value: say(total), when: d.date ? format(d.date, 'EEE, MMM d') : d.label, change: parts || null }
+  return { value: say(total), when: d.date ? format(d.date, 'EEE, MMM d') : d.label, change: parts || null, extra: d.extra ?? null }
 }
 
 /** "45m" under an hour, "1.5h" for fractional hours, "8h" otherwise. */

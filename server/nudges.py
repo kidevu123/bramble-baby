@@ -12,6 +12,10 @@ comes. This module decides what should be in that table, from what the household
   * diaper  – the one safety nudge: no wet diaper for longer than 1.5x the typical interval for
               the child's age (the same per-day-of-life numbers as the Home card). Ignores quiet hours.
   * summary – one evening line per thing: feeds, diapers, sleep, pumping, stash.
+  * morning – last night as a sleep sensor read it (asleep, the longest stretch, wakings, deep sleep), each beside
+              her usual over the full nights before, sent when the night ends (the child's day start), through
+              quiet hours to their end. Sleep figures only: no push here carries or is set off by a pulse or
+              oxygen reading. Offered only where a sensor is connected (`night_source`, set by the server).
   * weight  – when a Hatch weighing lands in Baby Buddy (hook called by hatch.py), with the change
               since the previous weighing. Never for the backlog of a first import.
   * activity – a ping to the other caregivers' phones when someone logs something ("Tom logged a bottle:
@@ -73,7 +77,12 @@ SUPPLY_DROP = 0.85
 SUPPLY_REPEAT = timedelta(days=3)
 
 SOURCE = "nudge"
-KINDS = ("feed", "pump", "diaper", "summary", "weight", "supply", "activity")
+# The morning report: how many nights it reads, the fewest full nights before last night that make a "usual",
+# and the least sleep that makes a night worth reporting.
+MORNING_NIGHTS = 8
+MORNING_USUAL_NIGHTS = 3
+MORNING_MIN_ASLEEP = timedelta(minutes=30)
+KINDS = ("feed", "pump", "diaper", "summary", "weight", "supply", "activity", "morning")
 
 DEFAULTS: dict = {
     "feed": True,
@@ -86,6 +95,7 @@ DEFAULTS: dict = {
     "weight": True,
     "supply": True,
     "activity": False,  # opt-in: pings to the other phones when someone logs something
+    "morning": True,  # last night's sleep, when a sleep sensor read it (night_source)
     "quietStart": "22:00",
     "quietEnd": "07:00",
     "units": None,  # {"volume": "ml"|"oz", "weight": "lb"|"kg"}: the phone that last saved Settings
@@ -356,6 +366,9 @@ class Nudges:
         self.problem: dict | None = None
         self.status_notes: dict[int, dict] = {}  # child -> {kind: {"at": iso|None, "note": str, ...}}
         self.caught_up: dict[int, int] = {}  # child -> entries the last poll learned quietly after a gap
+        # (child, days, now) -> the last nights a sleep sensor read, oldest first, or None when no sensor is
+        # connected (the morning report is then not offered). Set by the server; None here means the same.
+        self.night_source = None
         self._lock = threading.Lock()
         self._wake, self._stop = threading.Event(), threading.Event()
         self._thread = threading.Thread(target=self._loop, name="bramble-nudges", daemon=True)
@@ -525,15 +538,15 @@ class Nudges:
             birth = date.fromisoformat(str(child.get("birth_date"))[:10]) if child.get("birth_date") else None
         except ValueError:
             birth = None
-        planned = [f"nudge:{k}" for k in ("feed", "pump", "diaper", "summary", "supply")]
+        planned = [f"nudge:{k}" for k in ("feed", "pump", "diaper", "summary", "supply", "morning")]
         if not birth or birth > today:
             self._clear(cid, planned)
             self._ledger(cid, *self._recent(cid, token, now), now)  # kept, so the first poll after the birth is no burst
-            return {k: {"at": None, "note": "Waiting for the birth date"} for k in KINDS}
+            return self._waiting(cid, now, "Waiting for the birth date")
         if not self.store.q("SELECT 1 FROM subscriptions LIMIT 1"):
             self._clear(cid, planned)
             self._ledger(cid, *self._recent(cid, token, now), now)  # kept, so a phone subscribing again gets no burst
-            return {k: {"at": None, "note": "No phone has notifications on"} for k in KINDS}
+            return self._waiting(cid, now, "No phone has notifications on")
         storage, display = self.units(cid, settings)
         feedings, pumping, changes, sleep = self._recent(cid, token, now)
         # The supply watch looks two weeks back; only read that far when it is on.
@@ -549,7 +562,19 @@ class Nudges:
         notes["weight"] = {"at": None, "note": "When a Hatch weighing lands" if settings["weight"] else "Off"}
         notes["supply"] = self._supply(ctx, pumping_weeks)
         notes["activity"] = self._activity(ctx, *self._ledger(cid, feedings, pumping, changes, sleep, now))
+        notes["morning"] = self._morning(ctx)
         return notes
+
+    def _waiting(self, cid: int, now: datetime, note: str) -> dict:
+        """Every kind waiting for the same reason; the morning report says it is not offered where no sensor is."""
+        out = {k: {"at": None, "note": note} for k in KINDS}
+        if self._nights(cid, now) is None:
+            out["morning"] = {"at": None, "note": "No sleep sensor connected", "unavailable": True}
+        return out
+
+    def _nights(self, cid: int, now: datetime) -> list[dict] | None:
+        """The sleep sensor's last nights for this child, or None when no sensor is connected."""
+        return self.night_source(cid, MORNING_NIGHTS, now) if self.night_source else None
 
     def _recent(self, cid: int, token: str, now: datetime) -> tuple[list, list, list, list]:
         """The last HISTORY_HOURS of feedings (no solids), pumping, changes and sleep from Baby Buddy."""
@@ -870,6 +895,49 @@ class Nudges:
         title = f"{ctx['name']}'s day"
         note = f"Every day at {self._clock_text(s['summaryAt'])}"
         return self._plan(ctx, tag, day.isoformat(), at.astimezone(timezone.utc), title, "\n".join(lines), "/", None, note, quiet=True)
+
+    def _morning(self, ctx: dict) -> dict:
+        """Last night as the sleep sensor read it, at the night's end, beside her usual. Sleep figures only."""
+        cid, s, now, tag = ctx["cid"], ctx["settings"], ctx["now"], "nudge:morning"
+        nights = self._nights(cid, now)
+        if nights is None:
+            self._clear(cid, [tag])
+            return {"at": None, "note": "No sleep sensor connected", "unavailable": True}
+        if not s["morning"]:
+            return self._off(cid, tag)
+        if not nights:
+            return self._none(cid, tag, "When the sleep sensor has read a night")
+        last = nights[-1]
+        end = parse_dt(last["end"])
+        if not end:
+            return self._none(cid, tag, "When the sleep sensor has read a night")
+        when = f"Each morning at {clock(end, self.tz)}, when the night ends"
+        asleep = (last["light"] + last["deep"]) * 60
+        if not last["sleeps"] or asleep < MORNING_MIN_ASLEEP.total_seconds():
+            return self._none(cid, tag, f"{when} · nothing read as sleep {'yet tonight' if last['ongoing'] else 'last night'}")
+        before = [n for n in nights[:-1] if not n["partial"] and not n["ongoing"]][-7:]
+
+        def usual(key) -> float | None:
+            vals = [key(n) for n in before]
+            return sum(vals) / len(vals) if len(vals) >= MORNING_USUAL_NIGHTS else None
+
+        def beside(text: str, value: float | None, fmt) -> str:
+            return f"{text} (usual {fmt(value)})" if value is not None else text
+
+        asleep_usual = usual(lambda n: (n["light"] + n["deep"]) * 60)
+        longest_usual = usual(lambda n: n["longest"] * 60)
+        wakings_usual = usual(lambda n: n["wakings"])
+        lines = [
+            beside(f"Asleep {duration(asleep)}", asleep_usual, duration),
+            beside(f"Longest stretch {duration(last['longest'] * 60)}", longest_usual, duration),
+            beside(f"Wakings {last['wakings']}", wakings_usual, lambda v: f"{v:.0f}" if abs(v - round(v)) < 0.05 else f"{v:.1f}"),
+        ]
+        if last["light"] + last["deep"]:
+            lines.append(f"Deep sleep {round(100 * last['deep'] / (last['light'] + last['deep']))}%")
+        if last["partial"]:
+            lines.append(f"The sensor read {duration(last['worn'] * 60)} of the night, so this is only part of it.")
+        title = f"{ctx['name']}'s night"
+        return self._plan(ctx, tag, last["date"], end, title, "\n".join(lines), "/reports", None, when, quiet=True, defer=True)
 
     # ---- Hatch weight hook (called from hatch.py after a weighing is written to Baby Buddy)
     def weight_imported(self, child: int, hatch_id: int, grams: float, measured_at: str, backlog: bool) -> None:
