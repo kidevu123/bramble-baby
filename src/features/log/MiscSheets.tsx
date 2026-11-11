@@ -188,7 +188,7 @@ export function HealthSheet({ child, editing, initial, prefill, onClose }: { chi
         <ValueField label="Temperature" unit={`°${prefs.units.temp.toUpperCase()}`} name="Temperature" type="number" inputMode="decimal" step="0.1" value={temp} onChange={(e) => setTemp(e.target.value)} placeholder={prefs.units.temp === 'f' ? '98.6' : '37.0'} />
       ) : (
         <>
-          <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Infant acetaminophen" />
+          <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Vitamin D drops" />
           <div className="dose-row">
             <ValueField label="Dose" name="Dose" type="number" inputMode="decimal" step="0.1" min={0} value={dose} onChange={(e) => setDose(e.target.value)} placeholder="0" />
             <PillChoice

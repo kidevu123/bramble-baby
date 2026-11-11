@@ -130,6 +130,24 @@
   border-radius: 50%;
   background: var(--teal);
 }
+/* Normal, even if it worries you: the reassuring green; Not yet: quiet grey, nothing to do. */
+.guide-lines.is-normal li::before {
+  background: var(--mint);
+}
+.guide-lines.is-later li {
+  color: var(--text);
+}
+.guide-lines.is-later li::before {
+  background: transparent;
+  border: 2px solid var(--text-muted);
+  width: 5px;
+  height: 5px;
+}
+.guide-lead {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
 .guide-lines.is-call {
   border-left: 3px solid var(--orange);
 }

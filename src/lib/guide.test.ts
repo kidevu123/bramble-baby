@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { entrySources, GUIDE, GUIDE_SOURCES, guideIndexFor, periodMonths, periodText, WEEKS } from './guide'
+import { entrySources, GUIDE, GUIDE_SOURCES, guideIndexFor, NOT_YET, notYetFor, periodMonths, periodText, WEEKS } from './guide'
 import { ageBasis } from './preterm'
 
-const all = (e: (typeof GUIDE)[number]) => [...e.notice, ...(e.care ?? []), ...e.helps, ...(e.visit ?? []), ...(e.you ?? []), ...(e.call ?? [])]
+const all = (e: (typeof GUIDE)[number]) => [...e.notice, ...(e.normal ?? []), ...notYetFor(e), ...(e.care ?? []), ...e.helps, ...(e.visit ?? []), ...(e.you ?? []), ...(e.call ?? [])]
 
 describe('the guide by age', () => {
   it('covers every age without a gap: thirteen weeks, then months to five years', () => {
@@ -38,7 +38,7 @@ describe('the guide by age', () => {
       const shown = e.notice.filter((x) => x.how)
       expect(shown.length, e.id).toBeGreaterThanOrEqual(2)
       // A "how" is only ever attached to something to look for, and never repeats a line of the same period.
-      for (const group of [e.care, e.helps, e.visit, e.you, e.call]) for (const line of group ?? []) expect(line.how, line.text).toBeUndefined()
+      for (const group of [e.normal, notYetFor(e), e.care, e.helps, e.visit, e.you, e.call]) for (const line of group ?? []) expect(line.how, line.text).toBeUndefined()
       const said = all(e).flatMap((x) => [x.text, ...(x.how ? [x.how] : [])])
       expect(new Set(said).size, e.id).toBe(said.length)
       for (const line of shown) expect(line.how!.length, line.how).toBeLessThan(215)
@@ -50,6 +50,28 @@ describe('the guide by age', () => {
     expect(w8.notice.find((x) => x.text.startsWith('Reacts to loud sounds'))!.how).toContain('rattle off to one side')
     // A newborn's weeks say which reflex to look for and how to bring it out.
     expect(GUIDE[0].notice.find((x) => x.text.includes('rooting'))!.how).toContain('Stroke the cheek')
+  })
+
+  it('says what is too early to expect, and stops saying it once it is due', () => {
+    const notYet = (id: string) => notYetFor(GUIDE.find((e) => e.id === id)!).map((x) => x.text).join(' | ')
+    // The owner's screenshot (2026-11-11): at under two months the app pointed parents at a tooth, solids and crawling.
+    for (const id of ['w0', 'w7', 'w8']) {
+      expect(notYet(id)).toContain('A first tooth: teething typically starts between 4 and 7 months')
+      expect(notYet(id)).toContain('Solid food: at about 6 months, and not before 4')
+      expect(notYet(id)).toContain('Rolling over')
+    }
+    expect(notYet('w8')).not.toContain('Crawling') // too far off to mention at two months; it comes into view from 3
+    expect(notYet('w2')).toContain('A real smile')
+    expect(notYet('w6')).not.toContain('A real smile') // due: it is under "what to look for" by then
+    expect(notYet('m4')).not.toContain('tooth')
+    expect(notYet('m4')).toContain('Sitting without support: most babies do by 9 months')
+    expect(notYet('m6')).not.toContain('Solid food')
+    expect(notYet('m12')).toContain('Toilet training')
+    expect(notYet('m60')).toBe('')
+    for (const e of GUIDE) expect(notYetFor(e).length, e.id).toBeLessThanOrEqual(6)
+    for (const n of NOT_YET) expect(n.until).toBeGreaterThan(n.from)
+    // Every newborn week reassures about something that looks alarming and is not.
+    for (const id of ['w0', 'w1', 'w2', 'w3', 'w4']) expect(GUIDE.find((e) => e.id === id)!.normal!.length, id).toBeGreaterThanOrEqual(2)
   })
 
   it('keeps the facts where their sources put them', () => {

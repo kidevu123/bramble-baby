@@ -36,6 +36,8 @@ installing and deploying; `README.md` is the public front page (screenshots from
   first and add it to the sources. A line's `how` (what to try, shown under it) comes from the same pages and is paired only with the thing those
   pages pair it with; where the AAP's older lists and CDC's 2022 lists give different ages, leave the line out.
   The guide describes and never judges the child: what was seen is marked on the checklist beside it.
+- **Nothing is offered or suggested at an age it cannot apply to** (chips, placeholders, tips, plans): gate it by an age from a named page, and where
+  parents will wonder about it earlier, say so under the guide's Not yet (`NOT_YET`: the line, its source, `from`/`until` in months).
 - **A first that is on no CDC list (`KEEPSAKES` in `src/lib/milestones.ts`) is offered only from its `from` age**, taken from an AAP or CDC page,
   and under its own heading, never under CDC's (a tooth, solids, crawling and the potty were once offered to a two-month-old).
 - **Milestone checklists are CDC's own lists (`src/lib/milestones.ts`)**: an item is added, moved to another age or reworded only against CDC's

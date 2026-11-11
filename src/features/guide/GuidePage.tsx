@@ -7,7 +7,7 @@ import { useChildren } from '../../hooks/useChildren'
 import { useChildSettings } from '../../hooks/useChildSettings'
 import { useLoggedMilestones } from '../../hooks/useCompanionEvents'
 import { isExpecting } from '../../lib/child'
-import { entrySources, GUIDE, guideIndexFor, periodMonths, periodText, type GuideLine } from '../../lib/guide'
+import { entrySources, GUIDE, guideIndexFor, notYetFor, periodMonths, periodText, type GuideLine } from '../../lib/guide'
 import { ageBasis, ageHold } from '../../lib/preterm'
 import { parseDate } from '../../lib/time'
 import { LogSheet, type LogRequest } from '../log/LogSheet'
@@ -18,7 +18,8 @@ import './guide.css'
 /**
  * What to expect: the child's age week by week for the first three months, then month by month and by CDC's
  * checklist ages. It opens on the period the child is in; the strip and the arrows browse the others. Each period
- * says what to look for and how to see it (something to try, from the same pages), what feeding and sleep look like, what helps, the check-up due and when to call,
+ * says what to look for and how to see it (something to try, from the same pages), what is normal even though it
+ * worries parents, what is too early to expect, what feeding and sleep look like, what helps, the check-up due and when to call,
  * and carries CDC's checklist for that age, where what has been seen is marked. Reached from the Child tab.
  */
 export function GuidePage() {
@@ -50,6 +51,7 @@ export function GuidePage() {
     )
   }
   const entry = GUIDE[index]
+  const notYet = notYetFor(entry)
   const isNow = index === current
   const hold = ageHold(basis, now)
   const go = (i: number) => {
@@ -85,6 +87,8 @@ export function GuidePage() {
         </section>
 
         <Lines title="What to look for" lines={entry.notice} testId="guide-notice" />
+        {entry.normal ? <Lines title="Normal, even if it worries you" lines={entry.normal} tone="normal" testId="guide-normal" /> : null}
+        {notYet.length ? <Lines title="Not yet" lead="Too early to expect, so no need to watch for it:" lines={notYet} tone="later" testId="guide-not-yet" /> : null}
         {entry.care ? <Lines title="Feeding and sleep" lines={entry.care} testId="guide-care" /> : null}
         <Lines title="What helps" lines={entry.helps} testId="guide-helps" />
         {entry.visit ? <Lines title="Check-ups" lines={entry.visit} testId="guide-visit" /> : null}
@@ -143,10 +147,11 @@ export function GuidePage() {
   )
 }
 
-function Lines({ title, lines, tone, testId }: { title: string; lines: GuideLine[]; tone?: 'call'; testId: string }) {
+function Lines({ title, lead, lines, tone, testId }: { title: string; /** A sentence under the title that the lines complete. */ lead?: string; lines: GuideLine[]; tone?: 'call' | 'normal' | 'later'; testId: string }) {
   return (
-    <section className={tone === 'call' ? 'card card-pad guide-lines is-call' : 'card card-pad guide-lines'} data-testid={testId}>
+    <section className={tone ? `card card-pad guide-lines is-${tone}` : 'card card-pad guide-lines'} data-testid={testId}>
       <h2>{title}</h2>
+      {lead ? <p className="guide-lead">{lead}</p> : null}
       <ul>
         {lines.map((line) => (
           <li key={line.text}>

@@ -12,6 +12,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.63.0',
+    date: 'Nov 11',
+    items: [
+      'What to expect now says what is too early to expect at {name}’s age, the way a pediatrician would: at two months, no tooth yet (4 to 7 months), no solid food (about 6 months), no rolling or laughing yet. Each line moves on once it is due.',
+      'And what is normal even if it worries you: eyes that cross now and then, a smile for you and a stare for strangers, baby acne, a brick-red stain in a newborn’s diaper.',
+      'All of it from pages of the AAP, CDC and the NHS, named under “Where this comes from”.',
+    ],
+  },
+  {
     version: '1.62.0',
     date: 'Nov 11',
     items: [

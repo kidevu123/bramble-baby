@@ -39,6 +39,7 @@ export const GUIDE_SOURCES = {
   'aap-7mo': { label: 'AAP: Developmental Milestones: 7 Months', url: `${AAP}/ages-stages/baby/Pages/Developmental-Milestones-7-Months.aspx` },
   'aap-12mo': { label: 'AAP: Developmental Milestones: 12 Months', url: `${AAP}/ages-stages/baby/Pages/Developmental-Milestones-12-Months.aspx` },
   'aap-2y': { label: 'AAP: Developmental Milestones: 2 Year Olds', url: `${AAP}/ages-stages/toddler/Pages/Developmental-Milestones-2-Year-Olds.aspx` },
+  'aap-common': { label: 'AAP: 11 Common Conditions in Newborns', url: `${AAP}/ages-stages/baby/Pages/Common-Conditions-in-Newborns.aspx` },
   'aap-vision': { label: 'AAP: Baby’s Vision Development', url: `${AAP}/ages-stages/baby/Pages/Babys-Vision-Development.aspx` },
   'aap-colic': { label: 'AAP: Colic Relief Tips for Parents', url: `${AAP}/ages-stages/baby/crying-colic/Pages/Colic.aspx` },
   'aap-cries': { label: 'AAP: Responding To Your Baby’s Cries', url: `${AAP}/ages-stages/baby/crying-colic/Pages/Responding-to-Your-Babys-Cries.aspx` },
@@ -86,6 +87,8 @@ export interface GuideEntry {
   headline: string
   /** What to look for: lines with a `how` say what to try; the others say what the weeks bring. */
   notice: GuideLine[]
+  /** Normal, even if it looks worrying: what a pediatrician reassures parents about at this age. */
+  normal?: GuideLine[]
   /** Feeding and sleep. */
   care?: GuideLine[]
   /** What helps. */
@@ -126,6 +129,43 @@ const week = (n: number, e: Omit<GuideEntry, 'id' | 'unit' | 'from' | 'to' | 'sh
 })
 const month = (from: number, to: number, short: string, title: string, e: Omit<GuideEntry, 'id' | 'unit' | 'from' | 'to' | 'short' | 'title'>): GuideEntry => ({ id: `m${from}`, unit: 'month', from, to, short, title, ...e })
 
+/**
+ * Not yet: what is too early to expect, each with the age its source gives, so nobody watches a two-month-old for a
+ * tooth. A line shows in the periods that start at `from` months or later and before `until` (the age at which it
+ * stops being ahead and becomes something to look for).
+ */
+export const NOT_YET: (GuideLine & { from: number; until: number })[] = [
+  { from: 0, until: 1.1, ...l('A real smile in answer to yours: around the sixth week. Smiles in sleep before then are reflexes.', 'aap-move-0-3') },
+  { from: 0, until: 3, ...l('Holding the head steady: most babies do by 4 months when held. Until then it needs your hand.', 'cdc-milestones', 'aap-move-0-3') },
+  { from: 0, until: 3, ...l('Rolling over: a few begin at about 3 months, and most roll from tummy to back by 6.', 'aap-move-0-3', 'cdc-milestones') },
+  { from: 0, until: 4, ...l('A regular sleep pattern: babies do not have regular sleep cycles until about 4 months.', 'aap-sleep') },
+  { from: 1, until: 4, ...l('Laughing: chuckles come by about 4 months, and laughs by 6.', 'cdc-milestones') },
+  { from: 0, until: 4, ...l('A first tooth: teething typically starts between 4 and 7 months.', 'aap-teething') },
+  { from: 0, until: 5, ...l('Solid food: at about 6 months, and not before 4.', 'cdc-solids') },
+  { from: 3, until: 6, ...l('Sitting without support: most babies do by 9 months.', 'cdc-milestones') },
+  { from: 3, until: 7, ...l('Crawling: usually mastered between 7 and 10 months, and a few children never crawl.', 'aap-move-8-12') },
+  { from: 4, until: 8, ...l('Answering to their name: around 9 months.', 'cdc-milestones') },
+  { from: 5, until: 9, ...l('Picking up small things between finger and thumb: at about 9 months. Until then the grip is a raking one.', 'aap-move-4-7') },
+  { from: 6, until: 12, ...l('First steps: most babies take them at about a year.', 'aap-move-0-3') },
+  { from: 6, until: 12, ...l('First words: most babies call a parent "mama" or "dada" by 12 months, and try one or two other words by 15.', 'cdc-milestones') },
+  { from: 12, until: 18, ...l('Walking without holding on: most children do by 18 months.', 'cdc-milestones') },
+  { from: 12, until: 24, ...l('Two words together: most children say them by 2 years.', 'cdc-milestones') },
+  { from: 12, until: 30, ...l('Toilet training: most children are not able to until 2 to 3 years, and starting too early can make it take longer.', 'cdc-milestones') },
+  { from: 15, until: 36, ...l('Sharing: at 2, children play next to each other and do not yet know how to share.', 'cdc-milestones') },
+  { from: 36, until: 60, ...l('Writing: most children write some letters of their name by 5 years.', 'cdc-milestones') },
+]
+
+/** The period's start as an age in months (weeks are days). */
+const startMonths = (e: GuideEntry): number => (e.unit === 'week' ? e.from / 30.4375 : e.from)
+
+/** What is too early to expect in this period, nearest first. */
+export function notYetFor(e: GuideEntry): GuideLine[] {
+  const at = startMonths(e)
+  return NOT_YET.filter((n) => at >= n.from && at < n.until)
+    .sort((a, b) => a.until - b.until)
+    .map(({ text, src }) => ({ text, src }))
+}
+
 /** Weeks 0 to 12 end where "3 months" begins. */
 export const WEEKS = 13
 
@@ -139,6 +179,13 @@ export const GUIDE: GuideEntry[] = [
       see('Grips whatever touches the palm.', 'Stroke the palm and your baby grips your finger; stroke the sole of the foot and the toes curl.', 'aap-reflexes'),
       l('First stools are black or dark green, then turn yellow-green.', 'aap-diapers'),
       l('Skin can turn yellow in the first few days (jaundice); most of it needs no treatment.', 'aap-jaundice'),
+    ],
+    normal: [
+      l('Hands and feet that look bluish or feel cool, and blotchy skin: the colour comes back when they are warmed or moved.', 'aap-first-month', 'aap-common'),
+      l('A pink or brick-red stain in the diaper in the first week is usually concentrated urine, not blood, as long as there are at least 4 wet diapers a day.', 'aap-diapers'),
+      l('A newborn girl may have a small spot of blood in the diaper in the first week, from the mother’s hormones.', 'aap-diapers'),
+      l('Coughing and sputtering when the milk comes fast.', 'aap-common'),
+      l('Sleeping most of the day, as long as your baby wakes every few hours, feeds well and is alert for part of the day.', 'aap-common'),
     ],
     care: [
       EIGHT_TO_TWELVE,
@@ -167,6 +214,12 @@ export const GUIDE: GuideEntry[] = [
       see('"Walks" when held upright (the stepping reflex).', 'Hold your baby under the arms, supporting the head too, with the soles on a flat surface: one foot is placed in front of the other. It goes after about 2 months.', 'aap-reflexes', 'aap-move-0-3'),
       l('Hands stay in tight fists and arm movements are jerky.', 'aap-1mo'),
     ],
+    normal: [
+      l('A few drops of blood on the diaper around the time the cord stump falls off.', 'aap-common'),
+      l('Smiles during sleep. They are reflexes, not yet answers to you.', 'aap-move-0-3'),
+      l('Stools that are yellow, seedy and runny on breast milk, or tan and firmer on formula. Green ones are not unusual.', 'aap-diapers'),
+      l('A quivery chin or shaky hands.', 'aap-move-0-3'),
+    ],
     care: [EIGHT_TO_TWELVE, l('On formula most newborns eat every 2 to 3 hours, 1 to 2 ounces a feed.', 'aap-feed'), VITAMIN_D],
     helps: [l('You cannot spoil a young baby. Answering cries promptly means less crying overall.', 'aap-cries'), l('Keep the cord stump clean and dry until it falls off.', 'aap-first-month'), SAFE_SLEEP],
     call: [FEVER, l('Fewer than 4 wet diapers a day.', 'aap-diapers')],
@@ -181,6 +234,11 @@ export const GUIDE: GuideEntry[] = [
       see('Prefers faces and high-contrast patterns to anything else.', 'Hold your face, or a black-and-white pattern, 8 to 12 inches away: that is where a baby this age can focus.', 'aap-1mo'),
       l('About 1 in 5 babies develop colic, usually starting between the second and fourth weeks.', 'aap-colic'),
     ],
+    normal: [
+      l('Crying for no reason you can find. All newborns do it.', 'aap-common'),
+      l('Stretching out and arching the back now and then, after the curled-up position of the womb.', 'aap-first-month'),
+      l('Hair falling out, or a bald spot where the head rubs. New hair covers it in a few months.', 'aap-first-month'),
+    ],
     care: [EIGHT_TO_TWELVE, HUNGER],
     helps: [SOOTHE, TAKE_A_BREAK, l('Keep up tummy time, a few minutes at a time, awake and watched.', 'aap-tummy')],
     you: [l('Baby blues tend to pass in a few days or weeks. Feelings that will not lift may be postpartum depression, which about 1 in 8 people who give birth develop: tell your doctor.', 'aap-ppd')],
@@ -191,10 +249,13 @@ export const GUIDE: GuideEntry[] = [
     notice: [
       l('Another growth spurt comes between 3 and 6 weeks.', 'aap-first-month'),
       l('Gains close to an ounce (28 g) a day through the first month.', 'aap-first-month'),
-      l('Pimples on the face (baby acne) often appear in the third to fifth week and clear on their own in a few weeks.', 'aap-first-month'),
       see('Knows your voice, and may look or turn toward it.', 'Speak before your baby can see you: by 1 month babies can tell a parent by voice, even from another room.', 'aap-1mo', 'aap-hearing'),
       see('The "fencing" pose (tonic neck reflex): when the head turns to one side, that arm straightens and the other bends.', 'It is subtle, and a crying or disturbed baby may not show it. It goes by 5 to 7 months.', 'aap-reflexes'),
       l('The cord stump should be off and the navel healed.', 'aap-first-month'),
+    ],
+    normal: [
+      l('Pimples on the face (baby acne) often appear in the third to fifth week and clear on their own in a few weeks.', 'aap-first-month'),
+      l('Many babies pass a stool after every feed. By 3 to 6 weeks some breastfed babies pass only one a week, which is normal if it is soft and your baby feeds and gains well.', 'aap-diapers'),
     ],
     care: [EIGHT_TO_TWELVE, l('A breastfed baby can have a pacifier from about 3 to 4 weeks, once feeding is going well.', 'aap-feed')],
     helps: [TALK, SOOTHE, SAFE_SLEEP],
@@ -207,7 +268,10 @@ export const GUIDE: GuideEntry[] = [
       see('Listens when you speak and watches you as you hold them.', 'Talk with your face close, slower and higher than usual, with your eyes and mouth wide: it is what holds a baby’s attention.', 'aap-1mo', 'aap-hearing'),
       see('Recognizes and reacts to loud sounds.', 'A loud or sudden noise brings the startle: arms and legs out, sometimes a cry.', 'aap-1mo', 'aap-reflexes'),
       l('Brings the hands within range of the eyes and mouth.', 'aap-1mo'),
-      l('Eyes may wander or cross now and then.', 'aap-1mo'),
+    ],
+    normal: [
+      l('Eyes that wander or cross now and then in these first months.', 'aap-1mo', 'aap-checkups'),
+      l('A belly that sticks out after a big feed. Between feeds it should feel soft.', 'aap-common'),
     ],
     care: [l('By the end of the first month most bottle-fed babies take at least 3 to 4 ounces a feed, about every 3 to 4 hours.', 'aap-feed'), l('Breastfed babies still feed 8 to 12 times in 24 hours.', 'cdc-bf')],
     helps: [l('A mobile or pictures with strong contrast give your baby something to study. Keep mobiles off the sleep surface.', 'aap-1mo'), TALK, l('Tummy time 2 or 3 times a day.', 'aap-tummy')],
@@ -222,6 +286,10 @@ export const GUIDE: GuideEntry[] = [
       see('Starts to lift the head when lying on the tummy.', 'Give them something to look at in front, such as your face: it is the reason to lift.', 'aap-move-0-3'),
       l('Waves the arms when excited and starts to notice their own hands.', 'aap-move-0-3'),
       l('A growth spurt is possible any time from 3 to 6 weeks.', 'aap-first-month'),
+    ],
+    normal: [
+      l('Hours of fussing in the late afternoon and evening, in a baby who is fine the rest of the day.', 'nhs-crying', 'aap-colic'),
+      l('Hands still in tight fists most of the time.', 'aap-move-0-3'),
     ],
     care: [EIGHT_TO_TWELVE, HUNGER],
     helps: [SOOTHE, TAKE_A_BREAK, l('Work up to 15 to 30 minutes of tummy time a day by 7 weeks.', 'aap-tummy')],
@@ -251,6 +319,9 @@ export const GUIDE: GuideEntry[] = [
       see('Watches faces intently and follows a moving object with the eyes.', 'Walk slowly across the room where your baby can see you, and watch the eyes come with you.', 'aap-1-4mo', 'cdc-milestones'),
       see('Holds the head up when on the tummy.', 'Lay your baby on the tummy, awake and watched, with toys at eye level in front.', 'cdc-milestones'),
     ],
+    normal: [
+      l('Crying when put on the tummy. Most babies do better after a few tries.', 'aap-move-0-3'),
+    ],
     care: [l('The time between feeds slowly gets longer: most breastfed babies feed every 2 to 4 hours, formula-fed every 3 to 4.', 'cdc-bf', 'cdc-formula')],
     helps: [l('Tummy time should add up to 15 to 30 minutes a day by now.', 'aap-tummy'), TALK, l('Learn the signs of being full: closing the mouth, turning the head away.', 'cdc-milestones')],
     visit: [l('The 2-month check-up is coming, with the first large round of vaccines.', 'aap-checkups')],
@@ -266,6 +337,10 @@ export const GUIDE: GuideEntry[] = [
       see('Watches you as you move, and looks at a toy for several seconds.', 'Look together at pictures with bright colours or faces, and talk about them.', 'cdc-milestones'),
       see('Holds the head up on the tummy, moves both arms and both legs, and opens the hands briefly.', 'Lay your baby on the tummy, awake and watched, with toys at eye level. Look for both arms and both legs moving.', 'cdc-milestones'),
       l('Crying starts to ease after its 6-week peak.', 'aap-colic'),
+    ],
+    normal: [
+      l('A smile for you and only a curious stare for a stranger.', 'aap-social-0-3'),
+      l('Occasional crossing of the eyes is still normal.', 'aap-checkups'),
     ],
     care: [l('Only breast milk or formula for about the first 6 months: no water, other drinks or foods.', 'cdc-milestones'), VITAMIN_D],
     helps: [TALK, HUNGER, l('Look after yourself too. It is easier to enjoy a baby when you feel well.', 'cdc-milestones')],
@@ -390,7 +465,10 @@ export const GUIDE: GuideEntry[] = [
       l('Passes things from hand to hand and turns them over, between the sixth and eighth month.', 'aap-move-4-7'),
       l('By 7 months: sits with the help of the hands and then without, finds a toy that is partly hidden, and is interested in the baby in the mirror.', 'aap-7mo'),
       see('Takes the whole weight on the legs when held standing.', 'Hold your baby securely under the arms and let them stand, and name what the two of you can see.', 'aap-7mo', 'cdc-milestones'),
-      l('Crawling is usually mastered between 7 and 10 months. A few children never crawl and scoot or slither instead.', 'aap-move-8-12'),
+      l('Crawling is usually mastered between 7 and 10 months.', 'aap-move-8-12'),
+    ],
+    normal: [
+      l('Never crawling at all. Some children scoot on the bottom or slither on the stomach instead; it is fine as long as both sides of the body are used equally.', 'aap-move-8-12'),
     ],
     care: [l('By 7 or 8 months your baby can eat a variety of foods from the different food groups.', 'cdc-solids'), l('No cow’s milk as a drink before 12 months; yogurt without added sugar is fine.', 'cdc-solids')],
     helps: [l('Answer the babble: repeat the sounds back and wait for a reply.', 'aap-lang-8-12'), l('Clear the floor of anything small enough to choke on.', 'aap-move-4-7')],
@@ -477,6 +555,10 @@ export const GUIDE: GuideEntry[] = [
       see('Stacks at least two small things, like blocks.', 'Play with blocks together: you stack them, your child knocks them down.', 'cdc-milestones'),
       l('Shows you things they like, claps when excited, and shows affection.', 'cdc-milestones'),
     ],
+    normal: [
+      l('Tantrums. They are normal at this age, more likely when your child is tired or hungry, and get shorter and fewer with age.', 'cdc-milestones'),
+      l('Early words that are not complete: "ba" for ball.', 'cdc-milestones'),
+    ],
     care: [l('Steady routines for sleeping and eating; a calm bedtime with pyjamas, teeth and a book or two.', 'cdc-milestones'), l('Practise an open cup and a spoon. It is messy.', 'cdc-milestones')],
     helps: [l('Sing songs with gestures and see which actions your child copies.', 'cdc-milestones'), l('Screens are not recommended before 2 years, apart from video calls with family.', 'cdc-milestones')],
     visit: [l('The 15-month check-up: any vaccines still due from the 6- and 12-month visits.', 'aap-checkups')],
@@ -502,6 +584,9 @@ export const GUIDE: GuideEntry[] = [
       see('Points to at least two body parts when you ask.', 'Sing "Head, Shoulders, Knees and Toes"; after a few times, touch a body part, wait, and see if your child sings the word.', 'cdc-milestones'),
       l('Notices when others are upset, and looks at your face to see how to react.', 'cdc-milestones'),
       l('Roller-coaster emotions are normal at this age, and a tantrum to get their way is part of it.', 'aap-checkups'),
+    ],
+    normal: [
+      l('Eating a lot at one meal and little at the next. Toddlers do not eat the same amount or kind of food every day.', 'cdc-milestones'),
     ],
     care: [l('Let your child eat as much or as little as they want at each meal.', 'cdc-milestones')],
     helps: [l('Ask the doctor about toilet training to know whether your child is ready.', 'cdc-milestones'), l('Stay close during playdates: children this age play beside each other more than together.', 'cdc-milestones')],
@@ -593,6 +678,6 @@ export function periodMonths(entry: GuideEntry): number {
 /** The sources a period's lines rest on, in the order they first appear. */
 export function entrySources(entry: GuideEntry): (GuideSource & { id: SourceId })[] {
   const ids: SourceId[] = []
-  for (const line of [...entry.notice, ...(entry.care ?? []), ...entry.helps, ...(entry.visit ?? []), ...(entry.you ?? []), ...(entry.call ?? [])]) for (const id of line.src) if (!ids.includes(id)) ids.push(id)
+  for (const line of [...entry.notice, ...(entry.normal ?? []), ...notYetFor(entry), ...(entry.care ?? []), ...entry.helps, ...(entry.visit ?? []), ...(entry.you ?? []), ...(entry.call ?? [])]) for (const id of line.src) if (!ids.includes(id)) ids.push(id)
   return ids.map((id) => ({ id, ...GUIDE_SOURCES[id] }))
 }
