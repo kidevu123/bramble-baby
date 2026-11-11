@@ -286,12 +286,18 @@ export const CHECKPOINTS: Checkpoint[] = [
   },
 ]
 
-/** Firsts a family likes to keep that are on no CDC list (they were suggestions before 1.56). */
-export const KEEPSAKES: { text: string; category: MilestoneCategory }[] = [
-  { text: 'First tooth', category: 'other' },
-  { text: 'First solids', category: 'feeding' },
-  { text: 'Crawls', category: 'motor' },
-  { text: 'Potty trained', category: 'other' },
+/**
+ * Firsts a family likes to keep that are on no CDC list. Each is offered only from the age (in months, corrected
+ * for a baby born early) at which the AAP or CDC says it starts to happen, so a two-month-old's sheet never
+ * suggests crawling: teething typically starts between 4 and 7 months (AAP), solid foods at about 6 months and
+ * not before 4 (CDC), crawling is usually mastered between 7 and 10 months (AAP), and most children cannot toilet
+ * train until 2 to 3 years (CDC, raised from the 18-month list on). Anything can still be typed by hand.
+ */
+export const KEEPSAKES: { text: string; category: MilestoneCategory; from: number }[] = [
+  { text: 'First tooth', category: 'other', from: 4 },
+  { text: 'First solids', category: 'feeding', from: 4 },
+  { text: 'Crawls', category: 'motor', from: 6 },
+  { text: 'Potty trained', category: 'other', from: 18 },
 ]
 
 /** Titles compared without case, quotes or punctuation, so "Waves bye-bye" matches 'Waves "bye-bye"'. */
@@ -410,15 +416,18 @@ export interface Suggestion {
   category: MilestoneCategory
 }
 
-/** What the log sheet offers: the not-yet-marked items of the list that is due and of the next one, then the keepsakes. */
-export function milestoneSuggestions(months: number, logged: Milestone[], limit = 8): { label: string; items: Suggestion[] } {
+/**
+ * The milestone sheet's chips: what is not marked yet on the list that is due and the next one (`items`, under
+ * `label`, which names CDC's list), and apart from them the keepsakes this age has reached (`firsts`).
+ */
+export function milestoneSuggestions(months: number, logged: Milestone[], limit = 8): { label: string; items: Suggestion[]; firsts: Suggestion[] } {
   const byTitle = loggedByTitle(logged)
   const { due, next } = checklistsFor(months)
   const lists = [due, next].filter((c): c is Checkpoint => c !== null)
   const open = lists.flatMap((c) => c.items.filter((i) => !seenEntry(i, byTitle))).map((i) => ({ text: i.text, category: i.domain as MilestoneCategory }))
-  const keeps = KEEPSAKES.filter((k) => !byTitle.has(titleKey(k.text)))
+  const firsts = KEEPSAKES.filter((k) => months >= k.from && !byTitle.has(titleKey(k.text))).map((k) => ({ text: k.text, category: k.category }))
   const label = due && checkpointProgress(due, byTitle).missing.length ? `On the ${due.adjective} list` : next ? `Coming up by ${next.label}` : 'Milestones'
-  return { label, items: [...open.slice(0, limit), ...keeps] }
+  return { label, items: open.slice(0, limit), firsts }
 }
 
 /** The item a title stands for, with its list (for the sheet: a typed or tapped title picks its category). */

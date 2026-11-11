@@ -106,14 +106,26 @@ describe('seen', () => {
     expect(checklistLine(null, null, 'Ada', false)).toBeNull()
   })
 
-  it('offers the sheet what is not marked yet, then the keepsakes', () => {
-    const s = milestoneSuggestions(2.5, [entry(1, 'Looks at your face'), entry(2, 'First tooth')])
+  it('offers the sheet what is not marked yet on CDC’s lists, and nothing else under that heading', () => {
+    const s = milestoneSuggestions(2.5, [entry(1, 'Looks at your face')])
     expect(s.label).toBe('On the 2-month list')
     expect(s.items.map((i) => i.text)).not.toContain('Looks at your face')
     expect(s.items[0]).toEqual({ text: 'Calms down when spoken to or picked up', category: 'social' })
-    expect(s.items.map((i) => i.text)).toContain('Crawls')
-    expect(s.items.map((i) => i.text)).not.toContain('First tooth')
+    expect(s.items.every((i) => itemForTitle(i.text))).toBe(true)
     expect(milestoneSuggestions(1, []).label).toBe('Coming up by 2 months')
+  })
+
+  it('keeps a first off the sheet until the age it starts to happen', () => {
+    const firsts = (months: number, logged: Milestone[] = []) => milestoneSuggestions(months, logged).firsts.map((i) => i.text)
+    // The owner's screenshot (2026-11-11): a baby under 2 months was offered a tooth, solids, crawling and the potty.
+    expect(firsts(1.8)).toEqual([])
+    expect(firsts(3.9)).toEqual([])
+    expect(firsts(4)).toEqual(['First tooth', 'First solids'])
+    expect(firsts(6)).toEqual(['First tooth', 'First solids', 'Crawls'])
+    expect(firsts(17.9)).not.toContain('Potty trained')
+    expect(firsts(18)).toContain('Potty trained')
+    expect(firsts(8, [entry(2, 'First tooth')])).toEqual(['First solids', 'Crawls'])
+    expect(KEEPSAKES.every((k) => !itemForTitle(k.text))).toBe(true)
   })
 })
 

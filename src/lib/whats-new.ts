@@ -12,6 +12,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.62.0',
+    date: 'Nov 11',
+    items: [
+      'Child tab › What to expect now says what to look for at {name}’s age and how to see it: under each thing, something to try. At two months, for instance: hold a rattle off to one side, shake it, and see if {name} looks for the noise.',
+      'Every one of those comes from a page of the AAP, CDC or the NHS, named under “Where this comes from”. From 4 months it also lists what the AAP says to tell the pediatrician about.',
+      'Add milestone no longer offers a first tooth, first solids, crawling or potty training to a baby months away from them. They appear under “Other firsts” from the age they start to happen.',
+    ],
+  },
+  {
     version: '1.61.0',
     date: 'Nov 11',
     items: ['Nothing new in this copy: 1.61.0 adds to an integration the public release does not include.'],

@@ -109,6 +109,14 @@
   color: var(--text-strong);
   line-height: 1.4;
 }
+/* How to see it: what to try, under the thing to look for. */
+.guide-how {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  line-height: 1.4;
+}
 .guide-lines li + li {
   border-top: 1px solid var(--line);
 }

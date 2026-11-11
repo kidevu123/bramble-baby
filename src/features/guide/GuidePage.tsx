@@ -18,7 +18,7 @@ import './guide.css'
 /**
  * What to expect: the child's age week by week for the first three months, then month by month and by CDC's
  * checklist ages. It opens on the period the child is in; the strip and the arrows browse the others. Each period
- * says what parents commonly see, what feeding and sleep look like, what helps, the check-up due and when to call,
+ * says what to look for and how to see it (something to try, from the same pages), what feeding and sleep look like, what helps, the check-up due and when to call,
  * and carries CDC's checklist for that age, where what has been seen is marked. Reached from the Child tab.
  */
 export function GuidePage() {
@@ -84,7 +84,7 @@ export function GuidePage() {
           {hold === 'nicu' ? <p className="small muted">In the NICU the unit sets the plan. This describes babies at home.</p> : null}
         </section>
 
-        <Lines title="What you may notice" lines={entry.notice} testId="guide-notice" />
+        <Lines title="What to look for" lines={entry.notice} testId="guide-notice" />
         {entry.care ? <Lines title="Feeding and sleep" lines={entry.care} testId="guide-care" /> : null}
         <Lines title="What helps" lines={entry.helps} testId="guide-helps" />
         {entry.visit ? <Lines title="Check-ups" lines={entry.visit} testId="guide-visit" /> : null}
@@ -149,7 +149,10 @@ function Lines({ title, lines, tone, testId }: { title: string; lines: GuideLine
       <h2>{title}</h2>
       <ul>
         {lines.map((line) => (
-          <li key={line.text}>{line.text}</li>
+          <li key={line.text}>
+            {line.text}
+            {line.how ? <span className="guide-how">{line.how}</span> : null}
+          </li>
         ))}
       </ul>
     </section>

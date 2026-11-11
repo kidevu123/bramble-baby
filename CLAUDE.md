@@ -33,7 +33,11 @@ installing and deploying; `README.md` is the public front page (screenshots from
 - **The guide by age (`src/lib/guide.ts`) says only what a named page of the AAP's HealthyChildren.org, the NHS or CDC says**: every line carries
   the ids of its pages in `GUIDE_SOURCES` (a test fails otherwise), is written as a range ("between 1 and 3 weeks", "around", "by"), and is put in
   the period where that range begins or centres. Never add a line from memory, a commercial parenting site or a "leaps" calendar; read the page
-  first and add it to the sources. The guide describes and never judges the child: what was seen is marked on the checklist beside it.
+  first and add it to the sources. A line's `how` (what to try, shown under it) comes from the same pages and is paired only with the thing those
+  pages pair it with; where the AAP's older lists and CDC's 2022 lists give different ages, leave the line out.
+  The guide describes and never judges the child: what was seen is marked on the checklist beside it.
+- **A first that is on no CDC list (`KEEPSAKES` in `src/lib/milestones.ts`) is offered only from its `from` age**, taken from an AAP or CDC page,
+  and under its own heading, never under CDC's (a tooth, solids, crawling and the potty were once offered to a two-month-old).
 - **Milestone checklists are CDC's own lists (`src/lib/milestones.ts`)**: an item is added, moved to another age or reworded only against CDC's
   "Learn the Signs. Act Early." checklists, never from memory or another site, and its `text` is the title a logged milestone carries (a
   changed `text` keeps the old one in `aliases`, or entries already logged stop counting). An unmarked item is "not marked", never "missed"

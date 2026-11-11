@@ -23,13 +23,33 @@ describe('the guide by age', () => {
       for (const line of all(e)) {
         expect(line.src.length, `${e.id}: ${line.text}`).toBeGreaterThan(0)
         for (const id of line.src) expect(GUIDE_SOURCES[id], id).toBeTruthy()
-        expect(line.text.length, line.text).toBeLessThan(200)
+        expect(line.text.length, line.text).toBeLessThan(215)
+        if (line.how !== undefined) expect(line.how.length, line.how).toBeGreaterThan(20)
       }
       const texts = all(e).map((x) => x.text)
       expect(new Set(texts).size, e.id).toBe(texts.length)
       expect(entrySources(e).length).toBeGreaterThan(0)
     }
     for (const s of Object.values(GUIDE_SOURCES)) expect(s.url).toMatch(/^https:\/\/www\.(cdc\.gov|healthychildren\.org|nhs\.uk)\//)
+  })
+
+  it('says what to look for and how to see it at every age', () => {
+    for (const e of GUIDE) {
+      const shown = e.notice.filter((x) => x.how)
+      expect(shown.length, e.id).toBeGreaterThanOrEqual(2)
+      // A "how" is only ever attached to something to look for, and never repeats a line of the same period.
+      for (const group of [e.care, e.helps, e.visit, e.you, e.call]) for (const line of group ?? []) expect(line.how, line.text).toBeUndefined()
+      const said = all(e).flatMap((x) => [x.text, ...(x.how ? [x.how] : [])])
+      expect(new Set(said).size, e.id).toBe(said.length)
+      for (const line of shown) expect(line.how!.length, line.how).toBeLessThan(215)
+    }
+    // Two months is CDC's first list: each thing on it is there to look for, with something to try.
+    const w8 = GUIDE.find((e) => e.id === 'w8')!
+    const looked = w8.notice.filter((x) => x.how).map((x) => x.text).join(' ')
+    for (const item of ['Calms down when spoken to or picked up', 'Looks at your face', 'Makes sounds other than crying', 'Reacts to loud sounds', 'Watches you as you move', 'Holds the head up on the tummy']) expect(looked).toContain(item)
+    expect(w8.notice.find((x) => x.text.startsWith('Reacts to loud sounds'))!.how).toContain('rattle off to one side')
+    // A newborn's weeks say which reflex to look for and how to bring it out.
+    expect(GUIDE[0].notice.find((x) => x.text.includes('rooting'))!.how).toContain('Stroke the cheek')
   })
 
   it('keeps the facts where their sources put them', () => {
