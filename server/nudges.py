@@ -82,7 +82,11 @@ SOURCE = "nudge"
 MORNING_NIGHTS = 8
 MORNING_USUAL_NIGHTS = 3
 MORNING_MIN_ASLEEP = timedelta(minutes=30)
-KINDS = ("feed", "pump", "diaper", "summary", "weight", "supply", "activity", "morning")
+# What to expect: the hour (household clock) the note for a new week or month goes out, and how much of the app's
+# guide the companion keeps ahead (the app sends the coming periods each time a phone opens it).
+GUIDE_HOUR = 9
+GUIDE_KEEP = 12
+KINDS = ("feed", "pump", "diaper", "summary", "weight", "supply", "activity", "morning", "guide")
 
 DEFAULTS: dict = {
     "feed": True,
@@ -96,6 +100,7 @@ DEFAULTS: dict = {
     "supply": True,
     "activity": False,  # opt-in: pings to the other phones when someone logs something
     "morning": True,  # last night's sleep, when a sleep sensor read it (night_source)
+    "guide": True,  # what to look for, the morning a new week (later a new month) of the child's age begins
     "quietStart": "22:00",
     "quietEnd": "07:00",
     "units": None,  # {"volume": "ml"|"oz", "weight": "lb"|"kg"}: the phone that last saved Settings
@@ -121,6 +126,7 @@ DIAPER_FACTOR = 1.5
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS nudge_settings (child INTEGER PRIMARY KEY, blob TEXT NOT NULL, updated TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS nudge_seen (child INTEGER NOT NULL, kind TEXT NOT NULL, entry_id INTEGER NOT NULL, PRIMARY KEY (child, kind, entry_id));
+CREATE TABLE IF NOT EXISTS nudge_guide (child INTEGER NOT NULL, period TEXT NOT NULL, day TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY (child, period));
 """
 # The ledger row that says "this child's window has been read once": the first poll is silent even when the
 # window was empty, and the one after it pings (an empty ledger alone cannot tell the two apart).
@@ -474,10 +480,37 @@ class Nudges:
             self.save_settings(child, data)
             self.run_once()  # inline, so the answer already reflects the change
             return 200, self.status(child)
+        if len(parts) == 3 and parts[2] == "guide" and method == "PUT":
+            self.save_guide(child, data.get("periods"))
+            self.trigger()
+            return 200, {"ok": True}
         if len(parts) == 3 and parts[2] == "run" and method == "POST":
             self.run_once()
             return 200, self.status(child)
         return 404, {"detail": "Not found."}
+
+    def save_guide(self, child: int, periods) -> None:
+        """Replace the child's coming guide periods with what the app sent: [{id, day (yyyy-mm-dd), title, body}],
+        the period the child is in first. The guide's text lives in the app; the companion only keeps these to
+        send each on its day. A bad list is refused whole."""
+        if not isinstance(periods, list) or len(periods) > GUIDE_KEEP:
+            raise ValueError(f"periods must be a list of at most {GUIDE_KEEP}.")
+        rows = []
+        for p in periods:
+            if not isinstance(p, dict):
+                raise ValueError("each period must be an object.")
+            pid, day, title, body = (p.get(k) for k in ("id", "day", "title", "body"))
+            if not all(isinstance(v, str) and v.strip() for v in (pid, day, title, body)):
+                raise ValueError("each period needs id, day, title and body.")
+            if _ymd(day) is None or len(pid) > 12 or len(title) > 120 or len(body) > 600:
+                raise ValueError("a period is too long, or its day is not a date.")
+            rows.append((child, pid, day[:10], title.strip(), body.strip()))
+        if len({r[1] for r in rows}) != len(rows):
+            raise ValueError("a period is listed twice.")
+        with self.store.atomic():
+            self.store.x("DELETE FROM nudge_guide WHERE child=?", (child,))
+            for r in rows:
+                self.store.x("INSERT INTO nudge_guide (child, period, day, title, body) VALUES (?,?,?,?,?)", r)
 
     def status(self, child: int) -> dict:
         settings = self.settings(child)
@@ -538,7 +571,7 @@ class Nudges:
             birth = date.fromisoformat(str(child.get("birth_date"))[:10]) if child.get("birth_date") else None
         except ValueError:
             birth = None
-        planned = [f"nudge:{k}" for k in ("feed", "pump", "diaper", "summary", "supply", "morning")]
+        planned = [f"nudge:{k}" for k in ("feed", "pump", "diaper", "summary", "supply", "morning", "guide")]
         if not birth or birth > today:
             self._clear(cid, planned)
             self._ledger(cid, *self._recent(cid, token, now), now)  # kept, so the first poll after the birth is no burst
@@ -563,6 +596,7 @@ class Nudges:
         notes["supply"] = self._supply(ctx, pumping_weeks)
         notes["activity"] = self._activity(ctx, *self._ledger(cid, feedings, pumping, changes, sleep, now))
         notes["morning"] = self._morning(ctx)
+        notes["guide"] = self._guide(ctx)
         return notes
 
     def _waiting(self, cid: int, now: datetime, note: str) -> dict:
@@ -895,6 +929,34 @@ class Nudges:
         title = f"{ctx['name']}'s day"
         note = f"Every day at {self._clock_text(s['summaryAt'])}"
         return self._plan(ctx, tag, day.isoformat(), at.astimezone(timezone.utc), title, "\n".join(lines), "/", None, note, quiet=True)
+
+    def _guide(self, ctx: dict) -> dict:
+        """What to look for, the morning a new week (later a new month) of the child's age begins: the title and
+        lines the app's guide gave for that period. Nothing while in the NICU, where the unit sets the plan."""
+        cid, s, now, tag = ctx["cid"], ctx["settings"], ctx["now"], "nudge:guide"
+        if not s["guide"]:
+            return self._off(cid, tag)
+        if ctx["hold"] == "nicu":
+            return self._none(cid, tag, "In the NICU · starts once home")
+        rows = self.store.q("SELECT period, day, title, body FROM nudge_guide WHERE child=? ORDER BY day", (cid,))
+        if not rows:
+            return self._none(cid, tag, "Starts the next time Bramble is opened on a phone")
+        today = now.astimezone(self.tz).date()
+        when = f"The morning each new week of age begins (later each month), at {GUIDE_HOUR % 12 or 12}:00 {'AM' if GUIDE_HOUR < 12 else 'PM'}"
+        current = [r for r in rows if _ymd(r["day"]) <= today]
+        coming = [r for r in rows if _ymd(r["day"]) > today]
+        nxt = f" · next: {coming[0]['title']} on {_ymd(coming[0]['day']).strftime('%b %-d')}" if coming else ""
+        if not current:
+            return self._none(cid, tag, f"{when}{nxt}")
+        row = current[-1]
+        day = _ymd(row["day"])
+        at = datetime.combine(day, datetime.min.time().replace(hour=GUIDE_HOUR), self.tz)
+        # A period that began on an earlier day is not announced late: the next one is. The same day still is.
+        if day < today:
+            self._clear(cid, [tag])
+            sent = self.store.q("SELECT 1 FROM reminders WHERE child=? AND tag=? AND anchor=? AND sent=1 LIMIT 1", (cid, tag, row["period"]))
+            return {"at": None, "note": f"{'Sent for ' + row['title'] if sent else when}{nxt}"}
+        return self._plan(ctx, tag, row["period"], at, row["title"], row["body"], "/guide", None, f"{when}{nxt}", quiet=True, late_ok=True, defer=True)
 
     def _morning(self, ctx: dict) -> dict:
         """Last night as the sleep sensor read it, at the night's end, beside her usual. Sleep figures only."""

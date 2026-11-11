@@ -40,18 +40,41 @@ self.addEventListener('push', (event) => {
   // (Notification.maxActions is 0 there), so the tap itself opens the right sheet.
   const actions = url.includes('?log=') && typeof Notification !== 'undefined' && (Notification as unknown as { maxActions?: number }).maxActions ? [{ action: 'log', title: 'Log now' }] : []
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body: data.body ?? '',
-      tag: data.tag ?? 'bramble',
-      icon: '/icons/icon-192.png',
-      badge: '/icons/icon-192.png',
-      data: { url },
-      actions,
-      // Re-alert if the same tag fires again (e.g. nap window near → now).
-      renotify: true,
-    } as NotificationOptions),
+    self.registration
+      .showNotification(title, {
+        body: data.body ?? '',
+        tag: data.tag ?? 'bramble',
+        icon: '/icons/icon-192.png',
+        badge: '/icons/icon-192.png',
+        data: { url, at: Date.now() },
+        actions,
+        // Re-alert if the same tag fires again (e.g. nap window near → now).
+        renotify: true,
+      } as NotificationOptions)
+      .then(sweepStale),
   )
 })
+
+/** A note older than this is taken off the phone's list when a new one arrives: by then it is yesterday's. */
+const STALE_MS = 12 * 60 * 60 * 1000
+
+/**
+ * Notifications of the same kind replace each other (the tag), but pings and different kinds pile up on the lock
+ * screen until someone swipes them. Each new one sweeps away those shown more than STALE_MS ago; opening the app
+ * clears the rest (clearDeliveredNotifications).
+ */
+async function sweepStale(): Promise<void> {
+  try {
+    const shown = await self.registration.getNotifications()
+    const cutoff = Date.now() - STALE_MS
+    for (const n of shown) {
+      const at = (n.data as { at?: number } | undefined)?.at ?? (n as Notification & { timestamp?: number }).timestamp
+      if (typeof at === 'number' && at < cutoff) n.close()
+    }
+  } catch {
+    /* a browser that cannot list them keeps them */
+  }
+}
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()

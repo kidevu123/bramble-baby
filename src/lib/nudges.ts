@@ -14,6 +14,7 @@ export const DEFAULT_NUDGE_SETTINGS: NudgeSettings = {
   supply: true,
   activity: false,
   morning: true,
+  guide: true,
   quietStart: '22:00',
   quietEnd: '07:00',
   units: null,
@@ -58,7 +59,7 @@ export function describePlan(plan: NudgePlan | undefined, on: boolean, now: Date
 /** Settings row summary: "Feeding, pumping, diaper, summary · quiet 10:00 PM–7:00 AM" */
 export function nudgeSummary(s: NudgeSettings): string {
   const on = (['feed', 'pump', 'diaper', 'summary', 'weight', 'supply', 'activity'] as NudgeKind[]).filter((k) => s[k])
-  const names: Record<NudgeKind, string> = { feed: 'feeding', pump: 'pumping', diaper: 'diaper', summary: 'summary', weight: 'weight', supply: 'supply', activity: 'pings', morning: 'morning report' }
+  const names: Record<NudgeKind, string> = { feed: 'feeding', pump: 'pumping', diaper: 'diaper', summary: 'summary', weight: 'weight', supply: 'supply', activity: 'pings', morning: 'morning report', guide: 'what to expect' }
   const list = on.length ? on.map((k) => names[k]).join(', ') : 'all off'
   return `${list[0].toUpperCase()}${list.slice(1)} · quiet ${clockLabel(s.quietStart)}–${clockLabel(s.quietEnd)}`
 }

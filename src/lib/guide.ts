@@ -670,6 +670,33 @@ export function periodText(entry: GuideEntry, from: AgeFrom, now: Date): string 
   return end ? `${f(start)} – ${f(end)}` : `from ${f(start)}`
 }
 
+export interface GuidePush {
+  /** The period's id ("w8", "m4"): the companion sends each once. */
+  id: string
+  /** The day the period begins for this child, yyyy-MM-dd. */
+  day: string
+  title: string
+  body: string
+}
+
+/** How many periods ahead the companion is handed (it sends each on its day, also when no phone opens the app). */
+export const GUIDE_PUSH_AHEAD = 8
+
+/**
+ * The weekly note's text for the period the child is in and the ones after it: "Ada is 8 weeks old", the period's
+ * headline, and the first things to look for. The companion keeps these and sends each the morning its period
+ * begins (server/nudges.py `guide`); the full page is a tap away, so the note names what to look for and no more.
+ */
+export function guidePushPlan(from: AgeFrom, now: Date, name: string, count = GUIDE_PUSH_AHEAD): GuidePush[] {
+  const first = guideIndexFor(from, now)
+  return GUIDE.slice(first, first + count).map((e) => {
+    const look = e.notice.filter((x) => x.how).slice(0, 2)
+    const title = e.id === 'w0' ? `${name}’s first week` : `${name} is ${e.title}`
+    const lines = [`${e.headline}.`, ...(look.length ? [`Look for: ${look.map((x) => x.text.replace(/[.:]$/, '')).join('; ')}.`] : []), 'Tap for what to try, what is normal and what is not yet.']
+    return { id: e.id, day: format(periodDates(e, from, now).start, 'yyyy-MM-dd'), title, body: lines.join('\n') }
+  })
+}
+
 /** The age a period starts at, in months, for picking the CDC lists shown beside it. */
 export function periodMonths(entry: GuideEntry): number {
   return entry.unit === 'week' ? (entry.from * 12) / 365.25 : entry.from

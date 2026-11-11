@@ -6,6 +6,7 @@ import { PrefsProvider } from './hooks/usePrefs'
 import { StorageUnitsSeeder } from './hooks/useStorageUnits'
 import { PumpsSeeder } from './hooks/usePumpsSeeder'
 import { MilkWindowsSync } from './hooks/useMilkWindowsSync'
+import { GuidePushSync } from './hooks/useGuidePushSync'
 import { TimeZoneSync } from './hooks/useTimeZoneSync'
 import { useScrollToTop } from './hooks/useScrollToTop'
 import { fetchProfile } from './lib/api/auth'
@@ -95,6 +96,7 @@ function RequireChild() {
       <PumpsSeeder />
       <MilkWindowsSync />
       <TimeZoneSync />
+      <GuidePushSync />
       <WhatsNewOnLaunch />
       <Outlet />
     </>

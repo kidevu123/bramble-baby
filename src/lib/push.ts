@@ -141,3 +141,61 @@ export async function showLocalNotification(title: string, body: string, tag = '
     return false
   }
 }
+
+/**
+ * Take Bramble's delivered notifications off the phone's notification list (the lock screen and Notification
+ * Centre). They pile up there otherwise: a web app's notifications stay until each is tapped or swiped. Called when
+ * the app is opened or comes to the front (whatever they said is on Home or in the Inbox by then) and from the
+ * Inbox's Clear. Returns how many were closed; 0 where the browser cannot list them.
+ */
+export async function clearDeliveredNotifications(): Promise<number> {
+  try {
+    if (!('serviceWorker' in navigator)) return 0
+    const reg = await navigator.serviceWorker.getRegistration()
+    if (!reg || typeof reg.getNotifications !== 'function') return 0
+    const shown = await reg.getNotifications()
+    for (const n of shown) n.close()
+    return shown.length
+  } catch {
+    return 0
+  }
+}
+
+/** Clear them now and every time the app comes back to the front. Call once at start-up. */
+export function clearNotificationsOnOpen(): void {
+  void clearDeliveredNotifications()
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void clearDeliveredNotifications()
+  })
+}
+
+const INBOX_CLEARED = 'bramble.inbox-cleared'
+
+/** When this phone last cleared the Inbox's "Recently sent" (an ISO time), or '' when it never did. */
+export function inboxClearedAt(): string {
+  try {
+    return localStorage.getItem(INBOX_CLEARED) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+/** Remember that everything sent up to `now` has been cleared on this phone. The server's own record stays (it is what keeps a note from going out twice). */
+export function markInboxCleared(now = new Date()): string {
+  const at = now.toISOString()
+  try {
+    localStorage.setItem(INBOX_CLEARED, at)
+  } catch {
+    /* private mode: cleared for this visit only */
+  }
+  return at
+}
+
+/** The sent reminders still to show: those sent after the last Clear, newest first, at most `limit`. */
+export function recentlySent<T extends { at: string; sent: boolean }>(reminders: T[], clearedAt: string, limit = 10): T[] {
+  const after = clearedAt ? new Date(clearedAt).getTime() : -Infinity
+  return reminders
+    .filter((r) => r.sent && new Date(r.at).getTime() > after)
+    .sort((a, b) => b.at.localeCompare(a.at))
+    .slice(0, limit)
+}

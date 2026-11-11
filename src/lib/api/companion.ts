@@ -372,7 +372,7 @@ export interface HatchStatus {
 
 // ---- Nudges (companion `nudges.py`): reminders computed from what was logged, replaced on every poll
 
-export type NudgeKind = 'feed' | 'pump' | 'diaper' | 'summary' | 'weight' | 'supply' | 'activity' | 'morning'
+export type NudgeKind = 'feed' | 'pump' | 'diaper' | 'summary' | 'weight' | 'supply' | 'activity' | 'morning' | 'guide'
 
 /** Settings › Notifications: which nudges this household wants, shared by every phone (the server reads them). */
 export interface NudgeSettings {
@@ -394,6 +394,8 @@ export interface NudgeSettings {
   activity: boolean
   /** Last night's sleep each morning, where a sleep sensor is connected (the server says when it is not). */
   morning: boolean
+  /** What to look for, the morning a new week (later a new month) of the child's age begins. */
+  guide: boolean
   quietStart: string
   quietEnd: string
   /** The units the push text uses; the phone that last saved Settings sets them. Null = the child's storage units. */
@@ -431,6 +433,8 @@ export const companion = {
     update: (child: Id, patch: Partial<NudgeSettings>) => api<NudgeStatus>(`${COMPANION}/nudges/${child}`, { method: 'PUT', body: JSON.stringify(patch) }),
     /** Recompute now (something was just logged) instead of at the next poll. */
     run: (child: Id) => api<NudgeStatus>(`${COMPANION}/nudges/${child}/run`, { method: 'POST', body: '{}' }),
+    /** Hand the companion the guide's coming periods, each sent on its day ([] clears them). */
+    guide: (child: Id, periods: { id: string; day: string; title: string; body: string }[]) => api<{ ok: boolean }>(`${COMPANION}/nudges/${child}/guide`, { method: 'PUT', body: JSON.stringify({ periods }) }),
   },
 
   settings: {

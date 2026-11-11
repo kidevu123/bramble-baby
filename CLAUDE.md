@@ -40,6 +40,8 @@ installing and deploying; `README.md` is the public front page (screenshots from
   parents will wonder about it earlier, say so under the guide's Not yet (`NOT_YET`: the line, its source, `from`/`until` in months).
 - **A first that is on no CDC list (`KEEPSAKES` in `src/lib/milestones.ts`) is offered only from its `from` age**, taken from an AAP or CDC page,
   and under its own heading, never under CDC's (a tooth, solids, crawling and the potty were once offered to a two-month-old).
+- **The weekly note's text comes from the app's guide** (`guidePushPlan` in `src/lib/guide.ts`, handed to the companion by `GuidePushSync`), never
+  from a second copy on the server: the companion only keeps the coming periods and sends each on its day.
 - **Milestone checklists are CDC's own lists (`src/lib/milestones.ts`)**: an item is added, moved to another age or reworded only against CDC's
   "Learn the Signs. Act Early." checklists, never from memory or another site, and its `text` is the title a logged milestone carries (a
   changed `text` keeps the old one in `aliases`, or entries already logged stop counting). An unmarked item is "not marked", never "missed"

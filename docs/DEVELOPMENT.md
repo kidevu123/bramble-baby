@@ -32,7 +32,7 @@ node e2e/smoke.mjs ./e2e/out http://localhost:5173
 npm run build && npx vite preview --port 4173 &  node e2e/pwa-check.mjs http://localhost:4173
 e2e/people.sh ./e2e/out/people   # People: brings up its own stack (two companions, a fake Baby Buddy Django), light + dark
 e2e/simple-screen.sh ./e2e/out/simple-screen   # the grandparents' simple screen: Grandma signs in on a second phone, premade bottle finished or how much is left (and the mark on the parents' timeline), diaper, undo, the way out (own stack, light + dark)
-node e2e/nudges.mjs ./e2e/out/nudges http://localhost:5173 light   # Settings › Notifications reminders + push-tap hand-off (also: dark)
+node e2e/nudges.mjs ./e2e/out/nudges http://localhost:5173 light   # Settings › Notifications reminders (the weekly What to expect note named from the guide) + push-tap hand-off (also: dark)
 MOCK_BB=http://127.0.0.1:<bb-port> node e2e/stash-list.mjs ./e2e/out/stash-list http://localhost:5173   # Stash: places in order, the key, sun/moon, folded freezer, the deadline column, the in-time fridge move (light, dark and 320)
 node e2e/feeding-tiles.mjs ./e2e/out/feeding-tiles http://localhost:5173 light   # Reports › Feeding's tiles: Bottle / day beside what the weight suggests; Diapers leads with the wet verdict; no card on Home (also: dark)
 node e2e/bar-tap.mjs ./e2e/out/bar-tap http://localhost:5173 light   # every bar chart answers a tap: value, day and parts above the bar, the rest dimmed, tap away / tap again / Escape closes (also: dark)

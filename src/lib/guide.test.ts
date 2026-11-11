@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { entrySources, GUIDE, GUIDE_SOURCES, guideIndexFor, NOT_YET, notYetFor, periodMonths, periodText, WEEKS } from './guide'
+import { entrySources, GUIDE, GUIDE_SOURCES, guideIndexFor, guidePushPlan, NOT_YET, notYetFor, periodMonths, periodText, WEEKS } from './guide'
 import { ageBasis } from './preterm'
 
 const all = (e: (typeof GUIDE)[number]) => [...e.notice, ...(e.normal ?? []), ...notYetFor(e), ...(e.care ?? []), ...e.helps, ...(e.visit ?? []), ...(e.you ?? []), ...(e.call ?? [])]
@@ -88,6 +88,33 @@ describe('the guide by age', () => {
     expect(text('m6')).toContain('about 6 months')
     expect(text('m9')).toContain('developmental screening')
     expect(text('m18')).toContain('autism')
+  })
+})
+
+describe('the weekly note', () => {
+  it('gives the companion this period and the ones after it, each on its first day', () => {
+    // Born Sep 16: Nov 11 is day 56, the first day of week 8.
+    const plan = guidePushPlan('2026-09-16', new Date(2026, 10, 11, 10), 'Ada')
+    expect(plan).toHaveLength(8)
+    expect(plan.map((p) => p.id).slice(0, 6)).toEqual(['w8', 'w9', 'w10', 'w11', 'w12', 'm3'])
+    expect(plan[0]).toMatchObject({ day: '2026-11-11', title: 'Ada is 8 weeks old' })
+    expect(plan[1].day).toBe('2026-11-18')
+    expect(plan[5]).toMatchObject({ day: '2026-12-16', title: 'Ada is 3 months old' })
+    const lines = plan[0].body.split('\n')
+    expect(lines[0]).toBe('Two months: the first checklist, and the 2-month visit.')
+    expect(lines[1]).toBe('Look for: Calms down when spoken to or picked up; Looks at your face, and smiles when you talk or smile.')
+    expect(lines[2]).toMatch(/^Tap for what to try/)
+    for (const p of plan) {
+      expect(p.title.length).toBeLessThan(120)
+      expect(p.body.length).toBeLessThan(600)
+    }
+    expect(guidePushPlan('2026-11-10', new Date(2026, 10, 11, 10), 'Ada')[0].title).toBe('Ada’s first week')
+    // Every period of the guide makes a note the companion accepts (id, lengths), not only the first weeks.
+    for (let i = 0; i < GUIDE.length; i++) {
+      const e = GUIDE[i]
+      expect(e.id.length).toBeLessThanOrEqual(12)
+      expect(`${e.headline}. Look for: ${e.notice.filter((x) => x.how).slice(0, 2).map((x) => x.text).join('; ')}`.length, e.id).toBeLessThan(520)
+    }
   })
 })
 

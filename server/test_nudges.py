@@ -118,7 +118,7 @@ class NudgeTest(unittest.TestCase):
         self.sent = []
         self._orig = bs.send_push
         bs.send_push = lambda sub, payload, vapid: self.sent.append((sub["endpoint"], payload))
-        for t in ("reminders", "subscriptions", "settings", "nudge_settings", "nudge_seen", "milk_bags", "milk_uses", "people", "hatch_weights", "server_config"):
+        for t in ("reminders", "subscriptions", "settings", "nudge_settings", "nudge_seen", "nudge_guide", "milk_bags", "milk_uses", "people", "hatch_weights", "server_config"):
             self.app.store.x(f"DELETE FROM {t}")
         self.n = self.app.nudges
         self.n.secrets.clear()
@@ -751,6 +751,47 @@ class NudgeTest(unittest.TestCase):
         hi = lo + timedelta(hours=14)
         return {"date": evening, "start": iso(lo), "end": iso(hi), "worn": worn if worn is not None else light + deep + 30, "light": light, "deep": deep,
                 "longest": longest, "wakings": wakings, "sleeps": 1 + (wakings > 2), "partial": partial, "ongoing": ongoing, "pulse": 130.0, "oxygen": 98.0}
+
+    def test_what_to_expect_goes_out_the_morning_a_new_week_begins(self):
+        # Nothing to send until a phone has handed over the guide's coming periods.
+        self.assertEqual(self.n.run_once(NOW)[CHILD]["guide"]["note"], "Starts the next time Bramble is opened on a phone")
+        periods = [
+            {"id": "w7", "day": "2026-10-03", "title": "Oscar is 7 weeks old", "body": "Smiles, coos, and a steadier head.\nLook for: Smiles when you talk or smile."},
+            {"id": "w8", "day": "2026-10-10", "title": "Oscar is 8 weeks old", "body": "Two months: the first checklist, and the 2-month visit.\nLook for: Makes sounds other than crying."},
+            {"id": "w9", "day": "2026-10-17", "title": "Oscar is 9 weeks old", "body": "The hands open up."},
+        ]
+        self.assertEqual(self.call("PUT", f"/nudges/{CHILD}/guide", {"periods": periods})[0], 200)
+        # Mid-week: the week that began four days ago is not announced late; the next one is named.
+        note = self.n.run_once(NOW)[CHILD]["guide"]
+        self.assertEqual(self.rows("nudge:guide"), [])
+        self.assertIn("next: Oscar is 8 weeks old on Oct 10", note["note"])
+        # The day the new week begins, early (in quiet hours): planned for 9 AM, opening the guide.
+        early = datetime(2026, 10, 10, 6, 0, tzinfo=TZ)
+        self.n.run_once(early)
+        row = self.rows("nudge:guide", sent=0)[0]
+        self.assertEqual((datetime.fromisoformat(row["at"]).astimezone(TZ).strftime("%m-%d %H:%M"), row["title"], row["url"], row["anchor"]), ("10-10 09:00", "Oscar is 8 weeks old", "/guide", "w8"))
+        self.assertIn("Look for: Makes sounds other than crying.", row["body"])
+        # It goes to every phone, once: a later poll that day does not plan it again.
+        self.delivery.run_once(datetime.fromisoformat(row["at"]))
+        self.assertEqual(sorted(e for e, _ in self.sent), ["https://push.example/dad", "https://push.example/mom"])
+        self.assertEqual(self.sent[0][1]["url"], "/guide")
+        later = datetime(2026, 10, 10, 14, 0, tzinfo=TZ)
+        self.assertIn("Sent for the last one", self.n.run_once(later)[CHILD]["guide"]["note"])
+        self.assertEqual(self.rows("nudge:guide", sent=0), [])
+        # Opened for the first time on the day itself, after 9: it still goes out that day.
+        self.app.store.x("DELETE FROM reminders")
+        self.n.run_once(later)
+        self.assertEqual(datetime.fromisoformat(self.rows("nudge:guide", sent=0)[0]["at"]).astimezone(TZ).strftime("%H:%M"), "14:00")
+        # Switched off, or in the NICU: nothing planned.
+        self.call("PUT", f"/nudges/{CHILD}", {"guide": False})
+        self.assertEqual(self.rows("nudge:guide", sent=0), [])
+        self.call("PUT", f"/nudges/{CHILD}", {"guide": True})
+        self.app.store.x("UPDATE settings SET blob=? WHERE child=?", (json.dumps({"nicu": {"since": W.children[0]["birth_date"], "home": None}}), CHILD))
+        self.assertEqual(self.n.run_once(later)[CHILD]["guide"], {"at": None, "note": "In the NICU \u00b7 starts once home"})
+        # A list that is not the guide's shape is refused whole and the old one stays.
+        for bad in ({"periods": "w8"}, {"periods": [{"id": "w8", "day": "soon", "title": "t", "body": "b"}]}, {"periods": [periods[0], periods[0]]}, {"periods": [{"id": "w8", "day": "2026-10-10", "title": "", "body": "b"}]}):
+            self.assertEqual(self.call("PUT", f"/nudges/{CHILD}/guide", bad)[0], 400, bad)
+        self.assertEqual(len(self.app.store.q("SELECT 1 FROM nudge_guide WHERE child=?", (CHILD,))), 3)
 
     def test_morning_report_sends_last_night_beside_her_usual(self):
         source = self.n.night_source

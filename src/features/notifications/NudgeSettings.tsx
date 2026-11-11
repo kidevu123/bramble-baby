@@ -37,6 +37,7 @@ export function NudgeSettings({ child, childName }: { child: Id | null; childNam
     ['Evening summary', 'One line each for feeds, diapers, sleep, pumping and the stash, at the time you pick.'],
     ['Weight from the Hatch', 'When a weighing lands, with the change since the last one. During quiet hours it waits for the morning.'],
     ['Pumping down', 'When each of the last three days comes in well under the daily average of the two weeks before. A day with nothing logged does not count as a drop. To the phone of whoever pumps, at most once every three days; the tap opens Reports.'],
+    ['What to expect', 'The morning a new week of age begins (a new month after three months): what to look for at that age, from the guide on the Child tab. A tap opens the guide. Not sent while in the NICU.'],
     ...(morning ? ([['Morning report', 'Last night as the sleep sensor read it: asleep, the longest stretch, wakings and deep sleep, each beside her usual over the full nights before. Sent when the night ends (the day start on the Child tab), never in quiet hours. Sleep only: no pulse or oxygen in a push.']] as [string, string][]) : []),
     ['When the other person logs', 'A short push to the other phones the moment someone saves a feed, a pump, a diaper or a sleep, so nobody logs it twice or asks. Never to the phone that logged it, never in quiet hours.'],
     ['A tap on a push', 'Opens Bramble on the matching log sheet, for just now.'],
@@ -79,6 +80,7 @@ export function NudgeSettings({ child, childName }: { child: Id | null; childNam
             </div>
           ) : null}
         </NudgeRow>
+        <NudgeRow title="What to expect" detail={plan('guide')} on={settings.guide} onChange={(v) => set({ guide: v })} />
         {morning ? <NudgeRow title="Morning report" detail={plan('morning')} on={settings.morning} onChange={(v) => set({ morning: v })} /> : null}
         <NudgeRow title="Weight from the Hatch" detail={plan('weight')} on={settings.weight} onChange={(v) => set({ weight: v })} />
         <NudgeRow title="Pumping down" detail={plan('supply')} on={settings.supply} onChange={(v) => set({ supply: v })} />

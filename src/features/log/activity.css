@@ -82,3 +82,11 @@
   color: var(--text-strong);
   font-size: var(--text-sm);
 }
+
+/* The Inbox: "Recently sent" with its Clear on the same line. */
+.inbox-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}

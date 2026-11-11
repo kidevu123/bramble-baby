@@ -12,6 +12,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.65.0',
+    date: 'Nov 11',
+    items: [
+      'A note the morning each new week of {name}’s age begins (each month later on): what to look for at that age. A tap opens What to expect. Settings › Notifications › What to expect turns it off.',
+      'Opening Bramble now clears its old notifications from the lock screen, a new one sweeps away those from more than half a day ago, and the Inbox has a Clear for what was sent.',
+    ],
+  },
+  {
     version: '1.64.0',
     date: 'Nov 11',
     items: ['Nothing new in this copy: 1.64.0 adds to an integration the public release does not include.'],

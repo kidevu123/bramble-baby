@@ -77,7 +77,11 @@ check('pump plan names the cadence and the target', /Every 3 h lately, from 2 se
 check('diaper check names its threshold', /After 6 h without one · ignores quiet hours/.test(text))
 check('summary names its time', /Every day at 8:00 PM/.test(text))
 check('quiet hours default 10 PM to 7 AM', /between 10:00 PM and 7:00 AM/.test(text))
-check('switches are real switches', (await nudges.getByRole('switch').count()) === 8)
+check('switches are real switches', (await nudges.getByRole('switch').count()) === 9)
+// What to expect: the app handed the companion the guide's coming weeks when it opened; the row names the next one.
+check('What to expect is on, and names the next week it will send', (await nudges.getByRole('switch', { name: 'What to expect' }).getAttribute('aria-checked')) === 'true' && /What to expect.*The morning each new week of age begins \(later each month\), at 9:00 AM · next: \w+ is \d+ weeks? old on \w{3} \d+/.test(text), text.match(/What to expect[^W]{0,200}/)?.[0])
+const guideRows = await (await page.request.get(`${BASE}/bramble/nudges/${child.id}`, { headers })).json()
+check('… and the plan came from the guide, not the server', /next: /.test(guideRows.next.guide?.note ?? ''), JSON.stringify(guideRows.next.guide))
 // How each reminder decides waits behind one disclosure, so the switches and their plans come first.
 const how = nudges.locator('details', { hasText: 'How each one works' })
 check('the explanations are folded away by default', (await how.count()) === 1 && !(await how.evaluate((d) => d.open)) && !/One push per gap/.test(text))
