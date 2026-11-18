@@ -68,6 +68,13 @@ It was built for one family's newborn and is used by them every day; everything 
   <img src="docs/screenshots/label.jpg" width="240" alt="The milk label: volume, pumped time, use-by dates and a QR code" />
 </p>
 
+### Play, by age
+- A **Play** tab with things to do together at the baby's age: three for today, a different kind each (social,
+  language, thinking, movement), and every idea for the age underneath. From 2 months they are CDC's own tips for the
+  age, word for word; the first weeks are from the NHS and the AAP.
+- **Did it** logs the idea as a Play activity, so it is on the timeline and counted in the week. Nothing is scored.
+- **Tummy time today** against what the AAP suggests for the age, for the first six months.
+
 ### Born early, or starting out in the NICU
 - Set the **weeks of pregnancy at birth** and the **NICU stay** once. Every age-based figure then uses
   **corrected age** (feeds, sleep, wake windows, weight gain, WHO percentiles) until two.
@@ -134,6 +141,10 @@ run in light and dark mode without touching real data.
   American Academy of Pediatrics), in `src/lib/milestones.ts`. Use of CDC material does not imply endorsement by CDC.
 - The guide by age (`src/lib/guide.ts`) states facts from pages of the American Academy of Pediatrics' HealthyChildren.org,
   the NHS and CDC in Bramble's own words; each period lists the pages it rests on. Bramble is not affiliated with them.
+- Play ideas (`src/lib/play-data.ts`): CDC's "What you can do" tips from the same "Learn the Signs. Act Early." pages,
+  in CDC's words with the child's pronouns made neutral; public domain, free at cdc.gov. The ideas for the first two
+  months are written from NHS Start for Life pages and the AAP's tummy time page. Contains public sector information
+  licensed under the [Open Government Licence v3.0](https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/).
 - The Niimbot printer protocol in `server/niimbot_proto.py` is vendored from
   [niimprint](https://github.com/AndBondStyle/niimprint) (MIT, © 2023 kjy00302); its licence is kept in that file.
 - Food photos: CC0, from rawpixel (list in `src/lib/food-credits.json`). Fonts: Nunito and Fraunces (SIL Open Font

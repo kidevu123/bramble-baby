@@ -12,6 +12,17 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.70.0',
+    date: 'Nov 18',
+    items: [
+      'A new Play tab, where Sleep Plans was: things to do with {name} at this age. Three for today, a different kind each, and every idea for the age underneath.',
+      'From 2 months the ideas are CDC’s own tips for the age, word for word. The first weeks come from the NHS and the AAP. Each one says what to do and, where the source says it, what it helps.',
+      'Tap Did it and it shows on the timeline as Play and counts in the week, by kind: Social, Language, Thinking, Movement. Nothing is scored.',
+      'Tummy time today sits on the same page for the first 6 months, beside what the AAP suggests for the age.',
+      'The sleep plan has moved to the Child tab.',
+    ],
+  },
+  {
     version: '1.69.0',
     date: 'Nov 18',
     items: [

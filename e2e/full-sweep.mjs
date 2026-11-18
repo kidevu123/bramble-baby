@@ -1,6 +1,6 @@
 /**
  * Live functional + visual sweep of the whole app at iPhone width: every tab, top-bar destination, sheet,
- * log type, timer, Reports view, Sleep Plans, Child page, Settings sheet, Insights, nap window, Contractions,
+ * log type, timer, Reports view, the sleep plan, Child page, Settings sheet, Insights, nap window, Contractions,
  * the Stash (typed-code scan fallback, bottle, move, discard, undo, reprint), "Add milk you already have",
  * the server print path (file:// backend) and Settings › Integrations › Hatch scale against mock-hatch.mjs.
  *
@@ -152,7 +152,7 @@ async function run(scheme, viewport, reducedMotion = 'no-preference') {
     await shot('home-empty')
     ok('Home is the index tab with the Track grid', (await page.locator('.tile-sleep').count()) === 1)
     const tabs = await page.locator('.tabbar .tab').allInnerTexts()
-    ok('five tabs: Home, Reports, Sleep Plans, Stash, Child', tabs.join('|') === 'Home|Reports|Sleep Plans|Stash|Child', tabs.join('|'))
+    ok('five tabs: Home, Reports, Play, Stash, Child', tabs.join('|') === 'Home|Reports|Play|Stash|Child', tabs.join('|'))
     ok('top bar has the lightbulb, inbox and gear', (await page.getByRole('button', { name: 'Insights' }).count()) === 1 && (await page.getByRole('button', { name: 'Notifications' }).count()) === 1 && (await page.getByRole('button', { name: 'Settings' }).count()) === 1)
 
     await page.getByRole('button', { name: 'Customize home' }).click()
@@ -490,7 +490,7 @@ async function run(scheme, viewport, reducedMotion = 'no-preference') {
 
   // ---------------------------------------------------------------- Sleep Plans
   await section('plans', async () => {
-    await page.getByRole('link', { name: 'Sleep Plans' }).click(); await settle(1000)
+    await page.getByRole('link', { name: 'Child', exact: true }).click(); await settle(800); await page.getByTestId('sleep-plan-link').click(); await settle(1000)
     await shot('plans-questionnaire')
     for (const opt of ['Crib in own room', 'Fed to sleep', '1–2', 'Feed', 'Short naps', 'Yes', 'Longer naps', 'Gentle']) {
       const b = page.getByRole('radio', { name: new RegExp(opt, 'i') }).first()

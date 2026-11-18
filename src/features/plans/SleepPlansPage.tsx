@@ -33,7 +33,7 @@ export function SleepPlansPage() {
 
   return (
     <>
-      <TopBar title="Sleep Plans" />
+      <TopBar title="Sleep plan" right="none" back />
       <main className="page">
         {expecting ? (
           <section className="plan-hero card">

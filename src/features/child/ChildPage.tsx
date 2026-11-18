@@ -124,6 +124,18 @@ export function ChildPage() {
           </Link>
         )}
 
+        {/* The one way in to the sleep plan (it had a tab of its own until Play took it). */}
+        <Link to="/plans" className="card card-pad guide-link" data-testid="sleep-plan-link">
+          <span className="icon-circle tone-sleep" aria-hidden>
+            <MoonIcon />
+          </span>
+          <span className="grow">
+            <span className="xs muted guide-link-kicker">Sleep plan</span>
+            <span className="strong guide-link-headline">{settings.sleepPlanAnswers ? 'Your plan, from the questionnaire and the logged sleep' : 'Answer a short questionnaire to build one'}</span>
+          </span>
+          <ChevronRightIcon className="chev" aria-hidden />
+        </Link>
+
         <section className="card card-pad stack">
           <div className="row-between">
             <div className="row">

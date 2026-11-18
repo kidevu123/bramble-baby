@@ -103,14 +103,15 @@ await page.getByRole('button', { name: 'Solids', exact: true }).click(); await s
 await page.getByRole('button', { name: 'Reports settings' }).click(); await settle(); await shot('22-reports-settings'); await inDialog().getByRole('button', { name: 'Apply' }).click(); await settle()
 
 // Sleep plans
-await page.getByRole('link', { name: 'Sleep Plans' }).click(); await settle(1000); await shot('23-plans-questionnaire')
+await page.getByRole('link', { name: 'Child', exact: true }).click(); await settle(800); await page.getByTestId('sleep-plan-link').click(); await settle(1000); await shot('23-plans-questionnaire')
 for (const opt of ['Crib in own room', 'Fed to sleep', '1–2', 'Feed', 'Short naps', 'Yes', 'Longer naps', 'Gentle']) {
   const b = page.getByRole('radio', { name: new RegExp(opt, 'i') }).first()
   if (await b.count()) await b.click()
 }
 await page.getByRole('button', { name: 'Build my plan' }).click(); await settle(1000); await shot('24-plan')
 
-// Insights
+// Insights (the sleep plan is a Back page now, with no top-bar buttons: leave it first)
+await page.getByRole('link', { name: 'Reports' }).click(); await settle(800)
 await page.getByRole('button', { name: 'Insights' }).click(); await settle(1000); await shot('25-insights')
 await page.getByRole('button', { name: 'The science' }).click(); await settle(800); await shot('26a-science')
 await page.getByRole('button', { name: 'Miniplans' }).click(); await settle(); await shot('26-miniplans')

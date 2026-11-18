@@ -1,19 +1,19 @@
 import type { MouseEvent } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { ChartIcon, ClipboardIcon, FaceIcon, MilkBagIcon, PlusCircleIcon } from '../icons'
+import { ChartIcon, FaceIcon, MilkBagIcon, PlayBlocksIcon, PlusCircleIcon } from '../icons'
 import { sheetJustClosed } from '../ui/sheet-state'
 import './nav.css'
 
 const tabs = [
   { to: '/', label: 'Home', icon: PlusCircleIcon },
   { to: '/reports', label: 'Reports', icon: ChartIcon },
-  { to: '/plans', label: 'Sleep Plans', icon: ClipboardIcon },
+  { to: '/play', label: 'Play', icon: PlayBlocksIcon },
   { to: '/milk', label: 'Stash', icon: MilkBagIcon },
   { to: '/child', label: 'Child', icon: FaceIcon },
 ]
 
-/** Pages that belong to one tab: the doctor report is part of Reports, nap window opens from Home's band. */
-const OWNER: Record<string, string> = { '/report': '/reports', '/nap': '/', '/guide': '/child' }
+/** Pages that belong to one tab: the doctor report is part of Reports, nap window opens from Home's band, the guide and the sleep plan from the Child tab. */
+const OWNER: Record<string, string> = { '/report': '/reports', '/nap': '/', '/guide': '/child', '/plans': '/child' }
 
 /** The tab the user was last on, so a page opened from the top bar (Settings, Insights) keeps it lit. */
 let lastTab: string | null = null

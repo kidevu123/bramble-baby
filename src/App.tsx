@@ -25,6 +25,7 @@ import { MorePage } from './features/more/MorePage'
 import { MilkPage } from './features/milk/MilkPage'
 import { ContractionsPage } from './features/contractions/ContractionsPage'
 import { SleepPlansPage } from './features/plans/SleepPlansPage'
+import { PlayPage } from './features/play/PlayPage'
 import { InsightsPage } from './features/insights/InsightsPage'
 import { Splash } from './components/ui/Splash'
 import { ErrorScreen } from './components/ui/ErrorScreen'
@@ -136,6 +137,7 @@ export function App() {
                 <Route path="/guide" element={<GuidePage />} />
                 {/* The page's address until 1.47: old bookmarks and Home Screen history land on the new one. */}
                 <Route path="/child" element={<ChildPage />} />
+                <Route path="/play" element={<PlayPage />} />
                 <Route path="/plans" element={<SleepPlansPage />} />
                 <Route path="/insights" element={<InsightsPage />} />
                 <Route path="/settings" element={<MorePage />} />

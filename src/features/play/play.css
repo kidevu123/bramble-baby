@@ -1,0 +1,177 @@
+/* Play: ideas by age. Each area has one colour, carried by a dot (text stays in the ordinary ink). */
+.play-page {
+  gap: var(--space-4);
+}
+.play-page [data-area='social'] {
+  --play: var(--berry);
+}
+.play-page [data-area='language'] {
+  --play: var(--purple);
+}
+.play-page [data-area='thinking'] {
+  --play: var(--orange);
+}
+.play-page [data-area='movement'] {
+  --play: var(--teal);
+}
+.play-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--play, var(--line-strong));
+  flex: none;
+}
+.play-hero h2 {
+  margin: 2px 0 var(--space-1);
+}
+.play-kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.play-idea {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.card.play-idea {
+  border-left: 4px solid var(--play);
+}
+.play-area {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--w-label);
+  color: var(--text-muted);
+}
+.play-title {
+  margin: 0;
+}
+.play-text {
+  margin: 0;
+  color: var(--text-strong);
+}
+.play-why {
+  margin: 0;
+}
+.play-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 44px;
+  margin-top: var(--space-1);
+}
+.play-foot .btn {
+  margin-left: auto;
+}
+.play-done {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: var(--w-label);
+  color: var(--text-strong);
+}
+.play-check {
+  width: 20px;
+  height: 20px;
+  color: var(--teal-ink);
+}
+.play-others {
+  align-self: center;
+  min-height: 44px;
+}
+.play-tummy {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  text-align: left;
+  color: var(--text-strong);
+}
+.play-tummy-line,
+.play-tummy-guide {
+  display: block;
+}
+.play-tally {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-2);
+}
+.play-tally-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  min-width: 0;
+}
+.play-tally-cell .xs {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.play-tally-n {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xl);
+  font-weight: var(--w-head);
+  color: var(--text-strong);
+  line-height: 1.1;
+}
+.play-all-title {
+  margin: var(--space-2) 0 0;
+}
+.play-group {
+  overflow: hidden;
+}
+.play-group-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 60px;
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  list-style: none;
+}
+.play-group-head::-webkit-details-marker {
+  display: none;
+}
+.play-group-about {
+  display: block;
+}
+.play-group-body {
+  display: flex;
+  flex-direction: column;
+  padding: 0 var(--space-4) var(--space-2);
+}
+.play-idea.compact {
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--line);
+}
+.play-idea.compact .play-title {
+  font-size: var(--text-base);
+}
+.play-next-list {
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-4) calc(var(--space-4) + 18px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.play-sources {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+/* A narrow phone: two by two, so the four names are whole. */
+@media (max-width: 359px) {
+  .play-tally {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

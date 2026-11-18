@@ -16,7 +16,7 @@ installing and deploying; `README.md` is the public front page (screenshots from
   place (the milk label sheet opens `LabelSettingsSheet`), so closing it returns to where the user was; never
   deep-link with a query parameter (`?open=`), which strands the user on another page.
 - **One way in, and Back goes where you came from.** A destination has one entry point: a bottom tab is it
-  (no Home card duplicating the Stash tab, no Child-page row duplicating the Sleep Plans tab). Pages reached
+  (no Home card duplicating the Stash tab, no second way to the sleep plan beside its Child-tab row). Pages reached
   from the top bar or a band (Settings, Insights, Nap window, timers, Contractions) show Back, which pops
   history (`useGoBack`: `navigate(-1)`, Home when there is no history). Sheets open in place, never by
   navigating to another page.
@@ -42,6 +42,12 @@ installing and deploying; `README.md` is the public front page (screenshots from
   and under its own heading, never under CDC's (a tooth, solids, crawling and the potty were once offered to a two-month-old).
 - **The weekly note's text comes from the app's guide** (`guidePushPlan` in `src/lib/guide.ts`, handed to the companion by `GuidePushSync`), never
   from a second copy on the server: the companion only keeps the coming periods and sends each on its day.
+- **Play ideas are CDC's own "What you can do" tips, in CDC's words (`src/lib/play-data.ts`)**: only the child's pronouns are made neutral.
+  An idea is added, reworded or moved to another age only against CDC's page for that age, never from memory, an app or another site; care
+  advice (feeding, sleep, safety, behaviour, screens, comforting) is not play and stays out. The weeks before CDC's first list are written
+  from named NHS and AAP pages in Bramble's own sentences (`FIRST_WEEKS` in `src/lib/play.ts`): NHS wording is never copied (its terms forbid
+  attributing adapted text to it). An idea's `id` is what a done idea is tagged with (`idea:<id>`): never changed, never reused. The Play
+  tab counts what was done and never scores the child or the parents, and makes no promise about development.
 - **Milestone checklists are CDC's own lists (`src/lib/milestones.ts`)**: an item is added, moved to another age or reworded only against CDC's
   "Learn the Signs. Act Early." checklists, never from memory or another site, and its `text` is the title a logged milestone carries (a
   changed `text` keeps the old one in `aliases`, or entries already logged stop counting). An unmarked item is "not marked", never "missed"
