@@ -12,6 +12,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.71.0',
+    date: 'Nov 18',
+    items: [
+      'Home no longer opens on the nap window. The tiles come first: Home is for logging, and for playing.',
+      'The nap window is still there when you want it: Child tab, Nap window. Its alerts follow their own switch, in Nap window settings just under it.',
+    ],
+  },
+  {
     version: '1.70.1',
     date: 'Nov 18',
     items: ['The sleep plan has moved out of the way, into Settings. It is optional; Play keeps the middle tab.'],

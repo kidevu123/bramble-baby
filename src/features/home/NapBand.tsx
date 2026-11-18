@@ -17,15 +17,16 @@ interface Props {
   /** Start of a running sleep timer for this child, if any. */
   asleepSince?: Date | null
   onSchedule: () => void
-  /** The prediction opens the nap window page; off on that page itself. */
-  linked?: boolean
 }
 
 /** "4:43 PM" never breaks between the time and PM at 320 px. */
 const nb = (t: string) => t.replace(' ', '\u00a0')
 
-/** The grey band under the header: nap window pill + prediction (or gestation while expecting). */
-export function NapBand({ child, sleeps, now, wakeWindowAdjustMinutes = 0, asleepSince = null, onSchedule, linked = true }: Props) {
+/**
+ * The band: the nap window's prediction on the nap window page (Child tab › Nap window); on Home only what is not a
+ * prediction, the weeks of pregnancy while expecting and where a baby in the NICU or before the due date stands.
+ */
+export function NapBand({ child, sleeps, now, wakeWindowAdjustMinutes = 0, asleepSince = null, onSchedule }: Props) {
   const expecting = isExpecting(child, now)
   const basis = useAgeBasis(child)
   const hold = expecting ? null : ageHold(basis, now)
@@ -127,31 +128,17 @@ export function NapBand({ child, sleeps, now, wakeWindowAdjustMinutes = 0, aslee
   )
 
   // The nap window tab with the Schedule Creator beside it, the prediction under it, and the ring on the right
-  // beside both (the prediction, ring included, is the way to the nap window page); the learned window under that.
+  // beside both; the learned window under that.
   return (
     <section className={`band band-live state-${p.state}`}>
       <div className="band-main">
         <div className="band-pillrow">
-          {linked ? (
-            <Link to="/nap" className="band-pill">
-              Nap window
-            </Link>
-          ) : (
-            <span className="band-pill">
-              Nap window
-            </span>
-          )}
+          <span className="band-pill">Nap window</span>
           <button type="button" className="band-pill-icon" onClick={onSchedule} aria-label="Schedule creator">
             <CalendarClockIcon />
           </button>
         </div>
-        {linked ? (
-          <Link to="/nap" className="band-pred">
-            {prediction}
-          </Link>
-        ) : (
-          <div className="band-pred">{prediction}</div>
-        )}
+        <div className="band-pred">{prediction}</div>
       </div>
       {p.windowStart && p.windowEnd ? (
         <div className="band-foot">

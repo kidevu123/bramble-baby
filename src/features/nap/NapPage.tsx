@@ -32,7 +32,7 @@ export function NapPage() {
     <>
       <TopBar title="Nap window" right="none" back />
       <main className="page">
-        <NapBand child={child} sleeps={events.sleep} now={now} wakeWindowAdjustMinutes={settings.napWindow.wakeWindowAdjustMinutes} asleepSince={asleepSince} onSchedule={() => setSchedule(true)} linked={false} />
+        <NapBand child={child} sleeps={events.sleep} now={now} wakeWindowAdjustMinutes={settings.napWindow.wakeWindowAdjustMinutes} asleepSince={asleepSince} onSchedule={() => setSchedule(true)} />
 
         <section className="card card-pad stack">
           <div className="row">

@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/home.jpg" width="200" alt="Home: one tile per thing you log, with the next nap" />
+  <img src="docs/screenshots/home.jpg" width="200" alt="Home: one tile per thing you log" />
   <img src="docs/screenshots/reports-day.jpg" width="200" alt="Reports: a day at a glance against the baby's own week" />
   <img src="docs/screenshots/growth-chart.jpg" width="200" alt="Growth chart with WHO percentile bands" />
   <img src="docs/screenshots/stash.jpg" width="200" alt="Breast-milk stash in the fridge and freezer" />

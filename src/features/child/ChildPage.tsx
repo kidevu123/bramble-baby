@@ -182,6 +182,16 @@ export function ChildPage() {
 
         <WeightGoalCard child={child} />
         <div className="card profile-links">
+          {/* The one way in to the nap window page (Home's band was it until Home stopped leading with the next nap). */}
+          {expecting ? null : (
+            <Link to="/nap" className="profile-link" data-testid="nap-window-link">
+              <span className="icon-circle tone-sleep">
+                <MoonIcon />
+              </span>
+              <span className="grow profile-link-title">Nap window</span>
+              <ChevronRightIcon className="chev" />
+            </Link>
+          )}
           <button type="button" className="profile-link" onClick={() => setSheet('nap')}>
             <span className="icon-circle tone-sleep">
               <MoonIcon />

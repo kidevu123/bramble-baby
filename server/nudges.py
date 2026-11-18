@@ -1093,6 +1093,9 @@ class Nudges:
         if source == "milk":
             on = self.settings(int(child)).get("milk", True) if child is not None else True
             return "/milk", None, not on
+        if tag.startswith("nap:"):
+            # The nap window's own page: Home no longer shows the prediction the alert is about.
+            return "/nap", None, False
         if tag.startswith("reminder:") and tag[len("reminder:"):] in LOG_KINDS:
             return f"/?log={tag[len('reminder:'):]}", None, False
         return rem.get("url") or "/", rem.get("user_id"), False

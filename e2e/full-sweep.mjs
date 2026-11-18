@@ -174,12 +174,7 @@ async function run(scheme, viewport, reducedMotion = 'no-preference') {
     ok('tile alarm opens the reminder sheet', /reminder/i.test(await title().innerText()))
     await closeSheet()
 
-    await page.getByRole('button', { name: 'Schedule creator' }).click()
-    await settle()
-    await shot('home-schedule-creator')
-    ok('Schedule Creator opens in place from the band', page.url().endsWith('/') && (await page.locator('dialog[open]').count()) === 1)
-    await sheet().getByRole('button', { name: 'Done' }).click()
-    await settle()
+    ok('Home leads with logging: no nap window band', (await page.locator('.band').count()) === 0)
   })
 
   // ---------------------------------------------------------------- every log type
@@ -520,15 +515,15 @@ async function run(scheme, viewport, reducedMotion = 'no-preference') {
 
   // ---------------------------------------------------------------- nap window page
   await section('nap-window', async () => {
-    await page.getByRole('link', { name: 'Home' }).click(); await settle(800)
-    await page.locator('a.band-pred').click(); await settle(1000)
+    await page.getByRole('link', { name: 'Child', exact: true }).click(); await settle(800)
+    await page.getByTestId('nap-window-link').click(); await settle(1000)
     await shot('nap-window')
     ok('nap window page shows Back', (await page.getByRole('button', { name: 'Back' }).count()) === 1)
-    ok('the band on the nap window page does not link to the page it is on', (await page.locator('a.band-pred').count()) === 0 && (await page.locator('.band-pred').count()) === 1)
+    ok('the nap window page carries the prediction, with the Child tab lit', (await page.locator('.band-live .band-pred').count()) === 1 && /Child/.test(await page.locator('.tabbar .tab.active').innerText()))
     const sc = page.getByRole('button', { name: /Schedule/ })
     if (await sc.count()) { await sc.first().click(); await settle(); await shot('nap-window-schedule-creator'); ok('Schedule Creator opens in place on nap window', new URL(page.url()).pathname === '/nap'); await sheet().getByRole('button', { name: 'Done' }).click(); await settle() }
     await page.getByRole('button', { name: 'Back' }).click(); await settle(800)
-    ok('Back from nap window returns Home', new URL(page.url()).pathname === '/')
+    ok('Back from nap window returns to the Child tab', new URL(page.url()).pathname === '/child')
   })
 
   // ---------------------------------------------------------------- Child page

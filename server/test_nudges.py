@@ -250,6 +250,10 @@ class NudgeTest(unittest.TestCase):
         self.assertEqual(len(self.rows("nudge:feed", sent=1)), 1)
         self.assertIn("Sent for the last one", notes["feed"]["note"])
 
+    def test_a_tap_on_a_nap_window_alert_opens_the_nap_window_page(self):
+        self.assertEqual(self.n.route({"tag": "nap:now", "source": "auto", "child": CHILD}), ("/nap", None, False))
+        self.assertEqual(self.n.route({"tag": "reminder:bottle", "source": "manual", "child": CHILD})[0], "/?log=bottle")
+
     def test_a_nudge_removed_from_the_inbox_is_not_planned_again_for_the_same_feed(self):
         W.feed(6)
         W.feed(3)
@@ -911,7 +915,7 @@ class NudgeTest(unittest.TestCase):
         self.assertEqual([p for _, p in self.sent if p["tag"].startswith("milk:")], [])
         # Manual tile reminders open their sheet; nap window stays on Home.
         self.assertEqual(self.n.route({"tag": "reminder:bottle", "source": "manual", "child": CHILD}), ("/?log=bottle", None, False))
-        self.assertEqual(self.n.route({"tag": "nap:now", "source": "auto", "child": CHILD}), ("/", None, False))
+        self.assertEqual(self.n.route({"tag": "nap:now", "source": "auto", "child": CHILD}), ("/nap", None, False))
 
     def test_http_arms_the_token_saves_settings_and_reports_the_plan(self):
         self.n.secrets.clear()

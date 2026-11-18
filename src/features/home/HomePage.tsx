@@ -15,7 +15,7 @@ import { describeApiError } from '../../lib/api/client'
 import { companion, type MilkBag, type MilkLocation } from '../../lib/api/companion'
 import type { EventKind, Pumping } from '../../lib/api/types'
 import { isExpecting } from '../../lib/child'
-import { ageBasis } from '../../lib/preterm'
+import { ageBasis, ageHold } from '../../lib/preterm'
 import { analyzeContractions } from '../../lib/contractions'
 import { buildTimeline, describeDiaper, describeFeeding, isPotty, latestOf, summarizeDay, type EventSets, type TimelineItem } from '../../lib/events'
 import { formatAgo, formatDurationShort, parseDate, parseDuration } from '../../lib/time'
@@ -147,7 +147,11 @@ export function HomePage() {
     <>
       <TopBar onInbox={() => setInbox(true)} inboxCount={(reminders.data ?? []).filter((r) => !r.sent).length} />
       <main className="page home-page">
-        <NapBand child={child} sleeps={events.sleep} now={now} wakeWindowAdjustMinutes={settings.napWindow.wakeWindowAdjustMinutes} asleepSince={asleepSince} onSchedule={() => setSchedule(true)} />
+        {/* Home leads with logging, not with the next nap: the nap window is on the Child tab. The band stays only for
+            what is not a prediction: the weeks of pregnancy, and where a baby in the NICU or before the due date stands. */}
+        {expecting || (ageBasisOf && ageHold(ageBasisOf, now)) ? (
+          <NapBand child={child} sleeps={events.sleep} now={now} wakeWindowAdjustMinutes={settings.napWindow.wakeWindowAdjustMinutes} asleepSince={asleepSince} onSchedule={() => setSchedule(true)} />
+        ) : null}
         <ActiveTimers child={child.id} />
         {events.isError ? (
           <p className="log-error" role="alert">

@@ -17,9 +17,11 @@ installing and deploying; `README.md` is the public front page (screenshots from
   deep-link with a query parameter (`?open=`), which strands the user on another page.
 - **One way in, and Back goes where you came from.** A destination has one entry point: a bottom tab is it
   (no Home card duplicating the Stash tab, no second way to the sleep plan beside its Settings row). Pages reached
-  from the top bar or a band (Settings, Insights, Nap window, timers, Contractions) show Back, which pops
+  from the top bar or a row (Settings, Insights, timers, Contractions; the guide and the nap window from the Child tab) show Back, which pops
   history (`useGoBack`: `navigate(-1)`, Home when there is no history). Sheets open in place, never by
   navigating to another page.
+- **Home leads with logging, never with the next nap.** The nap window's prediction lives on its own page (Child tab › Nap window); Home
+  shows the band only for what is not a prediction (the weeks of pregnancy; where a baby in the NICU or before the due date stands).
 - **Never abandon a feature or leave two ways to do the same thing.** Upgrade the existing feature in place,
   or migrate the data and remove the old path in the same change. Never ship a code path that silently
   produces the old behaviour (2026-09-30: the label sheet could still print a label with no volume, so no bag,
