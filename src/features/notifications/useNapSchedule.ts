@@ -24,7 +24,9 @@ export function useNapSchedule(child: Child | null, sleeps: Sleep[], settings: N
     const p = predictNap(sleeps, judgedMonths(basis, now), now, settings.wakeWindowAdjustMinutes, asleepSince)
     const items: PushScheduleItem[] = []
     // In the NICU or before the due date (Settings › Born early) no nap is predicted, so none is announced.
-    if (settings.notify && !ageHold(basis, now) && p.state === 'predicted' && p.at) {
+    // Only while the household has the nap window on (Child › Nap window settings): off, nothing is planned and
+    // the empty plan below takes back any alert still waiting.
+    if (settings.onHome && settings.notify && !ageHold(basis, now) && p.state === 'predicted' && p.at) {
       const lead = new Date(p.at.getTime() - settings.leadMinutes * 60_000)
       if (lead.getTime() > now.getTime()) {
         items.push({ tag: 'nap:near', at: lead.toISOString(), title: `Nap window soon · ${formatTime(p.at)}`, body: `${child.first_name}'s ideal nap is coming up in ${settings.leadMinutes} minutes.` })

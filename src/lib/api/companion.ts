@@ -55,6 +55,13 @@ export interface Reminder {
 }
 
 export interface NapSettings {
+  /**
+   * The nap window is on for this household: its band leads Home and its alerts go out. Off by default, so Home
+   * starts with the tiles; the nap window page stays on the Child tab either way. A family whose goal is sleep
+   * turns it on in Child › Nap window settings.
+   */
+  onHome: boolean
+  /** With the nap window on: notify before and at the predicted nap. */
   notify: boolean
   leadMinutes: number
   wakeWindowAdjustMinutes: number
@@ -134,7 +141,7 @@ export const DEFAULT_HOME_TILES = [
 export const DEFAULT_CHILD_SETTINGS: ChildSettings = {
   dayStart: '08:00',
   dayEnd: '18:00',
-  napWindow: { notify: true, leadMinutes: 10, wakeWindowAdjustMinutes: 0, napsPerDayOverride: null },
+  napWindow: { onHome: false, notify: true, leadMinutes: 10, wakeWindowAdjustMinutes: 0, napsPerDayOverride: null },
   homeTiles: DEFAULT_HOME_TILES,
   customFoods: [],
   reportFilters: {},

@@ -147,9 +147,10 @@ export function HomePage() {
     <>
       <TopBar onInbox={() => setInbox(true)} inboxCount={(reminders.data ?? []).filter((r) => !r.sent).length} />
       <main className="page home-page">
-        {/* Home leads with logging, not with the next nap: the nap window is on the Child tab. The band stays only for
-            what is not a prediction: the weeks of pregnancy, and where a baby in the NICU or before the due date stands. */}
-        {expecting || (ageBasisOf && ageHold(ageBasisOf, now)) ? (
+        {/* Home leads with logging, not with the next nap, unless the household turned the nap window on (Child ›
+            Nap window settings). Without it the band shows only what is not a prediction: the weeks of pregnancy, and
+            where a baby in the NICU or before the due date stands. */}
+        {expecting || (ageBasisOf && ageHold(ageBasisOf, now)) || settings.napWindow.onHome ? (
           <NapBand child={child} sleeps={events.sleep} now={now} wakeWindowAdjustMinutes={settings.napWindow.wakeWindowAdjustMinutes} asleepSince={asleepSince} onSchedule={() => setSchedule(true)} />
         ) : null}
         <ActiveTimers child={child.id} />

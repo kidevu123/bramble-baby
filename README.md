@@ -75,6 +75,13 @@ It was built for one family's newborn and is used by them every day; everything 
 - **Did it** logs the idea as a Play activity, so it is on the timeline and counted in the week. Nothing is scored.
 - **Tummy time today** against what the AAP suggests for the age, for the first six months.
 
+### Why play comes first
+Earlier versions leaned on sleep everywhere: a nap prediction on top of Home, a Sleep Plans tab, nap alerts. Sleep
+matters, and all of that is still here. But a predicted nap window is a guess from averages, and a baby who is not sleepy
+will not nap because an app says so; an app that opens on the next nap turns the day into a countdown to it. So Bramble
+opens on what you do with the baby: Home is for logging, the middle tab is Play, and the nap window is something a
+family turns on (Child tab › Nap window settings) when sleep timing is what they are working on. Neither is scored.
+
 ### Born early, or starting out in the NICU
 - Set the **weeks of pregnancy at birth** and the **NICU stay** once. Every age-based figure then uses
   **corrected age** (feeds, sleep, wake windows, weight gain, WHO percentiles) until two.

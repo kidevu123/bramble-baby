@@ -12,6 +12,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.72.0',
+    date: 'Nov 18',
+    items: [
+      'The nap window is now a choice. It is off to start with: Home opens on the tiles, and no nap alerts go out.',
+      'If sleep timing is what you are working on, turn it on in Child tab, Nap window settings, Nap window on Home. The band and its alerts come back.',
+      'Why: sleep matters, but the app was leaning on it everywhere. A nap window is a guess, and a baby who is not sleepy will not nap for it. Play gets the room instead.',
+    ],
+  },
+  {
     version: '1.71.0',
     date: 'Nov 18',
     items: [

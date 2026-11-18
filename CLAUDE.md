@@ -20,8 +20,13 @@ installing and deploying; `README.md` is the public front page (screenshots from
   from the top bar or a row (Settings, Insights, timers, Contractions; the guide and the nap window from the Child tab) show Back, which pops
   history (`useGoBack`: `navigate(-1)`, Home when there is no history). Sheets open in place, never by
   navigating to another page.
-- **Home leads with logging, never with the next nap.** The nap window's prediction lives on its own page (Child tab › Nap window); Home
-  shows the band only for what is not a prediction (the weeks of pregnancy; where a baby in the NICU or before the due date stands).
+- **Play first; the nap window is a household's choice, off by default** (`settings.napWindow.onHome`, Child › Nap window settings). Off,
+  Home starts with the tiles and no nap alert is planned; on, the band leads Home and its alerts follow their switch. The nap window page
+  is on the Child tab either way, and Home's band still shows what is not a prediction (the weeks of pregnancy; where a baby in the NICU or
+  before the due date stands). Why: sleep is not unimportant, but the app leaned on it everywhere (a tab, the top of Home, two pushes); a
+  nap window is a guess from averages, and a baby who is not sleepy will not nap for it, while giving parents ways to play is something
+  they can act on. Do not add a sleep prompt to a daily screen or a default-on sleep push unasked; do not promise that play speeds
+  development either (the Play rule below).
 - **Never abandon a feature or leave two ways to do the same thing.** Upgrade the existing feature in place,
   or migrate the data and remove the old path in the same change. Never ship a code path that silently
   produces the old behaviour (2026-09-30: the label sheet could still print a label with no volume, so no bag,

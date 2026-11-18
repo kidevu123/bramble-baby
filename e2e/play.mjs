@@ -160,6 +160,27 @@ await page.getByRole('button', { name: 'Back' }).click()
 await settle(700)
 check('Back returns to Settings', new URL(page.url()).pathname === '/settings', page.url())
 
+// ---- the nap window is a choice: off by default, one switch brings its band and alerts back
+const homeBand = async () => { await page.getByRole('link', { name: 'Home', exact: true }).click(); await settle(1000); return page.locator('.band').count() }
+check('Home starts with the tiles: no nap window band by default', (await homeBand()) === 0 && (await page.locator('.tile').first().isVisible()))
+const napSettings = async () => { await page.getByRole('link', { name: 'Child', exact: true }).click(); await settle(900); await page.getByRole('button', { name: /^Nap window settings/ }).click(); await settle(600); return page.locator('dialog[open]') }
+let nap = await napSettings()
+check('Nap window settings open on one switch, off, with no alert settings under it', (await nap.getByRole('switch', { name: 'Nap window on Home' }).getAttribute('aria-checked')) === 'false' && (await nap.getByRole('switch', { name: 'Nap window alerts' }).count()) === 0 && /no nap alerts go out/.test(await nap.innerText()))
+await nap.getByRole('switch', { name: 'Nap window on Home' }).click()
+await settle(900)
+check('turned on, the alerts and their lead time appear', (await nap.getByRole('switch', { name: 'Nap window alerts' }).count()) === 1 && /Heads-up before the nap window/.test(await nap.innerText()))
+await shot('06-nap-window-switch')
+await nap.getByRole('button', { name: 'Done' }).click()
+await settle(500)
+const storedNap = (await (await page.request.get(`${BASE}/bramble/settings/${child.id}`, { headers })).json()).napWindow
+check('the choice is the household\'s (saved on the companion), and the band is back on Home', storedNap?.onHome === true && (await homeBand()) === 1, JSON.stringify(storedNap))
+nap = await napSettings()
+await nap.getByRole('switch', { name: 'Nap window on Home' }).click()
+await settle(900)
+await nap.getByRole('button', { name: 'Done' }).click()
+await settle(500)
+check('turned off again, Home is back to the tiles', (await homeBand()) === 0)
+
 const failed = checks.filter((c) => !c.ok)
 console.log(`\n${checks.length - failed.length}/${checks.length} checks passed (${THEME})`)
 if (problems.length) console.log('PROBLEMS:\n' + [...new Set(problems)].join('\n'))

@@ -16,7 +16,7 @@ import { clock12 } from '../reports/format'
 import '../plans/plans.css'
 import './child.css'
 
-/** Nap window settings: notifications lead time, wake-window nudge, naps override. */
+/** Nap window settings: whether it leads Home at all (with its alerts and their lead time), wake-window nudge, naps override. */
 export function NapSettingsSheet({ open, child, onClose }: { open: boolean; child: Child; onClose: () => void }) {
   const { settings, update } = useChildSettings(child.id)
   const ss = settings.napWindow
@@ -34,21 +34,38 @@ export function NapSettingsSheet({ open, child, onClose }: { open: boolean; chil
         </Button>
       }
     >
-      <NotificationStatus child={child.id} />
+      {/* The one switch: off (the default), Home starts with the tiles and no nap alert goes out. A family whose goal
+          is sleep turns it on; the nap window page is on the Child tab either way. */}
       <div className="customize-row" style={{ borderBottom: 0 }}>
         <span>
-          <span className="strong">Nap window alerts</span>
+          <span className="strong">Nap window on Home</span>
           <span className="small muted" style={{ display: 'block' }}>
-            Notify before and at the predicted nap time
+            {ss.onHome ? 'The next nap leads Home, with its alerts below.' : 'Off: Home starts with the tiles and no nap alerts go out. The nap window is still on the Child tab.'}
           </span>
         </span>
-        <Toggle checked={ss.notify} onChange={(v) => set({ notify: v })} label="Nap window alerts" />
+        <Toggle checked={ss.onHome} onChange={(v) => set({ onHome: v })} label="Nap window on Home" />
       </div>
+      {ss.onHome ? (
+        <>
+          <NotificationStatus child={child.id} />
+          <div className="customize-row" style={{ borderBottom: 0 }}>
+            <span>
+              <span className="strong">Nap window alerts</span>
+              <span className="small muted" style={{ display: 'block' }}>
+                Notify before and at the predicted nap time
+              </span>
+            </span>
+            <Toggle checked={ss.notify} onChange={(v) => set({ notify: v })} label="Nap window alerts" />
+          </div>
+        </>
+      ) : null}
       {/* Five choices per row, one row each: no orphan chip on a second line. */}
       <div className="stack ss-pills">
+      {ss.onHome ? (
       <FieldGroup title="Heads-up before the nap window">
         <PillChoice tone="teal" value={String(ss.leadMinutes) as '5' | '10' | '15' | '20' | '30'} onChange={(v) => set({ leadMinutes: Number(v) })} options={[{ value: '5', label: '5 min' }, { value: '10', label: '10 min' }, { value: '15', label: '15 min' }, { value: '20', label: '20 min' }, { value: '30', label: '30 min' }]} />
       </FieldGroup>
+      ) : null}
       <FieldGroup title="Wake window nudge" hint={`Typical for ${ageStageLabel(months)}: ${formatDurationShort(age.minMinutes * 60)} – ${formatDurationShort(age.maxMinutes * 60)}. Shift the prediction if ${child.first_name} runs shorter or longer.`}>
         <PillChoice tone="teal" value={String(ss.wakeWindowAdjustMinutes) as '-30' | '-15' | '0' | '15' | '30'} onChange={(v) => set({ wakeWindowAdjustMinutes: Number(v) })} options={[{ value: '-30', label: '−30m' }, { value: '-15', label: '−15m' }, { value: '0', label: 'Auto' }, { value: '15', label: '+15m' }, { value: '30', label: '+30m' }]} />
       </FieldGroup>
