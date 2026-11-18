@@ -490,7 +490,7 @@ async function run(scheme, viewport, reducedMotion = 'no-preference') {
 
   // ---------------------------------------------------------------- Sleep Plans
   await section('plans', async () => {
-    await page.getByRole('link', { name: 'Child', exact: true }).click(); await settle(800); await page.getByTestId('sleep-plan-link').click(); await settle(1000)
+    await page.getByRole('button', { name: 'Settings', exact: true }).click(); await settle(900); await page.getByRole('button', { name: /^Sleep plan/ }).click(); await settle(1000)
     await shot('plans-questionnaire')
     for (const opt of ['Crib in own room', 'Fed to sleep', '1–2', 'Feed', 'Short naps', 'Yes', 'Longer naps', 'Gentle']) {
       const b = page.getByRole('radio', { name: new RegExp(opt, 'i') }).first()

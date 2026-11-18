@@ -12,6 +12,11 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.70.1',
+    date: 'Nov 18',
+    items: ['The sleep plan has moved out of the way, into Settings. It is optional; Play keeps the middle tab.'],
+  },
+  {
     version: '1.70.0',
     date: 'Nov 18',
     items: [

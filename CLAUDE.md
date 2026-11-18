@@ -16,7 +16,7 @@ installing and deploying; `README.md` is the public front page (screenshots from
   place (the milk label sheet opens `LabelSettingsSheet`), so closing it returns to where the user was; never
   deep-link with a query parameter (`?open=`), which strands the user on another page.
 - **One way in, and Back goes where you came from.** A destination has one entry point: a bottom tab is it
-  (no Home card duplicating the Stash tab, no second way to the sleep plan beside its Child-tab row). Pages reached
+  (no Home card duplicating the Stash tab, no second way to the sleep plan beside its Settings row). Pages reached
   from the top bar or a band (Settings, Insights, Nap window, timers, Contractions) show Back, which pops
   history (`useGoBack`: `navigate(-1)`, Home when there is no history). Sheets open in place, never by
   navigating to another page.

@@ -1,7 +1,7 @@
 /**
  * The Play tab: ideas by age (CDC's tips from 2 months, the first weeks from the NHS and the AAP), today's three,
- * Did it / Undo as a Play activity, tummy time, the week by area, every idea for the age, and the sleep plan's new
- * way in from the Child tab. Against the mock stack; saves screenshots and exits non-zero when a step fails.
+ * Did it / Undo as a Play activity, tummy time, the week by area, every idea for the age, and the sleep plan's
+ * way in from Settings. Against the mock stack; saves screenshots and exits non-zero when a step fails.
  *
  *   node e2e/play.mjs ./e2e/out/play http://localhost:5173 light
  */
@@ -145,15 +145,20 @@ check('at 320 wide nothing overflows and the four kinds are named in full', (awa
 await shot('05-play-320', { fullPage: true })
 await page.setViewportSize({ width: 390, height: 664 })
 
-// ---- the sleep plan's way in
+// ---- the sleep plan's way in: Settings, not a tab and not the Child tab
 await page.getByRole('link', { name: 'Child', exact: true }).click()
 await settle(1000)
-await page.getByTestId('sleep-plan-link').click()
+check('the Child tab no longer carries the sleep plan', (await page.getByText('Sleep plan', { exact: true }).count()) === 0)
+await page.getByRole('link', { name: 'Play', exact: true }).click()
+await settle(700)
+await page.getByRole('button', { name: 'Settings', exact: true }).click()
 await settle(900)
-check('the sleep plan opens from the Child tab, with Back and the Child tab lit', new URL(page.url()).pathname === '/plans' && (await page.getByRole('button', { name: 'Back' }).count()) === 1 && /Child/.test(await page.locator('.tabbar .tab.active').innerText()))
+await page.getByRole('button', { name: /^Sleep plan/ }).click()
+await settle(900)
+check('the sleep plan opens from Settings, with Back', new URL(page.url()).pathname === '/plans' && (await page.getByRole('button', { name: 'Back' }).count()) === 1)
 await page.getByRole('button', { name: 'Back' }).click()
 await settle(700)
-check('Back returns to the Child tab', new URL(page.url()).pathname === '/child')
+check('Back returns to Settings', new URL(page.url()).pathname === '/settings', page.url())
 
 const failed = checks.filter((c) => !c.ok)
 console.log(`\n${checks.length - failed.length}/${checks.length} checks passed (${THEME})`)

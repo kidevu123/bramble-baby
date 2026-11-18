@@ -199,6 +199,8 @@ export function MorePage() {
           <SettingsRow icon={<BottleIcon />} title="Calories & fortifying" value={calorieSummary(calorieTracking(childSettings))} onClick={() => setOpen('calories')} />
           <SettingsRow icon={<ScaleIcon />} title="Weighing" value={childSettings.diaperGrams ? `Dry diaper ${diaperText(childSettings.diaperGrams, prefs.units.weight)} · taken off a weighing with one on` : 'Take a dry diaper off a weighing'} onClick={() => setOpen('weighing')} />
           <SettingsRow icon={<HeartIcon />} title="Born early" value={pretermSummary === 'Off' ? 'Corrected age and the NICU stay' : pretermSummary} onClick={() => setOpen('preterm')} />
+          {/* The one way in to the sleep plan: optional, so it sits here and not among the tabs. */}
+          <SettingsRow icon={<MoonIcon />} title="Sleep plan" value={childSettings.sleepPlanAnswers ? 'Built from the questionnaire and the logged sleep' : 'Optional · a short questionnaire builds one'} onClick={() => navigate('/plans')} />
           <SettingsRow icon={<PlugIcon />} title="Integrations" value={integrationsSummary(integrations)} onClick={() => setOpen('integrations')} />
         </SettingsGroup>
 

@@ -103,7 +103,7 @@ await page.getByRole('button', { name: 'Solids', exact: true }).click(); await s
 await page.getByRole('button', { name: 'Reports settings' }).click(); await settle(); await shot('22-reports-settings'); await inDialog().getByRole('button', { name: 'Apply' }).click(); await settle()
 
 // Sleep plans
-await page.getByRole('link', { name: 'Child', exact: true }).click(); await settle(800); await page.getByTestId('sleep-plan-link').click(); await settle(1000); await shot('23-plans-questionnaire')
+await page.getByRole('button', { name: 'Settings', exact: true }).click(); await settle(900); await page.getByRole('button', { name: /^Sleep plan/ }).click(); await settle(1000); await shot('23-plans-questionnaire')
 for (const opt of ['Crib in own room', 'Fed to sleep', '1–2', 'Feed', 'Short naps', 'Yes', 'Longer naps', 'Gentle']) {
   const b = page.getByRole('radio', { name: new RegExp(opt, 'i') }).first()
   if (await b.count()) await b.click()
