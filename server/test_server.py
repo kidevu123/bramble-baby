@@ -317,6 +317,42 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(bs.merge_milk([{"at": "a", "title": "Milk expired \u00b7 60 mL (2.0 oz) (J23PFX)"}, {"at": "b", "title": "Milk expired \u00b7 71 mL (2.4 oz) (premade bottle 2)"}])["title"], "Milk expired \u00b7 2 containers")
         self.assertEqual(bs.merge_milk([{"at": "a", "title": "Milk expired \u00b7 60 mL (2.0 oz) (J23PFX)"}, {"at": "b", "title": "Milk expired \u00b7 30 mL (1.0 oz) (ABC234)"}])["title"], "Milk expired \u00b7 2 bags")
 
+    def test_a_reminder_removed_from_the_inbox_stays_out_and_is_found_under_a_new_id(self):
+        self.subscribe("https://push/x", child=1)
+        now = datetime.now(timezone.utc)
+        near, at = ((now + timedelta(minutes=m)).isoformat(timespec="seconds") for m in (25, 40))
+        items = [{"tag": "nap:near", "at": near, "title": "Nap window soon"}, {"tag": "nap:now", "at": at, "title": "Nap window now"}]
+        first = self.call("POST", "/push/schedule", {"child": 1, "items": items})[1]["scheduled"]
+        # The app plans the same alerts again on every launch: same moments, new ids. The list the phone is showing
+        # still holds the old ids, and its trash was dead (the owner's Inbox, 2026-11-11).
+        self.call("POST", "/push/schedule", {"child": 1, "items": items})
+        self.assertEqual(self.call("DELETE", f"/reminders/{first[0]['id']}")[0], 404)
+        status, body = self.call("POST", "/reminders/skip", {"child": 1, "items": [{"id": first[0]["id"], "tag": "nap:near", "at": near}]})
+        self.assertEqual((status, body), (200, {"skipped": 1}))
+        self.assertEqual([r["tag"] for r in self.call("GET", "/reminders?child=1")[1]], ["nap:now"])
+        # Planned once more: the removed one is not put back, and it is never listed as sent.
+        self.call("POST", "/push/schedule", {"child": 1, "items": items})
+        self.assertEqual([r["tag"] for r in self.call("GET", "/reminders?child=1")[1]], ["nap:now"])
+        self.assertEqual(self.delivery.run_once(now + timedelta(hours=1)), 1)
+        self.assertEqual([p["title"] for _, p in self.sent], ["Nap window now"])
+        self.assertEqual([(r["tag"], r["sent"]) for r in self.call("GET", "/reminders?child=1")[1]], [("nap:now", True)])
+        # A milk reminder: gone from the plan, and a pour from the bag (which rewrites its reminders) does not bring it back.
+        pumped = (now - timedelta(hours=1)).isoformat(timespec="seconds")
+        bag = self.call("POST", "/milk", {"child": 1, "pumped_at": pumped, "volume_ml": 90, "location": "fridge", "client_key": "inbox-skip-0001"})[1]
+        mine = [r for r in self.call("GET", "/reminders?child=1")[1] if r["tag"] == f"milk:{bag['id']}"]
+        self.assertEqual([r["title"].split(" \u00b7 ")[0] for r in mine], ["Milk expiring soon", "Milk expired"])
+        self.assertEqual(self.call("DELETE", f"/reminders/{mine[0]['id']}")[0], 204)
+        self.assertEqual(self.call("POST", f"/milk/{bag['id']}/use", {"amount_ml": 30})[0], 200)
+        after = [r for r in self.call("GET", "/reminders?child=1")[1] if r["tag"] == f"milk:{bag['id']}"]
+        self.assertEqual([r["title"].split(" \u00b7 ")[0] for r in after], ["Milk expired"])
+        # One a person set is simply deleted; another child's rows are not touched; nonsense is refused.
+        manual = self.call("POST", "/reminders", {"child": 1, "at": at, "title": "Vitamin D", "tag": "reminder:medicine"})[1]
+        self.assertEqual(self.call("POST", "/reminders/skip", {"child": 2, "items": [{"id": manual["id"]}]})[1], {"skipped": 0})
+        self.assertEqual(self.call("POST", "/reminders/skip", {"child": 1, "items": [{"id": manual["id"]}]})[1], {"skipped": 1})
+        self.assertEqual(self.app.store.q("SELECT COUNT(*) AS n FROM reminders WHERE id=?", (manual["id"],))[0]["n"], 0)
+        self.assertEqual(self.call("POST", "/reminders/skip", {"child": 1})[0], 400)
+        self.assertEqual(self.call("POST", "/reminders/skip", {"child": 1, "items": ["x"]})[0], 400)
+
     def test_schedule_skips_auto_alert_already_sent(self):
         past = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat(timespec="seconds")
         self.subscribe("https://push/x", child=1)

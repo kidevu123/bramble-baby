@@ -1000,7 +1000,7 @@ class MilkStore:
 
     def _delete_rows(self, bag_id: int) -> bool:
         """A bag and everything hanging off it; the caller holds the transaction."""
-        self.store.x("DELETE FROM reminders WHERE tag=? AND sent=0", (f"milk:{bag_id}",))
+        self.store.x("DELETE FROM reminders WHERE tag=? AND (sent=0 OR skipped=1)", (f"milk:{bag_id}",))
         self.store.x("DELETE FROM milk_uses WHERE bag=?", (bag_id,))
         try:
             self.store.x("UPDATE milk_travel_labels SET bag_id=NULL, assigned_at=NULL WHERE bag_id=?", (bag_id,))
@@ -1049,6 +1049,10 @@ class MilkStore:
             if expires > now:
                 rows.append((expires, f"Milk expired · {volume} ({name})", f"Pumped {pumped}, {where}. Past its storage window: discard it in Bramble."))
         for at, title, body in rows:
+            # One removed from the Inbox stays removed while the bag's deadline is the same (a pour from the bag
+            # rewrites its reminders); a move to another place gives a new deadline and new reminders.
+            if self.store.q("SELECT 1 FROM reminders WHERE tag=? AND at=? AND skipped=1 LIMIT 1", (tag, _iso(at))):
+                continue
             self.store.x(
                 "INSERT INTO reminders (child, at, title, body, tag, source, sent, created) VALUES (?,?,?,?,?,'milk',0,?)",
                 (bag["child"], _iso(at), title, body, tag, self.now_iso()),

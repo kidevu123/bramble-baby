@@ -250,6 +250,22 @@ class NudgeTest(unittest.TestCase):
         self.assertEqual(len(self.rows("nudge:feed", sent=1)), 1)
         self.assertIn("Sent for the last one", notes["feed"]["note"])
 
+    def test_a_nudge_removed_from_the_inbox_is_not_planned_again_for_the_same_feed(self):
+        W.feed(6)
+        W.feed(3)
+        self.n.run_once(NOW)
+        row = self.rows("nudge:feed", sent=0)[0]
+        self.assertEqual(self.app.store.skip_reminder(row), 1)
+        notes = self.n.run_once(NOW + timedelta(minutes=2))[CHILD]
+        self.assertEqual(self.rows("nudge:feed", sent=0), [])
+        self.assertIn("Removed from the list for the last one", notes["feed"]["note"])
+        # Nothing goes out when its moment comes; the next feed is planned as usual.
+        self.delivery.run_once(datetime.fromisoformat(row["at"]) + timedelta(seconds=1))
+        self.assertEqual(self.sent, [])
+        W.feed(0.1)
+        self.n.run_once(NOW + timedelta(minutes=4))
+        self.assertEqual(len(self.rows("nudge:feed", sent=0)), 1)
+
     def test_logging_a_feed_cancels_the_pending_nudge_and_moves_the_moment(self):
         W.feed(6)
         W.feed(3)

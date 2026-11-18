@@ -123,21 +123,69 @@ await settle(600)
 
 // Four premade bottles made together, each with its two expiry reminders at the same minute: the Inbox shows them as
 // one row a kind, not eight.
-const pumpedAt = new Date(Date.now() - 3600_000).toISOString()
+// Pumped 77 hours ago in the fridge (4 days): expiring soon in 7 hours, expired in 19, both inside the Inbox's next day.
+const pumpedAt = new Date(Date.now() - 77 * 3600_000).toISOString()
 const bagIds = []
 for (let i = 0; i < 4; i++) bagIds.push((await (await page.request.post(`${BASE}/bramble/milk`, { headers, data: { child: child.id, pumped_at: pumpedAt, volume_ml: 71, client_key: `probe-bag-${i}-${Date.now()}` } })).json()).id)
 const made = await page.request.post(`${BASE}/bramble/milk/bottles`, { headers, data: { child: child.id, bottles: bagIds.map((bag, i) => ({ spot: i + 2, takes: [{ bag, amount_ml: 71 }], client_key: `probe-bottle-${i}-${Date.now()}` })) } })
 check('four premade bottles are made for the Inbox check', made.ok(), `${made.status()} ${(await made.text()).slice(0, 160)}`)
-// Inbox lists the computed ones without a delete button.
+// A freezer bag (its use-by dates are months out) and the nap window's two alerts, as the app plans them.
+await page.request.post(`${BASE}/bramble/milk`, { headers, data: { child: child.id, pumped_at: new Date(Date.now() - 3600_000).toISOString(), volume_ml: 120, location: 'freezer', client_key: `probe-freezer-${Date.now()}` } })
+const napItems = [
+  { tag: 'nap:near', at: new Date(Date.now() + 25 * 60_000).toISOString(), title: 'Nap window soon · 4:19 AM', body: 'Coming up.' },
+  { tag: 'nap:now', at: new Date(Date.now() + 40 * 60_000).toISOString(), title: 'Nap window now · 4:19 AM', body: 'Now.' },
+]
+const planNap = () => page.request.post(`${BASE}/bramble/push/schedule`, { headers, data: { child: child.id, items: napItems } })
+await planNap()
+// The Inbox: what is due in the next day, each row with a remove, the later ones as one line, and Clear.
 await page.goto(BASE + '/')
 await settle(900)
 await page.getByRole('button', { name: /inbox|notifications/i }).first().click()
 await settle(900)
 const inbox = (await sheet().innerText()).replace(/\n/g, ' · ')
-check('inbox shows the planned nudges', /Pump due|Feeding due|Evening summary/.test(inbox), inbox.slice(0, 200))
+// Inside the stack's quiet hours (10 PM to 7 AM UTC) the feed, pump and summary nudges are held back, so none is listed.
+const quietNow = new Date().getUTCHours() >= 22 || new Date().getUTCHours() < 7
+check('inbox shows the planned nudges', quietNow || /Pump due|Feeding due|Evening summary/.test(inbox), quietNow ? 'quiet hours: none planned' : inbox.slice(0, 200))
 const milkRows = await sheet().locator('.reminder-item', { hasText: 'Milk expir' }).allInnerTexts()
 check('milk reminders that fall together are one row a kind, with the bottles named', milkRows.length === 2 && /Milk expiring soon · 4 premade bottles/.test(milkRows[0]) && /Bottles 2, 3, 4 and 5 · 71 mL \(2\.4 oz\) each/.test(milkRows[0]) && /Milk expired · 4 premade bottles/.test(milkRows[1]), milkRows.join(' | ').replace(/\n/g, ' '))
 await shot('04-inbox')
+const rowCount = () => sheet().locator('section').first().locator('.reminder-item').count()
+const upcomingRows = await rowCount()
+check('every upcoming row has a remove button', upcomingRows >= 4 && (await sheet().locator('section').first().getByRole('button', { name: /^Remove: / }).count()) === upcomingRows, `${upcomingRows} rows`)
+const laterLine = (await sheet().getByTestId('inbox-more').innerText().catch(() => '')).trim()
+check('use-by dates months out are one line, not rows', laterLine === '2 later · milk use-by dates · Show' && !/120 mL/.test(await sheet().locator('section').first().locator('.reminder-list').innerText()), laterLine)
+// The app plans the nap alerts again (every launch): same moments, new ids. The list on screen still holds the old
+// ids, which is what left the trash dead on the phone; the row is found by what it is.
+await planNap()
+await sheet().getByRole('button', { name: 'Remove: Nap window soon · 4:19 AM' }).click()
+await settle(900)
+check('the trash on a nap alert planned again since the list was read removes it', (await sheet().getByText('Nap window soon').count()) === 0 && (await sheet().getByText('Nap window now').count()) === 1 && (await sheet().locator('.log-error').count()) === 0)
+await planNap()
+await sheet().getByLabel('Close').click()
+await settle(300)
+await page.getByRole('button', { name: /inbox|notifications/i }).first().click()
+await settle(900)
+check('planned once more, it stays off the list', (await sheet().getByText('Nap window soon').count()) === 0 && (await sheet().getByText('Nap window now').count()) === 1)
+// Clear asks once, says what will not be sent, and Keep them changes nothing.
+const before = await rowCount()
+await sheet().getByTestId('inbox-clear').click()
+const question = (await sheet().getByTestId('inbox-confirm').innerText()).replace(/\n/g, ' ')
+check('Clear asks first and counts the milk alerts in it', /^Take these \d+ off the list\? They will not be sent\. 8 of them are milk use-by alerts: the Stash tab still shows what is due\. New ones are planned as usual\./.test(question), question.slice(0, 200))
+await shot('04b-inbox-clear')
+await sheet().getByRole('button', { name: 'Keep them' }).click()
+check('Keep them keeps them', (await rowCount()) === before && (await sheet().getByTestId('inbox-confirm').count()) === 0)
+await sheet().getByTestId('inbox-clear').click()
+await sheet().getByRole('button', { name: 'Take them off' }).click()
+await settle(1000)
+const cleared = (await sheet().locator('section').first().innerText()).replace(/\n/g, ' · ')
+check('Take them off empties the next day and leaves the later ones', (await rowCount()) === 0 && /Nothing in the next 24 hours\./.test(cleared) && /2 later · milk use-by dates · Show/.test(cleared) && (await sheet().getByTestId('inbox-clear').count()) === 0, cleared.slice(0, 200))
+const left = (await (await page.request.get(`${BASE}/bramble/reminders?child=${child.id}`, { headers })).json()).filter((r) => !r.sent)
+check('on the server only the two later ones are still planned, and none is listed as sent', left.length === 2 && left.every((r) => /120 mL/.test(r.title)), left.map((r) => r.title).join(' | ').slice(0, 200))
+await planNap()
+await sheet().getByTestId('inbox-more').click()
+await settle(400)
+check('Show lists the later ones, each with its remove', (await rowCount()) === 2 && /Show only the next 24 hours/.test(await sheet().getByTestId('inbox-more').innerText()) && (await sheet().getByText(/Nap window/).count()) === 0)
+await shot('04c-inbox-cleared')
 await sheet().getByLabel('Close').click()
 await settle(400)
 

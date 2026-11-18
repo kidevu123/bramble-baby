@@ -472,6 +472,11 @@ export const companion = {
     list: (child: Id) => api<Reminder[]>(`${COMPANION}/reminders`, { query: { child } }),
     create: (body: Omit<Reminder, 'id' | 'sent'>) => api<Reminder>(`${COMPANION}/reminders`, { method: 'POST', body: JSON.stringify(body) }),
     remove: (id: Id) => api<void>(`${COMPANION}/reminders/${id}`, { method: 'DELETE' }),
+    /**
+     * Take planned reminders out of the plan so they are never sent (the Inbox's remove and Clear). Each is named by
+     * id and by tag + moment: a planner rewrites its rows with new ids, and the list on screen may hold the old ones.
+     */
+    skip: (child: Id, items: { id: Id; tag: string; at: string }[]) => api<{ skipped: number }>(`${COMPANION}/reminders/skip`, { method: 'POST', body: JSON.stringify({ child, items }) }),
   },
 
   milk: {

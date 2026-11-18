@@ -90,3 +90,13 @@
   justify-content: space-between;
   gap: var(--space-3);
 }
+
+/* Clear's one question, in place under the heading. */
+.inbox-confirm {
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.inbox-confirm .row > * {
+  flex: 1;
+}

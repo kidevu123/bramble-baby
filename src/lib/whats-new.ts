@@ -12,6 +12,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.69.0',
+    date: 'Nov 18',
+    items: [
+      'Every row under Upcoming in Notifications has a bin that works: tap it and that one is not sent. Before, the bin on a nap window alert could do nothing at all.',
+      'Clear, beside Upcoming, takes everything listed off in one go. It asks once and says how many are milk use-by alerts.',
+      'Upcoming now shows the next 24 hours. Use-by dates weeks and months out are one line at the bottom, a tap away.',
+    ],
+  },
+  {
     version: '1.68.0',
     date: 'Nov 11',
     items: [

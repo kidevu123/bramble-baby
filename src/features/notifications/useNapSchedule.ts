@@ -1,4 +1,6 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
+import { ck } from '../../hooks/useCompanionEvents'
 import { companion, type PushScheduleItem } from '../../lib/api/companion'
 import type { Child, Sleep } from '../../lib/api/types'
 import type { NapSettings } from '../../lib/api/companion'
@@ -14,6 +16,7 @@ import { formatTime } from '../../lib/time'
  */
 export function useNapSchedule(child: Child | null, sleeps: Sleep[], settings: NapSettings, subscribed: boolean, asleepSince: Date | null = null, age: AgeBasis | null = null) {
   const last = useRef<string>('')
+  const qc = useQueryClient()
   useEffect(() => {
     if (!child || !subscribed || isExpecting(child)) return
     const now = new Date()
@@ -35,6 +38,10 @@ export function useNapSchedule(child: Child | null, sleeps: Sleep[], settings: N
     const signature = `${child.id}|${items.map((i) => `${i.tag}@${i.at}`).join(',')}`
     if (signature === last.current) return
     last.current = signature
-    void companion.push.schedule(child.id, items).catch(() => undefined)
-  }, [child, sleeps, settings, subscribed, asleepSince, age])
+    // The plan was rewritten (new rows, new ids): any list of reminders on screen is read again.
+    void companion.push
+      .schedule(child.id, items)
+      .then(() => qc.invalidateQueries({ queryKey: ck.reminders(child.id) }))
+      .catch(() => undefined)
+  }, [child, sleeps, settings, subscribed, asleepSince, age, qc])
 }

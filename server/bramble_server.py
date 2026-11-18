@@ -341,6 +341,11 @@ class Store:
         if "tags" not in have:
             # Who logged it, as on Baby Buddy entries ("caregiver:<username>"): a JSON list of strings.
             self.x("ALTER TABLE activities ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'")
+        have = {r["name"] for r in self.q("PRAGMA table_info(reminders)")}
+        if "skipped" not in have:
+            # A planned reminder someone removed from the Inbox: kept as a row that will never go out, so the
+            # planners (nap window, nudges, milk) see it and do not put the same moment back.
+            self.x("ALTER TABLE reminders ADD COLUMN skipped INTEGER NOT NULL DEFAULT 0")
 
     def q(self, sql: str, params=()) -> list[dict]:
         with self.lock:
@@ -1083,7 +1088,7 @@ class App:
                     return 400, {"detail": "child is required."}
                 cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat(timespec="seconds")
                 rows = self.store.q(
-                    "SELECT id, child, at, title, body, tag, source, sent FROM reminders WHERE child=? AND (sent=0 OR at >= ?) ORDER BY at",
+                    "SELECT id, child, at, title, body, tag, source, sent FROM reminders WHERE child=? AND skipped=0 AND (sent=0 OR at >= ?) ORDER BY at",
                     (int(query["child"]), cutoff),
                 )
                 for r in rows:
@@ -1092,7 +1097,34 @@ class App:
             if method == "POST":
                 return 201, self._insert_reminder(data, "manual")
             return 405, {"detail": "Method not allowed."}
+        if len(parts) == 2 and parts[1] == "skip" and method == "POST":
+            # The Inbox's remove and Clear: {child, items: [{id, tag, at}]}. A planned row's id changes whenever
+            # its planner writes the plan again (the nap window on every app open, a nudge on every poll), so a
+            # row is also found by what it is: its tag and moment.
+            if data.get("child") in (None, "") or not isinstance(data.get("items"), list):
+                return 400, {"detail": "child and items are required."}
+            child, done = int(data["child"]), 0
+            with self.store.atomic():
+                for item in data["items"]:
+                    if not isinstance(item, dict):
+                        return 400, {"detail": "items must be objects."}
+                    rows = []
+                    if isinstance(item.get("id"), int) and not isinstance(item.get("id"), bool):
+                        rows = self.store.q("SELECT id, source FROM reminders WHERE id=? AND child=? AND sent=0", (item["id"], child))
+                    if not rows and item.get("tag") and item.get("at"):
+                        try:
+                            at = utc_iso(str(item["at"]))
+                        except ValueError:
+                            continue
+                        rows = self.store.q("SELECT id, source FROM reminders WHERE child=? AND tag=? AND at=? AND sent=0", (child, str(item["tag"]), at))
+                    for row in rows:
+                        done += self.store.skip_reminder(row)
+            return 200, {"skipped": done}
         if len(parts) == 2 and method == "DELETE":
+            rows = self.store.q("SELECT id, source FROM reminders WHERE id=? AND sent=0", (int(parts[1]),))
+            if rows:
+                self.store.skip_reminder(rows[0])
+                return 204, None
             return (204, None) if self.store.delete_reminder(int(parts[1])) else (404, {"detail": "Not found."})
         return 404, {"detail": "Not found."}
 
@@ -1197,7 +1229,17 @@ def _delete_reminder(self: Store, row_id: int) -> bool:
     return self.x("DELETE FROM reminders WHERE id=?", (row_id,)).rowcount > 0
 
 
+def _skip_reminder(self: Store, row: dict) -> int:
+    """Take an unsent reminder out of the plan. One a person set is deleted. One a planner wrote is kept, marked
+    as never to go out (`sent` so the delivery loop and every "already went out?" check pass over it, `skipped` so
+    it is not listed as sent): deleted, the planner would write the same moment back on its next pass."""
+    if row.get("source") == "manual":
+        return self.x("DELETE FROM reminders WHERE id=?", (row["id"],)).rowcount
+    return self.x("UPDATE reminders SET sent=1, skipped=1 WHERE id=? AND sent=0", (row["id"],)).rowcount
+
+
 Store.delete_reminder = _delete_reminder  # type: ignore[attr-defined]
+Store.skip_reminder = _skip_reminder  # type: ignore[attr-defined]
 
 
 class Handler(BaseHTTPRequestHandler):

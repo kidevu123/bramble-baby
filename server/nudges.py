@@ -1064,8 +1064,10 @@ class Nudges:
         at = at.astimezone(timezone.utc)
         with self.store.atomic():
             self._clear(cid, [tag])
-            if self.store.q("SELECT 1 FROM reminders WHERE child=? AND tag=? AND anchor=? AND sent=1 LIMIT 1", (cid, tag, anchor)):
-                return {"at": None, "note": f"Sent for the last one · {note}".strip(" ·")}
+            went = self.store.q("SELECT skipped FROM reminders WHERE child=? AND tag=? AND anchor=? AND sent=1 ORDER BY skipped LIMIT 1", (cid, tag, anchor))
+            if went:
+                # Removed from the Inbox before it went out: not planned again for the same moment.
+                return {"at": None, "note": f"{'Removed from the list' if went[0].get('skipped') else 'Sent'} for the last one · {note}".strip(" ·")}
             if at < now - LATE_GRACE and not late_ok:
                 return {"at": None, "note": f"Missed the last moment · {note}".strip(" ·")}
             at = max(at, now)
