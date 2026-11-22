@@ -13,7 +13,8 @@
  *   averages of 18–20 and single samples from about 12 to 30), so the strength is a target, not a measurement;
  *   the weight checks are what show whether it is enough.
  * - Spoons are level and unpacked; teaspoons differ by brand (about 2.1 g of Similac, 2.4 g of Enfamil, 2.5 g of Bobbie),
- *   which is why the powder is a setting, and a spoon weight is taken only from the maker's published figure.
+ *   which is why the powder is a setting, and a spoon weight is taken only from the maker's published figure. A powder
+ *   with none (Enfamil A.R., a can typed in) is given in grams for a scale and in whole level scoops, never in spoons.
  * - Liquid concentrate (40 kcal/oz) is the other way to fortify: sterile until opened, nothing to clump or level.
  *   CDC advises liquid rather than powdered formula for babies under 2 months, born early or with weak immunity,
  *   because powder is not sterile. Which one to use is the care team's call.
@@ -41,10 +42,16 @@ export interface Powder {
   name: string
   kcalPerG: number
   gPerScoop: number
-  /** A level, unpacked tablespoon; a teaspoon is a third of it. */
-  gPerTbsp: number
+  /**
+   * A level, unpacked tablespoon (a teaspoon is a third of it), from the maker's published grams per spoon. Null when
+   * the maker publishes none: the recipe is then in grams and whole scoops only, never in spoons worked out from
+   * something else (that is how ½ teaspoon was once written where ⅓ was right).
+   */
+  gPerTbsp: number | null
   /** How much volume a gram of powder takes up once dissolved. */
   mlPerG: number
+  /** The maker's own mixing instruction where it differs from "shake": said in the steps and the recipe fold. */
+  mixNote?: string
 }
 
 /** Standard 20 kcal/oz powders (PNPG table, 2019; Bobbie from its own guide). The can's label wins when it says otherwise. */
@@ -58,6 +65,13 @@ export const POWDERS: Powder[] = [
   // is 20 kcal/oz. Until 1.53.3 the spoon weight was derived from Bobbie's loose "a scoop is about 1½ tablespoons" (1.9 g a
   // teaspoon), which wrote ½ teaspoon where ⅓ was right; a spoon weight comes only from the maker's published figure.
   { id: 'bobbie', name: 'Bobbie', kcalPerG: 5.14, gPerScoop: 8.6, gPerTbsp: 7.47, mlPerG: 0.78 },
+  // Enfamil A.R. (the rice-thickened formula for spit-up), from Mead Johnson's own product page for healthcare
+  // professionals (hcp.meadjohnson.com/products/enfamil-a-r, read 2026-11-22): "1 unpacked level scoop 9 g", 500 Cal per
+  // 100 grams of powder (45 a scoop), "Each scoop adds about 0.2 fl oz to the amount of prepared formula" (5.9 mL to 9 g,
+  // 0.66 mL a gram), and "Cap bottle and SHAKE WELL. Let bottle sit 5 minutes. SHAKE AGAIN." No grams per teaspoon or
+  // tablespoon is published there, so it has no spoons: grams and whole scoops only. With these figures 10 fl oz of milk
+  // takes 8.95 g for 24 kcal/oz, which is the "10 ounces, 1 scoop" row of the children's hospital chart.
+  { id: 'enfamil-ar', name: 'Enfamil A.R.', kcalPerG: 5.0, gPerScoop: 9, gPerTbsp: null, mlPerG: 0.66, mixNote: 'Shake well, let it sit 5 minutes, then shake again (Enfamil’s instruction for A.R.).' },
 ]
 
 export type FortifyWith = 'powder' | 'concentrate'
@@ -77,7 +91,8 @@ export interface FortifySettings {
 export function powderOf(f: Pick<FortifySettings, 'powder' | 'custom'>): Powder {
   if (f.powder === 'custom' && f.custom && f.custom.gPerScoop > 0 && f.custom.kcalPerScoop > 0) {
     const base = POWDERS[0]
-    return { ...base, id: 'custom', name: 'From the can', kcalPerG: f.custom.kcalPerScoop / f.custom.gPerScoop, gPerScoop: f.custom.gPerScoop }
+    // A can typed in has its scoop and nothing else: no spoon weight is known for it, so none is borrowed from another powder.
+    return { ...base, id: 'custom', name: 'From the can', kcalPerG: f.custom.kcalPerScoop / f.custom.gPerScoop, gPerScoop: f.custom.gPerScoop, gPerTbsp: null }
   }
   return POWDERS.find((p) => p.id === f.powder) ?? POWDERS[0]
 }
@@ -127,8 +142,8 @@ export function spoonText(eighths: number): string {
 
 export interface PowderStep {
   with: 'powder'
-  /** "1 teaspoon + ⅛ teaspoon" as level, unpacked spoons, to the nearest ⅛ teaspoon. */
-  spoons: string
+  /** "1 teaspoon + ⅛ teaspoon" as level, unpacked spoons, to the nearest ⅛ teaspoon; null for a powder with no published spoon weight. */
+  spoons: string | null
   /** "1 scoop" when whole scoops come within a few percent of it, else null. */
   scoops: string | null
   grams: number
@@ -164,19 +179,26 @@ export function recipeFor(milkMl: number, f: FortifySettings, milkKcal = MILK_KC
   }
   const powder = powderOf(f)
   const exact = powderGrams(milkMl, f.kcalPerOz, powder, milkKcal)
+  const wholeScoops = Math.round(exact / powder.gPerScoop)
+  const scoops = wholeScoops >= 1 && Math.abs(wholeScoops * powder.gPerScoop - exact) <= exact * 0.05 ? `${wholeScoops} scoop${wholeScoops === 1 ? '' : 's'}` : null
+  const scaleGrams = Math.round(exact * 10) / 10
+  const powderName = f.powder === 'standard' || f.powder === 'custom' ? 'powder' : powder.name
+  if (powder.gPerTbsp === null) {
+    // No published spoon weight: the scale's grams are the measure (and whole scoops when they fit), so it makes the target itself.
+    const mixed = mixWithPowder(milkMl, exact, powder, milkKcal)
+    return { with: 'powder', spoons: null, scoops, grams: exact, scaleGrams, powderName, kcalPerOz: exact > 0 ? f.kcalPerOz : milkKcal, ml: mixed.ml, tooSmall: scaleGrams < 0.1 }
+  }
   const step = powder.gPerTbsp / 3 / SPOON_STEPS_PER_TSP
   const steps = Math.round(exact / step)
   const grams = steps * step
   const mixed = mixWithPowder(milkMl, grams, powder, milkKcal)
-  const wholeScoops = Math.round(exact / powder.gPerScoop)
-  const scoops = wholeScoops >= 1 && Math.abs(wholeScoops * powder.gPerScoop - exact) <= exact * 0.05 ? `${wholeScoops} scoop${wholeScoops === 1 ? '' : 's'}` : null
   return {
     with: 'powder',
     spoons: steps ? spoonText(steps) : 'less than ⅛ teaspoon',
     scoops,
     grams,
-    scaleGrams: Math.round(exact * 10) / 10,
-    powderName: f.powder === 'standard' || f.powder === 'custom' ? 'powder' : powder.name,
+    scaleGrams,
+    powderName,
     kcalPerOz: mixed.kcalPerOz,
     ml: mixed.ml,
     tooSmall: steps === 0 || Math.abs(mixed.kcalPerOz - f.kcalPerOz) > MEASURE_TOLERANCE,
@@ -196,7 +218,54 @@ export function smallestBatchOz(f: FortifySettings): number | null {
  */
 export function recipeText(r: Recipe): string {
   if (r.with === 'concentrate') return `${r.addMl} mL of liquid concentrate`
+  // A powder with no published spoon weight is weighed: "10.9 g of Enfamil A.R. on a scale", with "(1 level scoop)" when one fits.
+  if (r.spoons === null) return `${gramsText(r.scaleGrams)} of ${r.powderName} on a scale${r.scoops ? ` (${levelScoops(r.scoops)})` : ''}`
   return `${r.spoons} of ${r.powderName}${r.scoops ? ` (${r.scoops})` : ''}, or ${gramsText(r.scaleGrams)} on a scale`
+}
+
+/** "1 scoop" → "1 level scoop". */
+export const levelScoops = (scoops: string) => scoops.replace(' scoop', ' level scoop')
+
+/** How much milk one level scoop of the household's powder fortifies to its strength, mL: the rule of thumb for a family with no scale. */
+export function scoopMilkMl(f: FortifySettings, milkKcal = MILK_KCAL_PER_OZ): number | null {
+  if (f.with !== 'powder') return null
+  const powder = powderOf(f)
+  const perMlOfMilk = powderGrams(1, f.kcalPerOz, powder, milkKcal)
+  return perMlOfMilk > 0 ? powder.gPerScoop / perMlOfMilk : null
+}
+
+/**
+ * The bottle size nearest to `sizeMl` at which `count` bottles together take a whole number of level scoops: what a
+ * family with no scale can make exactly ("5 bottles of 59 mL is 1 level scoop"). Null when not fortifying with powder.
+ */
+export function scoopFit(sizeMl: number, count: number, f: FortifySettings, milkKcal = MILK_KCAL_PER_OZ): { sizeMl: number; scoops: number } | null {
+  const perScoop = scoopMilkMl(f, milkKcal)
+  if (!perScoop || count < 1 || sizeMl <= 0) return null
+  const scoops = Math.max(1, Math.round((sizeMl * count) / perScoop))
+  return { sizeMl: (scoops * perScoop) / count, scoops }
+}
+
+export interface Batch {
+  /** All the milk that goes into the one container, mL. */
+  milkMl: number
+  /** What to add to all of it at once. */
+  recipe: Recipe
+  /** What the batch comes to once mixed, mL. */
+  ml: number
+  /** What to pour into each bottle after mixing, mL, in the order given: the bottle's share of the batch. */
+  pours: number[]
+}
+
+/**
+ * Several bottles mixed as one batch and then split: all the milk in one container, the formula measured once (one
+ * larger measure is easier to get right than five small ones), then each bottle poured to its share. The grams are the
+ * sum of what the bottles would take one by one, since the recipe is a straight line in the milk.
+ */
+export function batchFor(milkMls: number[], f: FortifySettings, milkKcal = MILK_KCAL_PER_OZ): Batch {
+  const milkMl = milkMls.reduce((s, m) => s + Math.max(0, m), 0)
+  const recipe = recipeFor(milkMl, f, milkKcal)
+  const grows = milkMl > 0 ? recipe.ml / milkMl : 1
+  return { milkMl, recipe, ml: recipe.ml, pours: milkMls.map((m) => Math.max(0, m) * grows) }
 }
 
 /** How far the rounded spoons of these recipes land from their strength at worst, kcal/oz (the scale is exact). */
@@ -204,8 +273,8 @@ export function spoonDrift(recipes: Recipe[], target: number): number {
   return recipes.reduce((m, r) => (r.with === 'powder' && !r.tooSmall ? Math.max(m, Math.abs(r.kcalPerOz - target)) : m), 0)
 }
 
-/** "0.9 g", "12 g". */
-export const gramsText = (g: number) => `${g < 10 ? Math.round(g * 10) / 10 : Math.round(g)} g`
+/** "0.9 g", "10.9 g", "120 g": to the 0.1 g a kitchen scale reads (a batch's powder is often the only measure given). */
+export const gramsText = (g: number) => `${g < 100 ? Math.round(g * 10) / 10 : Math.round(g)} g`
 
 /** "24 kcal/oz", whole when it is whole. */
 export const strengthText = (kcal: number) => `${Math.round(kcal * 10) / 10} kcal/oz`

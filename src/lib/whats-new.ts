@@ -12,6 +12,16 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.75.0',
+    date: 'Nov 22',
+    items: [
+      'Making several fortified premade bottles now opens on four steps for mixing them as one batch: all the milk in one container, the formula measured once, then how much to pour into each bottle. Bottle by bottle is still there.',
+      'Enfamil A.R. is now one of the formulas in Settings, Calories & fortifying. Its recipe is in grams for a kitchen scale and in whole level scoops: Enfamil publishes no weight for a teaspoon of it, so Bramble does not guess one.',
+      'No scale? The same screen offers the bottle size at which the batch takes exactly one level scoop from the can, one tap away.',
+      'A can typed in by hand is now given in grams and whole scoops too, instead of spoons borrowed from another formula.',
+    ],
+  },
+  {
     version: '1.74.0',
     date: 'Nov 22',
     items: [

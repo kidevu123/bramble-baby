@@ -140,7 +140,8 @@ function CaloriesEditor({ name, tracking, goal, fortify, formulaKcal, onSave }: 
         </p>
         <p>
           <strong>The recipe</strong> works out the same mix as a hospital&apos;s home chart (formula powder stirred into breast milk; every row of one such chart comes out within
-          about half a calorie of its strength). Use level, unpacked spoons; teaspoons differ by brand, so pick yours, or type the scoop from the can. Liquid concentrate (40
+          about half a calorie of its strength). Use level, unpacked spoons; teaspoons differ by brand, so pick yours, or type the scoop from the can. A formula
+          whose maker publishes no weight for a teaspoon (Enfamil A.R., a can typed in) is given in grams for a kitchen scale and in whole scoops, never in spoons. Liquid concentrate (40
           kcal/oz) is the other way: one part to four of milk for 24 kcal/oz. It is sterile until opened; CDC advises liquid rather than powdered formula for babies under 2
           months, born early or with weak immunity, because powder is not sterile. Ask the care team which to use.
         </p>

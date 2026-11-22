@@ -775,6 +775,58 @@
 .fortify-note { margin: var(--space-1) 0 0; }
 .night-plan-mix { font-weight: 600; }
 
+/* a batch of fortified bottles: numbered steps, the two numbers that matter large */
+.batch-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.batch-step {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.batch-n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--purple);
+  color: var(--on-accent);
+  font-weight: var(--w-strong);
+}
+.batch-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.batch-fit {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  margin-top: var(--space-1);
+}
+.batch-do {
+  font-weight: 600;
+}
+.batch-big {
+  font-size: calc(var(--text-2xl) * 1.25);
+  line-height: 1.15;
+  font-weight: var(--w-strong);
+  font-variant-numeric: tabular-nums;
+}
+
 /* A fortified bottle's mixing time, as a quiet line on a good bottle. */
 .mixed-time-link {
   align-self: flex-start;

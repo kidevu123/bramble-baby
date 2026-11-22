@@ -100,12 +100,12 @@ installing and deploying; `README.md` is the public front page (screenshots from
 - **A powder's spoon weight (`gPerTbsp` in `POWDERS`) comes only from the maker's published grams per teaspoon or tablespoon**, never
   derived from "about N tablespoons a scoop" or a scoop's volume, and never validated against another chart's inferred household measure
   (1.9 g a teaspoon of Bobbie instead of its published 2.49 g once wrote ½ teaspoon where ⅓ was right). A powder with no published
-  figure shows grams and whole scoops only. Every recipe line writes the grams and the spoons as two measures ("⅜ teaspoon, or 0.9 g on a
+  figure (`gPerTbsp: null`: Enfamil A.R., a can typed in) shows grams and whole scoops only, and a new powder's figures are read from the maker's own page, named in a comment beside them. Every recipe line writes the grams and the spoons as two measures ("⅜ teaspoon, or 0.9 g on a
   scale"), spoons to the nearest ⅛ teaspoon, never as if one were the other.
 - A bottle's strength is a `kcal:<n>` tag (`src/lib/calories.ts`); a fortified bottle is tagged when it is saved and an edit sends
   the full tag list through `withKcalTag`, so a later recipe never rewrites the calories already logged. The household's
   fortification and calorie goal are `settings.fortify` / `settings.calorieGoal` (Settings › Calories & fortifying); recipes
-  come only from `recipeFor` in `src/lib/fortify.ts`. Calories are a household switch (`settings.caloriesOn`, off by default):
+  come only from `recipeFor` in `src/lib/fortify.ts` (several bottles mixed at once from `batchFor`: the milk together, one measure, each bottle its share). Calories are a household switch (`settings.caloriesOn`, off by default):
   read them only through `calorieTracking(settings)` (null when off), and save a bottle's tag only through `strengthToSave`.
 - A pumping entry's pump is a `pump:<name>` tag beside the `caregiver:` tag (`src/lib/pumps.ts`); every write of a pumping
   entry sends its full tag list through `withPumpTag`, so neither tag is lost on an edit. The pump list is `settings.pumps`
