@@ -14,7 +14,7 @@
  *   the weight checks are what show whether it is enough.
  * - Spoons are level and unpacked; teaspoons differ by brand (about 2.1 g of Similac, 2.4 g of Enfamil, 2.5 g of Bobbie),
  *   which is why the powder is a setting, and a spoon weight is taken only from the maker's published figure. A powder
- *   with none (Enfamil A.R., a can typed in) is given in grams for a scale and in whole level scoops, never in spoons.
+ *   with none (a can typed in) is given in grams for a scale and in whole level scoops, never in spoons.
  * - Liquid concentrate (40 kcal/oz) is the other way to fortify: sterile until opened, nothing to clump or level.
  *   CDC advises liquid rather than powdered formula for babies under 2 months, born early or with weak immunity,
  *   because powder is not sterile. Which one to use is the care team's call.
@@ -52,6 +52,10 @@ export interface Powder {
   mlPerG: number
   /** The maker's own mixing instruction where it differs from "shake": said in the steps and the recipe fold. */
   mixNote?: string
+  /** The strongest the maker allows this powder to be mixed, kcal/oz: nothing stronger is offered, and spoons never round past it. */
+  maxKcalPerOz?: number
+  /** What the maker says about its own spoon measures, when it says something: shown in the recipe fold. */
+  spoonNote?: string
 }
 
 /** Standard 20 kcal/oz powders (PNPG table, 2019; Bobbie from its own guide). The can's label wins when it says otherwise. */
@@ -65,13 +69,20 @@ export const POWDERS: Powder[] = [
   // is 20 kcal/oz. Until 1.53.3 the spoon weight was derived from Bobbie's loose "a scoop is about 1½ tablespoons" (1.9 g a
   // teaspoon), which wrote ½ teaspoon where ⅓ was right; a spoon weight comes only from the maker's published figure.
   { id: 'bobbie', name: 'Bobbie', kcalPerG: 5.14, gPerScoop: 8.6, gPerTbsp: 7.47, mlPerG: 0.78 },
-  // Enfamil A.R. (the rice-thickened formula for spit-up), from Mead Johnson's own product page for healthcare
-  // professionals (hcp.meadjohnson.com/products/enfamil-a-r, read 2026-11-22): "1 unpacked level scoop 9 g", 500 Cal per
-  // 100 grams of powder (45 a scoop), "Each scoop adds about 0.2 fl oz to the amount of prepared formula" (5.9 mL to 9 g,
-  // 0.66 mL a gram), and "Cap bottle and SHAKE WELL. Let bottle sit 5 minutes. SHAKE AGAIN." No grams per teaspoon or
-  // tablespoon is published there, so it has no spoons: grams and whole scoops only. With these figures 10 fl oz of milk
-  // takes 8.95 g for 24 kcal/oz, which is the "10 ounces, 1 scoop" row of the children's hospital chart.
-  { id: 'enfamil-ar', name: 'Enfamil A.R.', kcalPerG: 5.0, gPerScoop: 9, gPerTbsp: null, mlPerG: 0.66, mixNote: 'Shake well, let it sit 5 minutes, then shake again (Enfamil’s instruction for A.R.).' },
+  // Enfamil A.R. (the rice-thickened formula for spit-up), from Mead Johnson's own sheets, read 2026-11-22: the product
+  // page for healthcare professionals (hcp.meadjohnson.com/products/enfamil-a-r: "1 unpacked level scoop 9 g", 500 Cal per
+  // 100 grams of powder) and its two dilution tables.
+  // - Table 427 (grams of powder and mL of water for a final volume): 136 g + 897 mL make 1000 mL at 20 kcal/fl oz,
+  //   150 g + 886 mL at 22, 163 g + 876 mL at 24: the powder takes up 0.76 mL a gram (103 mL to 136 g, 124 to 163).
+  //   The page's "each scoop adds about 0.2 fl oz" is the same thing rounded to a tenth of an ounce, and gave 0.66 in
+  //   1.75.0: about 2 % too little powder.
+  // - Table 342 ("Yields about 1 Quart", "approximate household measures", unpacked and level): 127 g is 1¼ cup + 1 Tbsp,
+  //   140 g is 1⅓ cup + 1 Tbsp + 2 tsp, 153 g is 1½ cup + 1 Tbsp + 1 tsp: 6.05, 6.09 and 6.04 g a tablespoon, so 6.06
+  //   (2.0 g a level teaspoon; lighter than standard Enfamil's 7.1). The maker's own measure of this powder, in spoons,
+  //   three rows agreeing; it calls them approximate and says to weigh "when accuracy is essential".
+  // - "Enfamil A.R. Powder should not be prepared to caloric concentrations higher than 24 Cal/fl oz because of
+  //   increased viscosity." and "shake for about 5 seconds. Let the bottle sit 5 minutes, then shake again."
+  { id: 'enfamil-ar', name: 'Enfamil A.R.', kcalPerG: 5.0, gPerScoop: 9, gPerTbsp: 6.06, mlPerG: 0.76, maxKcalPerOz: 24, mixNote: 'Shake well, let it sit 5 minutes, then shake again (Enfamil’s instruction for A.R.).', spoonNote: 'Enfamil gives A.R.’s spoon measures as approximate (about 2 g a level teaspoon, lighter than standard formula) and says to weigh the powder when it has to be exact.' },
 ]
 
 export type FortifyWith = 'powder' | 'concentrate'
@@ -189,7 +200,9 @@ export function recipeFor(milkMl: number, f: FortifySettings, milkKcal = MILK_KC
     return { with: 'powder', spoons: null, scoops, grams: exact, scaleGrams, powderName, kcalPerOz: exact > 0 ? f.kcalPerOz : milkKcal, ml: mixed.ml, tooSmall: scaleGrams < 0.1 }
   }
   const step = powder.gPerTbsp / 3 / SPOON_STEPS_PER_TSP
-  const steps = Math.round(exact / step)
+  let steps = Math.round(exact / step)
+  // At the strongest the maker allows, the spoon rounds down rather than past it (a hair over, 0.05 kcal/oz, is the same spoon).
+  if (powder.maxKcalPerOz !== undefined && f.kcalPerOz >= powder.maxKcalPerOz && steps > 0 && mixWithPowder(milkMl, steps * step, powder, milkKcal).kcalPerOz > powder.maxKcalPerOz + 0.05) steps -= 1
   const grams = steps * step
   const mixed = mixWithPowder(milkMl, grams, powder, milkKcal)
   return {
@@ -221,6 +234,17 @@ export function recipeText(r: Recipe): string {
   // A powder with no published spoon weight is weighed: "10.9 g of Enfamil A.R. on a scale", with "(1 level scoop)" when one fits.
   if (r.spoons === null) return `${gramsText(r.scaleGrams)} of ${r.powderName} on a scale${r.scoops ? ` (${levelScoops(r.scoops)})` : ''}`
   return `${r.spoons} of ${r.powderName}${r.scoops ? ` (${r.scoops})` : ''}, or ${gramsText(r.scaleGrams)} on a scale`
+}
+
+/**
+ * Why this strength cannot be mixed with this powder, in words, or null: its maker's own limit (Enfamil A.R. thickens
+ * too much past 24 kcal/oz). Settings refuses to save it, so no recipe is ever shown for it.
+ */
+export function powderLimit(f: Pick<FortifySettings, 'kcalPerOz' | 'with' | 'powder' | 'custom'>): string | null {
+  if (f.with !== 'powder') return null
+  const powder = powderOf(f)
+  if (powder.maxKcalPerOz === undefined || f.kcalPerOz <= powder.maxKcalPerOz) return null
+  return `${powder.name} should not be mixed stronger than ${powder.maxKcalPerOz} kcal/oz: its maker says it gets too thick. For ${f.kcalPerOz}, ask the doctor which formula to use.`
 }
 
 /** "1 scoop" → "1 level scoop". */

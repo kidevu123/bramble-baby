@@ -97,10 +97,13 @@ installing and deploying; `README.md` is the public front page (screenshots from
   `status: 'used' | 'discarded'`; reminders for a bag carry `tag: milk:<id>`.
 - Run server tests with `PYTHONDONTWRITEBYTECODE=1 <venv>/bin/python -m unittest server/test_server.py`;
   `server/__pycache__` is untracked and ignored.
-- **A powder's spoon weight (`gPerTbsp` in `POWDERS`) comes only from the maker's published grams per teaspoon or tablespoon**, never
+- **A powder's spoon weight (`gPerTbsp` in `POWDERS`) comes only from the maker's published grams per teaspoon or tablespoon**, or from the
+  maker's own table of grams against level household measures of that powder when its rows agree (Enfamil A.R.); never
   derived from "about N tablespoons a scoop" or a scoop's volume, and never validated against another chart's inferred household measure
   (1.9 g a teaspoon of Bobbie instead of its published 2.49 g once wrote ½ teaspoon where ⅓ was right). A powder with no published
-  figure (`gPerTbsp: null`: Enfamil A.R., a can typed in) shows grams and whole scoops only, and a new powder's figures are read from the maker's own page, named in a comment beside them. Every recipe line writes the grams and the spoons as two measures ("⅜ teaspoon, or 0.9 g on a
+  figure (`gPerTbsp: null`: a can typed in) shows grams and whole scoops only, and a new powder's figures (calories, the room it takes, spoons)
+  are read from the maker's own sheets, named in a comment beside them, with a test that reproduces a row of the maker's table. A maker's
+  limit on strength is `maxKcalPerOz`: refused above it in Settings, and a spoon never rounds past it. Every recipe line writes the grams and the spoons as two measures ("⅜ teaspoon, or 0.9 g on a
   scale"), spoons to the nearest ⅛ teaspoon, never as if one were the other.
 - A bottle's strength is a `kcal:<n>` tag (`src/lib/calories.ts`); a fortified bottle is tagged when it is saved and an edit sends
   the full tag list through `withKcalTag`, so a later recipe never rewrites the calories already logged. The household's

@@ -12,6 +12,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.76.0',
+    date: 'Nov 22',
+    items: [
+      'Enfamil A.R. now has teaspoons as well as grams. They come from Enfamil’s own table: a level teaspoon of A.R. is about 2 g, lighter than standard formula, so its spoons are a little bigger than a hospital chart’s.',
+      'The grams for Enfamil A.R. went up by about 2%: Enfamil’s table gives a more exact figure for how much room the powder takes than the one used yesterday.',
+      'Enfamil says A.R. should not be mixed stronger than 24 kcal/oz because it gets too thick. Bramble will not offer a stronger recipe with it, and at 24 a spoon is rounded down rather than past it.',
+    ],
+  },
+  {
     version: '1.75.0',
     date: 'Nov 22',
     items: [

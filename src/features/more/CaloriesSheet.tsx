@@ -10,7 +10,7 @@ import { useChildSettings } from '../../hooks/useChildSettings'
 import { usePrefs } from '../../hooks/usePrefs'
 import { calorieTracking, TYPICAL_KCAL_PER_KG, type CalorieTracking } from '../../lib/calories'
 import type { ChildSettings } from '../../lib/api/companion'
-import { FORMULA_KCAL_PER_OZ, POWDERS, recipeFor, recipeText, STRENGTHS, strengthText, validStrength, type FortifySettings, type FortifyWith } from '../../lib/fortify'
+import { FORMULA_KCAL_PER_OZ, POWDERS, powderLimit, recipeFor, recipeText, STRENGTHS, strengthText, validStrength, type FortifySettings, type FortifyWith } from '../../lib/fortify'
 import { convertVolume, formatVolume } from '../../lib/units'
 import { RecipeChart } from '../milk/Recipe'
 import '../milk/milk.css'
@@ -73,7 +73,8 @@ function CaloriesEditor({ name, tracking, goal, fortify, formulaKcal, onSave }: 
     ? 'Type the calories and grams in one level scoop from the can’s label (about 44 kcal in 8.7 g for most).'
     : null
   const draft: FortifySettings | null = on === 'on' ? { kcalPerOz: Number(strength), with: withWhat, powder, custom, since } : null
-  const strengthProblem = draft && !validStrength(draft.kcalPerOz) ? 'Pick the strength the doctor gave.' : null
+  // A strength the powder's own maker rules out (Enfamil A.R. past 24) is refused here, so no recipe is ever shown for it.
+  const strengthProblem = draft && !validStrength(draft.kcalPerOz) ? 'Pick the strength the doctor gave.' : draft ? powderLimit(draft) : null
   const problem = tracked === 'off' ? null : goalProblem ?? (draft ? strengthProblem ?? (withWhat === 'powder' ? customProblem : null) : null)
   const sample = convertVolume(unit === 'oz' ? 4 : 120, unit, 'ml')
   const preview = draft && !problem ? recipeFor(sample, draft) : null
@@ -141,7 +142,8 @@ function CaloriesEditor({ name, tracking, goal, fortify, formulaKcal, onSave }: 
         <p>
           <strong>The recipe</strong> works out the same mix as a hospital&apos;s home chart (formula powder stirred into breast milk; every row of one such chart comes out within
           about half a calorie of its strength). Use level, unpacked spoons; teaspoons differ by brand, so pick yours, or type the scoop from the can. A formula
-          whose maker publishes no weight for a teaspoon (Enfamil A.R., a can typed in) is given in grams for a kitchen scale and in whole scoops, never in spoons. Liquid concentrate (40
+          whose maker publishes no weight for a teaspoon (a can typed in) is given in grams for a kitchen scale and in whole scoops, never in spoons. Enfamil A.R.
+          is lighter by the spoon than standard formula (about 2 g a level teaspoon, from Enfamil's own table) and is never mixed past 24 kcal/oz. Liquid concentrate (40
           kcal/oz) is the other way: one part to four of milk for 24 kcal/oz. It is sterile until opened; CDC advises liquid rather than powdered formula for babies under 2
           months, born early or with weak immunity, because powder is not sterile. Ask the care team which to use.
         </p>

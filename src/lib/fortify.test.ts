@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { batchFor, scoopFit, concentrateMl, mixWithPowder, POWDERS, powderGrams, powderOf, recipeFor, recipeText, scoopMilkMl, smallestBatchOz, spoonDrift, spoonText, type FortifySettings } from './fortify'
+import { batchFor, scoopFit, concentrateMl, mixWithPowder, POWDERS, powderGrams, powderLimit, powderOf, recipeFor, recipeText, scoopMilkMl, smallestBatchOz, spoonDrift, spoonText, type FortifySettings } from './fortify'
 import { convertVolume } from './units'
 
 const oz = (n: number) => convertVolume(n, 'oz', 'ml')
@@ -106,65 +106,113 @@ describe('fortifying with powder', () => {
   })
 })
 
-describe('Enfamil A.R., a powder with no published spoon weight', () => {
+describe("Enfamil A.R., from Mead Johnson's own sheets", () => {
   const ar = POWDERS.find((p) => p.id === 'enfamil-ar')!
   const ar24: FortifySettings = { kcalPerOz: 24, with: 'powder', powder: 'enfamil-ar' }
 
-  it("carries Mead Johnson's own figures: 9 g and 45 Cal a level scoop, and one scoop to 2 fl oz of water is its 20 kcal/oz", () => {
+  it('carries the scoop: 9 g and 45 Cal, and one scoop to 2 fl oz of water is its 20 kcal/oz', () => {
     expect(ar.gPerScoop).toBe(9)
     expect(ar.gPerScoop * ar.kcalPerG).toBe(45)
-    // "Each scoop adds about 0.2 fl oz to the amount of prepared formula."
-    expect(convertVolume(ar.gPerScoop * ar.mlPerG, 'ml', 'oz')).toBeCloseTo(0.2, 2)
-    expect(Math.abs(mixWithPowder(oz(2), ar.gPerScoop, ar, 0).kcalPerOz - 20)).toBeLessThan(0.5)
-    expect(ar.gPerTbsp).toBeNull()
+    // "Dilutions Per 1 Scoop": 1 scoop + 59 mL yields 66 mL at 20; + 48 mL yields 55 mL at 24.
+    expect(mixWithPowder(59, 9, ar, 0).ml).toBeCloseTo(66, 0)
+    expect(Math.abs(mixWithPowder(59, 9, ar, 0).kcalPerOz - 20)).toBeLessThan(0.3)
+    expect(Math.abs(mixWithPowder(48, 9, ar, 0).kcalPerOz - 24)).toBeLessThan(0.3)
   })
 
-  it('is given in grams and whole level scoops, never in spoons', () => {
-    // Worked by hand: grams = mL × (24 − 20)/29.5735 ÷ (5.0 − 24/29.5735 × 0.66) = mL × 0.030297.
-    expect(powderGrams(360, 24, ar)).toBeCloseTo(10.907, 2)
-    const r = recipeFor(360, ar24)
-    expect(r.with === 'powder' && r.spoons).toBeNull()
+  // Table 427, grams of powder and mL of water for a final volume: the powder's volume and its calories at once.
+  it.each([
+    [20, 136, 897, 1000],
+    [22, 150, 886, 1000],
+    [24, 163, 876, 1000],
+    [20, 16.3, 108, 120],
+    [24, 78, 420, 480],
+  ])("reproduces the maker's table: %i kcal/fl oz from %f g in %i mL of water, %i mL in all", (kcal, grams, water, total) => {
+    const mixed = mixWithPowder(water, grams, ar, 0)
+    expect(Math.abs(mixed.ml - total)).toBeLessThan(total * 0.005)
+    expect(Math.abs(mixed.kcalPerOz - kcal)).toBeLessThan(0.25)
+  })
+
+  // Table 342, "approximate household measures", unpacked and level: grams against cups, tablespoons and teaspoons.
+  it.each([
+    [127, 1.25 * 16 + 1],
+    [140, (4 / 3) * 16 + 1 + 2 / 3],
+    [153, 1.5 * 16 + 1 + 1 / 3],
+  ])("takes its tablespoon from the maker's household measures: %i g is %f tablespoons", (grams, tbsp) => {
+    expect(Math.abs(grams / tbsp - ar.gPerTbsp!)).toBeLessThan(0.05)
+  })
+
+  it('so a level teaspoon is about 2 g, and its 9 g scoop about a tablespoon and a half', () => {
+    expect(ar.gPerTbsp! / 3).toBeCloseTo(2.02, 2)
+    expect(ar.gPerScoop / ar.gPerTbsp!).toBeCloseTo(1.49, 2)
+  })
+
+  // Worked by hand: grams = mL × (24 − 20)/29.5735 ÷ (5.0 − 24/29.5735 × 0.76) = mL × 0.030857; spoons at 2.02 g a teaspoon.
+  it.each([
+    [60, 1.9, '⅞ teaspoon'],
+    [90, 2.8, '1⅜ teaspoons'],
+    [120, 3.7, '1¾ teaspoons'],
+    [180, 5.6, '2¾ teaspoons'],
+    [240, 7.4, '1 tablespoon + ⅝ teaspoon'],
+    [360, 11.1, '1 tablespoon + 2½ teaspoons'],
+  ])('at 24: %i mL takes %f g on a scale, %s by spoon', (ml, grams, spoons) => {
+    const r = recipeFor(ml, ar24)
+    expect(r.with === 'powder' && r.scaleGrams).toBe(grams)
+    expect(r.with === 'powder' && r.spoons).toBe(spoons)
     expect(r.tooSmall).toBe(false)
-    expect(r.kcalPerOz).toBeCloseTo(24, 6)
-    expect(recipeText(r)).toBe('10.9 g of Enfamil A.R. on a scale')
-    expect(recipeText(recipeFor(72, ar24))).toBe('2.2 g of Enfamil A.R. on a scale')
-    expect(recipeText(recipeFor(60, { ...ar24, kcalPerOz: 22 }))).toBe('0.9 g of Enfamil A.R. on a scale')
-    expect(recipeFor(0, ar24).tooSmall).toBe(true)
-    // No spoons, so nothing drifts.
-    expect(spoonDrift([r, recipeFor(72, ar24)], 24)).toBe(0)
+    expect(recipeText(r)).toBe(`${spoons} of Enfamil A.R., or ${grams} g on a scale`)
+  })
+
+  it('never rounds a spoon past 24, the strongest its maker allows', () => {
+    for (let ml = 30; ml <= 600; ml += 7) expect(recipeFor(ml, ar24).kcalPerOz).toBeLessThanOrEqual(24.05)
+    // 72 mL takes 2.2 g, 1.1 teaspoons: the nearest eighth (1⅛) would make 24.2, so it is 1 teaspoon.
+    expect(recipeText(recipeFor(72, ar24))).toBe('1 teaspoon of Enfamil A.R., or 2.2 g on a scale')
+    expect(mixWithPowder(72, (9 / 8) * (ar.gPerTbsp! / 3), ar).kcalPerOz).toBeGreaterThan(24.05)
+    // Below its limit a spoon rounds to the nearest eighth, like any powder.
+    expect(recipeText(recipeFor(60, { ...ar24, kcalPerOz: 22 }))).toBe('½ teaspoon of Enfamil A.R., or 0.9 g on a scale')
+  })
+
+  it('is refused above 24 in words, and other powders are not', () => {
+    expect(powderLimit(ar24)).toBeNull()
+    expect(powderLimit({ ...ar24, kcalPerOz: 22 })).toBeNull()
+    expect(powderLimit({ ...ar24, kcalPerOz: 26 })).toBe('Enfamil A.R. should not be mixed stronger than 24 kcal/oz: its maker says it gets too thick. For 26, ask the doctor which formula to use.')
+    expect(powderLimit({ kcalPerOz: 30, with: 'powder', powder: 'bobbie' })).toBeNull()
+    expect(powderLimit({ kcalPerOz: 30, with: 'concentrate', powder: 'enfamil-ar' })).toBeNull()
   })
 
   it("matches the children's hospital chart where it uses the can's scoop: 10 oz and 1 scoop, 20 oz and 2 scoops for 24", () => {
-    expect(recipeText(recipeFor(oz(10), ar24))).toBe('9 g of Enfamil A.R. on a scale (1 level scoop)')
-    expect(recipeText(recipeFor(oz(20), ar24))).toBe('17.9 g of Enfamil A.R. on a scale (2 level scoops)')
-    expect(Math.abs(mixWithPowder(oz(10), ar.gPerScoop, ar).kcalPerOz - 24)).toBeLessThan(0.05)
-    // The rule of thumb for a family with no scale: one level scoop does about 297 mL (10 oz) of milk.
-    expect(scoopMilkMl(ar24)).toBeCloseTo(297.1, 0)
+    expect(recipeText(recipeFor(oz(10), ar24))).toBe('1 tablespoon + 1½ teaspoons of Enfamil A.R. (1 scoop), or 9.1 g on a scale')
+    expect(recipeText(recipeFor(oz(20), ar24))).toBe('3 tablespoons of Enfamil A.R. (2 scoops), or 18.3 g on a scale')
+    expect(Math.abs(mixWithPowder(oz(10), ar.gPerScoop, ar).kcalPerOz - 24)).toBeLessThan(0.1)
+    expect(scoopMilkMl(ar24)).toBeCloseTo(291.7, 0)
     expect(scoopMilkMl({ kcalPerOz: 24, with: 'concentrate', powder: 'standard' })).toBeNull()
+    // The chart's teaspoons are for standard formula (about 2.3 g a teaspoon). A.R. is lighter, so the same spoons
+    // come out under 24 with it: 5 oz and 2 teaspoons is about 23.5.
+    expect(mixWithPowder(oz(5), 2 * (ar.gPerTbsp! / 3), ar).kcalPerOz).toBeCloseTo(23.5, 0)
   })
 
   it('mixes five bottles as one batch: the milk together, the powder measured once, then each bottle its share', () => {
     const b = batchFor([72, 72, 72, 72, 72], ar24)
     expect(b.milkMl).toBe(360)
-    expect(recipeText(b.recipe)).toBe('10.9 g of Enfamil A.R. on a scale')
-    expect(b.ml).toBeCloseTo(367.2, 1)
-    expect(b.pours.map((p) => Math.round(p))).toEqual([73, 73, 73, 73, 73])
+    expect(recipeText(b.recipe)).toBe('1 tablespoon + 2½ teaspoons of Enfamil A.R., or 11.1 g on a scale')
+    expect(b.ml).toBeCloseTo(368.4, 1)
+    expect(b.pours.map((p) => Math.round(p))).toEqual([74, 74, 74, 74, 74])
     expect(b.pours.reduce((s, p) => s + p, 0)).toBeCloseTo(b.ml, 6)
     // The batch takes what the five bottles would take one by one: the recipe is a straight line in the milk.
     expect(powderGrams(360, 24, ar)).toBeCloseTo(5 * powderGrams(72, 24, ar), 9)
-    // A last bottle that is short gets its own share; five of 60 mL is one level scoop.
-    expect(batchFor([72, 72, 30], ar24).pours.map((p) => Math.round(p))).toEqual([73, 73, 31])
-    expect(recipeText(batchFor([60, 60, 60, 60, 60], ar24).recipe)).toBe('9.1 g of Enfamil A.R. on a scale (1 level scoop)')
-    // With no scale: the bottle size nearest to 72 mL that makes five bottles a whole number of level scoops.
-    const fit = scoopFit(72, 5, ar24)!
+    // One measure for the batch lands on 24; five small ones, each rounded down, land under it.
+    expect(b.recipe.kcalPerOz).toBeCloseTo(24, 1)
+    expect(recipeFor(72, ar24).kcalPerOz).toBeLessThan(23.7)
+    // A last bottle that is short gets its own share.
+    expect(batchFor([72, 72, 30], ar24).pours.map((p) => Math.round(p))).toEqual([74, 74, 31])
+    // With no spoons at all (a can typed in), the bottle size at which five bottles take whole level scoops.
+    const can: FortifySettings = { kcalPerOz: 24, with: 'powder', powder: 'custom', custom: { kcalPerScoop: 45, gPerScoop: 9 } }
+    const fit = scoopFit(72, 5, can)!
     expect(fit.scoops).toBe(1)
-    expect(Math.round(fit.sizeMl)).toBe(59)
-    expect(recipeText(recipeFor(5 * Math.round(fit.sizeMl), ar24))).toBe('8.9 g of Enfamil A.R. on a scale (1 level scoop)')
-    expect(scoopFit(110, 5, ar24)).toMatchObject({ scoops: 2 })
-    expect(Math.round(scoopFit(110, 5, ar24)!.sizeMl)).toBe(119)
-    expect(scoopFit(20, 2, ar24)).toMatchObject({ scoops: 1 }) // never zero scoops
+    expect(recipeText(recipeFor(5 * Math.round(fit.sizeMl), can))).toMatch(/ g of powder on a scale \(1 level scoop\)$/)
+    expect(scoopFit(110, 5, can)).toMatchObject({ scoops: 2 })
+    expect(scoopFit(20, 2, can)).toMatchObject({ scoops: 1 }) // never zero scoops
     expect(scoopFit(72, 5, { kcalPerOz: 24, with: 'concentrate', powder: 'standard' })).toBeNull()
-    // With spoons (Bobbie), the batch is one rounded measure for all of it.
+    // Bobbie's batch is one rounded measure for all of it.
     expect(recipeText(batchFor([60, 60, 60, 60, 60], { kcalPerOz: 22, with: 'powder', powder: 'bobbie' }).recipe)).toBe('1¾ teaspoons of Bobbie, or 4.4 g on a scale')
   })
 })

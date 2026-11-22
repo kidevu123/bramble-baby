@@ -22,6 +22,12 @@ export function RecipeFold({ fortify, unit }: { fortify: FortifySettings; unit: 
         {fortify.with === 'powder' && powder.gPerTbsp !== null ? ' Spoons are level and unpacked.' : ''}
       </p>
       {fortify.with === 'powder' && powder.mixNote ? <p>{powder.mixNote}</p> : null}
+      {fortify.with === 'powder' && powder.spoonNote ? <p>{powder.spoonNote}</p> : null}
+      {fortify.with === 'powder' && powder.maxKcalPerOz ? (
+        <p>
+          {powder.name} is never mixed stronger than {powder.maxKcalPerOz} kcal/oz: its maker says it gets too thick. At {powder.maxKcalPerOz}, a spoon is rounded down rather than past it.
+        </p>
+      ) : null}
       <p>A kitchen scale that reads 0.1 g is more exact than spoons (Bobbie advises weighing its powder): set the cup on it, zero it, and add the grams shown. With scoops, use only the scoop from the can, level and unpacked.</p>
       <p>Mixing several bottles as one batch and then pouring them is one measure instead of several small ones, so it is easier to get right.</p>
       <p>Keep it in the fridge and throw it away {FORTIFIED_KEEP_HOURS} hours after mixing; throw away what is left in a bottle after a feed. Do not freeze it, and warm it in water, never the microwave.</p>
