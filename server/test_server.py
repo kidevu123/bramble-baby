@@ -968,6 +968,42 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(self.call("POST", "/milk/bottles", {"child": 1, "bottles": [{"spot": 3, "takes": [{"bag": c["id"], "amount_ml": 50}], "kcal_per_oz": 24, "added_ml": 40}]})[0], 400)
         self.assertEqual(self.call("GET", f"/milk/{c['id']}")[1]["remaining_ml"], 50)
 
+    def test_a_fortified_bottles_mixing_time_is_corrected_by_hand_and_its_day_follows(self):
+        a, b = self._bag(70), self._bag(40)
+        body = {"child": 1, "bottles": [{"spot": 3, "takes": [{"bag": a["id"], "amount_ml": 70}], "kcal_per_oz": 24, "added_ml": 2, "client_key": "mixed-time-bottle-1"}, {"spot": 4, "takes": [{"bag": b["id"], "amount_ml": 40}], "client_key": "mixed-time-bottle-2"}]}
+        fortified, plain = self.call("POST", "/milk/bottles", body)[1]
+        now = datetime.now(timezone.utc).replace(microsecond=0)
+        # As on the owner's phone (2026-11-22): made in Bramble 25 hours ago from milk pumped two days ago, so the
+        # bottle reads as an hour past its day and offers only Discard.
+        made = now - timedelta(hours=25)
+        self.app.store.x("UPDATE milk_bags SET pumped_at=?, mixed_at=?, expires_at=? WHERE id=?", ((now - timedelta(hours=48)).isoformat(), made.isoformat(), (made + timedelta(hours=24)).isoformat(), fortified["id"]))
+        # The formula really went in three hours after the bottle was made in the app.
+        mixed = made + timedelta(hours=3)
+        status, fixed = self.call("PATCH", f"/milk/{fortified['id']}", {"mixed_at": mixed.isoformat()})
+        self.assertEqual(status, 200)
+        self.assertEqual((datetime.fromisoformat(fixed["mixed_at"]), datetime.fromisoformat(fixed["expires_at"])), (mixed, mixed + timedelta(hours=24)))
+        self.assertIn("Fortified to 24 kcal/oz", fixed["notes"])
+        self.assertIn("(time set by hand)", fixed["notes"])
+        # Its reminders follow the new deadline.
+        ends = [r["at"] for r in self.call("GET", "/reminders?child=1")[1] if r["tag"] == f"milk:{fortified['id']}" and r["title"].startswith("Milk expired")]
+        self.assertEqual([datetime.fromisoformat(e) for e in ends], [mixed + timedelta(hours=24)])
+        # A second correction replaces the line, it does not pile up; and the day never outlasts the milk itself.
+        again = self.call("PATCH", f"/milk/{fortified['id']}", {"mixed_at": (now - timedelta(minutes=5)).isoformat()})[1]
+        self.assertEqual(again["notes"].count("(time set by hand)"), 1)
+        self.assertEqual(datetime.fromisoformat(again["expires_at"]), now - timedelta(minutes=5) + timedelta(hours=24))
+        self.app.store.x("UPDATE milk_bags SET pumped_at=? WHERE id=?", ((now - timedelta(hours=90)).isoformat(), fortified["id"]))
+        capped = self.call("PATCH", f"/milk/{fortified['id']}", {"mixed_at": (now - timedelta(minutes=30)).isoformat()})[1]
+        self.assertEqual(datetime.fromisoformat(capped["expires_at"]), now - timedelta(hours=90) + timedelta(days=4))
+        # Refused, nothing changed: a time in the future or before the milk was pumped, a plain bottle, a bag.
+        for when in (now + timedelta(hours=1), now - timedelta(hours=100)):
+            status, out = self.call("PATCH", f"/milk/{fortified['id']}", {"mixed_at": when.isoformat()})
+            self.assertEqual(status, 400)
+            self.assertIn("not in the future", out["detail"])
+        self.assertEqual(self.call("GET", f"/milk/{fortified['id']}")[1]["mixed_at"], capped["mixed_at"])
+        for other in (plain["id"], self._bag(30)["id"]):
+            status, out = self.call("PATCH", f"/milk/{other}", {"mixed_at": now.isoformat()})
+            self.assertEqual((status, out["detail"]), (400, "Only a fortified premade bottle has a mixing time."))
+
     def test_night_bottles_are_poured_from_bags_into_numbered_spots(self):
         a, b, d = self._bag(30), self._bag(60), self._bag(20)
         frozen = self._bag(100, location="freezer")

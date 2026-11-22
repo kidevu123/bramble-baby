@@ -416,6 +416,7 @@ export function MilkPage() {
             error={patch.isError ? describeApiError(patch.error) : unmake.isError ? describeApiError(unmake.error) : null}
             onUndo={() => patch.mutate({ id: selected.id, body: { status: 'stored' } })}
             onUnmake={() => unmake.mutate(selected.id)}
+            onMixed={(at) => patch.mutate({ id: selected.id, body: { mixed_at: at.toISOString() } })}
             onBottle={() => startBottle(selected)}
             onMove={(location, at) => {
               const from = selected.location
@@ -494,7 +495,7 @@ function historyLine(bag: MilkBag, unit: 'oz' | 'ml'): string {
   return bottles > 1 ? `Used up over ${bottles} bottles` : 'Used'
 }
 
-function BagActions({ bag, unit, now, busy, error, onUndo, onUnmake, onBottle, onMove, onDiscard, onUsedElsewhere, onSetLeft, onReprint, onTravel }: { bag: MilkBag; unit: 'oz' | 'ml'; now: Date; busy: boolean; error: string | null; onUndo: () => void; onUnmake: () => void; onBottle: () => void; onMove: (l: MilkLocation, at?: Date) => void; onDiscard: () => void; onUsedElsewhere: () => void; onSetLeft: (ml: number) => void; onReprint: () => void; onTravel: () => void }) {
+function BagActions({ bag, unit, now, busy, error, onUndo, onUnmake, onMixed, onBottle, onMove, onDiscard, onUsedElsewhere, onSetLeft, onReprint, onTravel }: { bag: MilkBag; unit: 'oz' | 'ml'; now: Date; busy: boolean; error: string | null; onUndo: () => void; onUnmake: () => void; onMixed: (at: Date) => void; onBottle: () => void; onMove: (l: MilkLocation, at?: Date) => void; onDiscard: () => void; onUsedElsewhere: () => void; onSetLeft: (ml: number) => void; onReprint: () => void; onTravel: () => void }) {
   const state = bagState(bag, now)
   const partly = isPartlyUsed(bag)
   const [adjusting, setAdjusting] = useState(false)
@@ -508,7 +509,7 @@ function BagActions({ bag, unit, now, busy, error, onUndo, onUnmake, onBottle, o
     if (adjusting) leftRef.current?.querySelector('input')?.focus({ preventScroll: true })
   }, [adjusting])
   if (bag.status !== 'stored') return <GoneBag bag={bag} unit={unit} now={now} busy={busy} error={error} onUndo={onUndo} onReprint={onReprint} />
-  if (isNightBottle(bag)) return <BottleActions bag={bag} unit={unit} now={now} busy={busy} error={error} onBottle={onBottle} onDiscard={onDiscard} onUnmake={onUnmake} />
+  if (isNightBottle(bag)) return <BottleActions bag={bag} unit={unit} now={now} busy={busy} error={error} onBottle={onBottle} onDiscard={onDiscard} onUnmake={onUnmake} onMixed={onMixed} />
   const leftMl = leftText === '' ? null : toMl(Number(leftText), unit)
   const leftProblem = leftMl === null || Number.isNaN(leftMl) ? 'Enter what is left in the bag.' : leftMl < 0 ? 'It cannot be less than nothing.' : leftMl > bag.volume_ml + 0.01 ? `The bag held ${bagVolume(bag, unit)}; it cannot have more than that left.` : null
   const leftWhat = leftMl === null || leftProblem ? null : leftMl < 1 ? 'Nothing left: the bag leaves the stash as used.' : `${formatMl(leftMl, unit)} stays in the stash.`
@@ -722,7 +723,44 @@ function GoneBag({ bag, unit, now, busy, error, onUndo, onReprint }: { bag: Milk
  * from the wrong bags: the milk goes back on the bags it came from, after one confirm). No moves, labels or
  * partial pours: the spot sticker is its label, and a bottle a baby fed from is finished.
  */
-function BottleActions({ bag, unit, now, busy, error, onBottle, onDiscard, onUnmake }: { bag: MilkBag; unit: 'oz' | 'ml'; now: Date; busy: boolean; error: string | null; onBottle: () => void; onDiscard: () => void; onUnmake: () => void }) {
+/**
+ * A fortified premade bottle keeps 24 hours from when the formula went in, and Bramble takes that as the moment the
+ * bottle was made in the app. When the two differ (made in the app first, mixed later; or the other way round), the
+ * mixing time is corrected here and the deadline follows. The deadline itself is never typed: a bottle is not made
+ * good again by saying so, only by a fact that was wrong. Open on an expired bottle, a quiet line on a good one.
+ */
+function MixedTime({ bag, now, busy, expired, onMixed }: { bag: MilkBag; now: Date; busy: boolean; expired: boolean; onMixed: (at: Date) => void }) {
+  const [open, setOpen] = useState(expired)
+  const [at, setAt] = useState<Date | null>(null)
+  const mixed = parseDate(bag.mixed_at as string)
+  const until = at ? new Date(at.getTime() + 24 * 3_600_000) : null
+  const still = until !== null && until.getTime() <= now.getTime()
+  if (!open) {
+    return (
+      <button type="button" className="link-btn mixed-time-link" data-testid="mixed-time-link" onClick={() => setOpen(true)}>
+        Mixed {format(mixed, 'EEE h:mm a')} · Change
+      </button>
+    )
+  }
+  return (
+    <section className="in-time-move stack" aria-label="When it was mixed" data-testid="mixed-time">
+      <div>
+        <p className="strong in-time-title">Mixed {format(mixed, 'EEE h:mm a')}?</p>
+        <p className="small muted in-time-note">Fortified milk keeps 24 hours in the fridge from when the formula went in. Bramble counts from when this bottle was made in the app. If the formula went in at another time, set it.</p>
+      </div>
+      <TimeField label="Formula went in at" value={at} min={parseDate(bag.pumped_at)} max={now} onChange={setAt} placeholder="Choose when" />
+      {until ? (
+        <p className={still ? 'small text-health' : 'small'} role={still ? 'alert' : undefined} data-testid="mixed-time-result">
+          {still ? 'That is more than 24 hours ago as well. Discard it.' : `Then it keeps until ${format(until, 'EEE h:mm a')} at the latest.`}
+        </p>
+      ) : null}
+      <Button variant="outline" block onClick={() => at && onMixed(at)} disabled={busy || at === null || still}>
+        Set the mixing time
+      </Button>
+    </section>
+  )
+}
+function BottleActions({ bag, unit, now, busy, error, onBottle, onDiscard, onUnmake, onMixed }: { bag: MilkBag; unit: 'oz' | 'ml'; now: Date; busy: boolean; error: string | null; onBottle: () => void; onDiscard: () => void; onUnmake: () => void; onMixed: (at: Date) => void }) {
   const state = bagState(bag, now)
   const [confirming, setConfirming] = useState(false)
   // The bottle's note lists its pours ("From 10 mL of bag X, 12 mL of bag Y"): one per bag.
@@ -754,6 +792,7 @@ function BottleActions({ bag, unit, now, busy, error, onBottle, onDiscard, onUnm
         <TrashIcon className="btn-icon" /> {state === 'expired' ? 'Discard expired bottle' : 'Discard this bottle'}
       </Button>
       {state !== 'expired' ? <p className="xs muted">Feed it and the whole bottle leaves the stash: she drinks what she drinks and the rest is thrown away. Its spot is free again.</p> : null}
+      {bag.mixed_at ? <MixedTime key={bag.mixed_at} bag={bag} now={now} busy={busy} expired={state === 'expired'} onMixed={onMixed} /> : null}
       {confirming ? (
         <div className="stack unmake-confirm" data-testid="unmake-confirm">
           <p className="small">

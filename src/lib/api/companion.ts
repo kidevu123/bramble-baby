@@ -515,7 +515,7 @@ export const companion = {
      * `status: 'stored'` on a used or discarded bag is Undo (the last use is reversed); `remaining_ml` sets what
      * is left by hand (0 means used; more than 0 on a used-up bag brings it back into the stash).
      */
-    update: (id: Id, body: Partial<Pick<MilkBag, 'location' | 'status' | 'feeding_id' | 'pumping_id' | 'notes' | 'volume_ml' | 'remaining_ml' | 'pumped_at' | 'thawed'>> & { windows?: MilkWindows; /** When the bag really changed place (default now); the server refuses a move after its window ended. */ moved_at?: string; /** The bag's milk went on this travel sticker: the bag takes its code. */ travel_code?: string }) =>
+    update: (id: Id, body: Partial<Pick<MilkBag, 'location' | 'status' | 'feeding_id' | 'pumping_id' | 'notes' | 'volume_ml' | 'remaining_ml' | 'pumped_at' | 'thawed'>> & { windows?: MilkWindows; /** When the bag really changed place (default now); the server refuses a move after its window ended. */ moved_at?: string; /** The bag's milk went on this travel sticker: the bag takes its code. */ travel_code?: string; /** A fortified premade bottle: when the formula really went in. Its 24 hours follow from it. */ mixed_at?: string }) =>
       api<MilkBag>(`${COMPANION}/milk/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     /**
      * Scan out from one bag: the one-bag case of `setTakes` (this bag and no other). Saving the same feeding

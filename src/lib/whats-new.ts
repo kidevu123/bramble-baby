@@ -12,6 +12,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.73.0',
+    date: 'Nov 22',
+    items: [
+      'A fortified premade bottle now shows when it was mixed, and you can correct it. Its 24 hours count from then, so a bottle made in the app before the formula really went in is no longer called expired early.',
+      'On an expired fortified bottle the question is right there: “Formula went in at”. Set the real time and the bottle is good again if it is inside its 24 hours. If it is not, Bramble still says to discard it.',
+    ],
+  },
+  {
     version: '1.72.0',
     date: 'Nov 18',
     items: [

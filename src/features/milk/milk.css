@@ -774,3 +774,9 @@
 .fortify-table td:nth-child(2) { width: 24%; }
 .fortify-note { margin: var(--space-1) 0 0; }
 .night-plan-mix { font-weight: 600; }
+
+/* A fortified bottle's mixing time, as a quiet line on a good bottle. */
+.mixed-time-link {
+  align-self: flex-start;
+  min-height: 44px;
+}

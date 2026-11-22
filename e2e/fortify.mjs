@@ -140,7 +140,7 @@ check('… shared on the server for every phone', stored.caloriesOn === true && 
 
 // ---- Stash: no recipe card (the recipe lives, folded, where milk is mixed)
 const bags = []
-for (const [ml, key] of [[120, 'a'], [100, 'b']]) bags.push((await companion('POST', '/milk', { child: child.id, pumped_at: new Date(Date.now() - 5 * HOUR).toISOString(), volume_ml: ml, location: 'fridge', client_key: `fortify-${key}-${Date.now()}` })).body)
+for (const [ml, key] of [[120, 'a'], [100, 'b']]) bags.push((await companion('POST', '/milk', { child: child.id, pumped_at: new Date(Date.now() - 30 * HOUR).toISOString(), volume_ml: ml, location: 'fridge', client_key: `fortify-${key}-${Date.now()}` })).body)
 await page.goto(BASE + '/milk')
 await settle(1200)
 check('the Stash tab carries no recipe card or chart while fortifying', (await page.getByTestId('fortify-card').count()) === 0 && (await page.getByTestId('recipe-fold').count()) === 0 && (await page.getByRole('table', { name: 'Recipe for common amounts' }).count()) === 0)
@@ -178,6 +178,37 @@ const spot1 = page.getByRole('button', { name: /^Premade bottle 1, .* fortified 
 check('the spot tile names its strength', (await spot1.count()) === 1 && /22 kcal/.test(squash(await spot1.innerText())), (await spot1.count()) ? squash(await spot1.innerText()) : 'missing')
 await page.getByTestId('night-bottles').scrollIntoViewIfNeeded()
 await shot('spots')
+
+// ---- a fortified bottle past its day: nothing "unexpires" it but the one fact that can be wrong, when it was mixed
+const pad2 = (n) => String(n).padStart(2, '0')
+const localInput = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+const b1 = made.find((b) => b.spot === 1)
+await companion('PATCH', `/milk/${b1.id}`, { mixed_at: new Date(Date.now() - 25 * HOUR).toISOString() }) // as if made in the app 25 hours ago
+await page.goto(BASE + '/milk')
+await settle(1200)
+await page.getByTestId('night-bottles').getByRole('button', { name: /^Premade bottle 1/ }).click()
+await settle(700)
+const mixedPanel = sheet().getByRole('region', { name: 'When it was mixed' })
+const setMixed = mixedPanel.getByRole('button', { name: 'Set the mixing time' })
+check('an expired fortified bottle offers Discard, Undo and its mixing time, and no Feed', /expired 1h ago/.test(squash(await sheet().innerText())) && (await sheet().getByRole('button', { name: 'Feed this bottle' }).count()) === 0 && (await sheet().getByRole('button', { name: /Discard expired bottle/ }).count()) === 1 && (await mixedPanel.count()) === 1 && (await setMixed.isDisabled()), squash(await sheet().innerText()).slice(0, 160))
+await mixedPanel.getByLabel('Formula went in at').fill(localInput(new Date(Date.now() - 26 * HOUR)))
+await settle(300)
+check('a time more than 24 hours ago changes nothing: discard it', /more than 24 hours ago as well/.test(await mixedPanel.innerText()) && (await setMixed.isDisabled()))
+const really = new Date(Date.now() - 3 * HOUR)
+really.setSeconds(0, 0)
+await mixedPanel.getByLabel('Formula went in at').fill(localInput(really))
+await settle(300)
+check('a later mixing time says until when it then keeps', /Then it keeps until .* at the latest\./.test(await mixedPanel.innerText()) && (await setMixed.isEnabled()), squash(await mixedPanel.innerText()).slice(-80))
+await shot('mixed-time')
+await setMixed.click()
+await settle(1000)
+const fixed = (await companion('GET', `/milk/${b1.id}`)).body
+check('the bottle keeps 24 hours from the corrected time, with the correction on record', Math.abs(new Date(fixed.expires_at) - (really.getTime() + 24 * HOUR)) < 61_000 && /\(time set by hand\)/.test(fixed.notes) && /Fortified to 22 kcal\/oz/.test(fixed.notes), `${fixed.expires_at} · ${fixed.notes}`)
+await page.getByTestId('night-bottles').getByRole('button', { name: /^Premade bottle 1/ }).click()
+await settle(700)
+check('it can be fed again, and its mixing time is a quiet line', (await sheet().getByRole('button', { name: 'Feed this bottle' }).count()) === 1 && (await sheet().getByTestId('mixed-time-link').count()) === 1 && (await sheet().getByRole('region', { name: 'When it was mixed' }).count()) === 0)
+await sheet().getByLabel('Close').click()
+await settle(400)
 
 // ---- the bottle sheet: a fortified premade bottle is fortified milk with its calories
 await page.goto(BASE + '/')

@@ -552,6 +552,25 @@ class MilkStore:
             if bag.get("mixed_at"):
                 expires = min(expires, self.parse_iso(bag["mixed_at"]) + FORTIFIED_WINDOW)
             updates["expires_at"] = _iso(expires)
+        if data.get("mixed_at"):
+            # When the formula really went in, corrected by hand: the bottle was made in Bramble before (or after)
+            # it was mixed. This is the only way a fortified bottle's 24 hours move: the deadline is never typed,
+            # it follows from this moment and from how long its milk keeps.
+            if not bag.get("mixed_at"):
+                raise MilkError("Only a fortified premade bottle has a mixing time.")
+            if moved or bag["location"] != "fridge" or bag["status"] != "stored":
+                raise MilkError("The mixing time is corrected while the bottle is in its fridge spot.")
+            mixed = self.parse_iso(str(data["mixed_at"]))
+            if mixed > datetime.now(timezone.utc) + CLOCK_SKEW or mixed < self.parse_iso(bag["pumped_at"]) - CLOCK_SKEW:
+                raise MilkError("The time it was mixed has to be after its milk was pumped and not in the future.")
+            if abs((mixed - self.parse_iso(bag["mixed_at"])).total_seconds()) >= 60:
+                since = self.parse_iso(bag["thawed_at"]) if bag["thawed"] and bag.get("thawed_at") else None
+                keeps = expiry_for(self.parse_iso(bag["pumped_at"]), "fridge", bool(bag["thawed"]), since=since, windows=windows)
+                updates["mixed_at"] = _iso(mixed)
+                updates["expires_at"] = _iso(min(keeps, mixed + FORTIFIED_WINDOW))
+                said = f"Mixed {mixed.astimezone(self.zone()).strftime('%a %-I:%M %p')} (time set by hand)"
+                kept = [line for line in str(updates.get("notes", bag.get("notes") or "")).split("\n") if not (line.startswith("Mixed ") and line.endswith("(time set by hand)"))]
+                updates["notes"] = "\n".join([*kept, said]).strip()
         # expires_at is always computed from pumped_at / thawed_at and the location; it is not writable.
         status = str(data.get("status") or bag["status"])
         if status not in STATUSES:
