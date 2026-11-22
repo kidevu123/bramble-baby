@@ -75,7 +75,9 @@ for (const b of (await companion('GET', `/milk?child=${child.id}`)).body ?? []) 
 await companion('PUT', `/settings/${child.id}`, { caloriesOn: null, calorieGoal: null, fortify: null, formulaKcalPerOz: null })
 // 6 lb (2.72 kg) weighed three days ago; yesterday five 90 mL bottles fortified to 24 kcal/oz (365 kcal, 134 kcal/kg)
 await api('POST', '/api/weight/', { child: child.id, weight: 6, date: ymd(daysAgo(3)), notes: '9:00 AM' })
-const yesterday = (h) => { const d = daysAgo(1); d.setHours(h, 0, 0, 0); return d.toISOString() }
+// The mock child's day starts at 7 AM: before then the report's "today" began yesterday morning, so the full day
+// before it (what Reports averages, and "Previous day" shows) is the calendar day before that.
+const yesterday = (h) => { const d = daysAgo(new Date().getHours() < 7 ? 2 : 1); d.setHours(h, 0, 0, 0); return d.toISOString() }
 for (const h of [9, 11, 13, 15, 17]) await api('POST', '/api/feedings/', { child: child.id, start: yesterday(h), end: yesterday(h), type: 'fortified breast milk', method: 'bottle', amount: 90, notes: '', tags: ['kcal:24'] })
 
 const openFeeding = async () => {
@@ -190,7 +192,12 @@ await page.getByTestId('night-bottles').getByRole('button', { name: /^Premade bo
 await settle(700)
 const mixedPanel = sheet().getByRole('region', { name: 'When it was mixed' })
 const setMixed = mixedPanel.getByRole('button', { name: 'Set the mixing time' })
-check('an expired fortified bottle offers Discard, Undo and its mixing time, and no Feed', /expired 1h ago/.test(squash(await sheet().innerText())) && (await sheet().getByRole('button', { name: 'Feed this bottle' }).count()) === 0 && (await sheet().getByRole('button', { name: /Discard expired bottle/ }).count()) === 1 && (await mixedPanel.count()) === 1 && (await setMixed.isDisabled()), squash(await sheet().innerText()).slice(0, 160))
+const fedPanel = sheet().getByRole('region', { name: 'Fed before it expired' })
+check('an expired fortified bottle offers Discard, Undo, a feed that was never logged and its mixing time as a quiet line, and no Feed', /expired 1h ago/.test(squash(await sheet().innerText())) && (await sheet().getByRole('button', { name: 'Feed this bottle' }).count()) === 0 && (await sheet().getByRole('button', { name: /Discard expired bottle/ }).count()) === 1 && (await sheet().getByRole('button', { name: 'Undo this bottle' }).count()) === 1 && (await fedPanel.getByRole('button', { name: 'Log that feed' }).count()) === 1 && /^Fed before \d{1,2}:\d\d [AP]M\?/.test(squash(await fedPanel.innerText())) && (await mixedPanel.count()) === 0 && (await sheet().getByTestId('mixed-time-link').count()) === 1, squash(await sheet().innerText()).slice(0, 400))
+await shot('expired-bottle')
+await sheet().getByTestId('mixed-time-link').click()
+await settle(300)
+check('… the line opens the mixing time', (await mixedPanel.count()) === 1)
 await mixedPanel.getByLabel('Formula went in at').fill(localInput(new Date(Date.now() - 26 * HOUR)))
 await settle(300)
 check('a time more than 24 hours ago changes nothing: discard it', /more than 24 hours ago as well/.test(await mixedPanel.innerText()) && (await setMixed.isDisabled()))
@@ -255,7 +262,7 @@ await sheet().getByRole('button', { name: 'Save', exact: true }).click()
 await settle(1500)
 const formulaFeed = (await api('GET', `/api/feedings/?child=${child.id}`)).body.results.find((f) => f.type === 'formula')
 check('… and keeps it as its tag', formulaFeed?.tags.includes('kcal:22'), JSON.stringify(formulaFeed?.tags))
-check('the timeline names the strength', /fortified 22/.test(squash(await page.locator('.tl-row', { hasText: 'Bottle' }).first().innerText())), squash(await page.locator('.tl-row', { hasText: 'Bottle' }).first().innerText()))
+check('the timeline names the strength', /fortified 22/.test(squash(await page.locator('.tl-row', { hasText: 'fortified' }).first().innerText())), squash(await page.locator('.tl-row', { hasText: 'Bottle' }).first().innerText()))
 
 // ---- Reports › Day: the day's total
 await page.goto(BASE + '/reports')
@@ -282,7 +289,53 @@ await shot('reports-feeding')
 await page.goto(BASE + '/report')
 await settle(1500)
 const report = squash(await page.locator('main').innerText())
-check('the pediatrician report lists calories by bottle and kcal per kg with the goal', /Calories by bottle a day 365 kcal/.test(report) && /kcal per kg a day \(goal 150\) 134/.test(report), report.slice(0, 600))
+check('the pediatrician report carries kcal per kg a day against the goal, and by week', /kcal per kg a day 134 goal 150/i.test(report) && /kcal\/kg/i.test(report), report.match(/.{0,40}kcal.{0,60}/i)?.[0] ?? report.slice(0, 200))
+
+// ---- fed in time, logged late (the phone was offline): the milk is judged at the time of the feed, not now
+const b2 = made.find((b) => b.spot === 2)
+await companion('PATCH', `/milk/${b2.id}`, { mixed_at: new Date(Date.now() - 25 * HOUR).toISOString() }) // ran out an hour ago
+const feedsBefore = (await api('GET', `/api/feedings/?child=${child.id}`)).body.results.length
+await page.goto(BASE + '/')
+await settle(1200)
+await page.getByRole('button', { name: /^Bottle/ }).first().click()
+await settle(900)
+const spot2 = () => sheet().getByRole('button', { name: /^Premade bottle 2,/ })
+check('a bottle logged for now is not offered the bottle that ran out an hour ago', (await spot2().count()) === 0)
+const fedWhen = new Date(Date.now() - 3 * HOUR)
+fedWhen.setSeconds(0, 0)
+await sheet().getByLabel('Time:').fill(localInput(fedWhen))
+await settle(500)
+check('… one logged for three hours ago is: it was good then', (await spot2().count()) === 1)
+await page.keyboard.press('Escape')
+await settle(500)
+await page.goto(BASE + '/milk')
+await settle(1200)
+await page.getByTestId('night-bottles').getByRole('button', { name: /^Premade bottle 2/ }).click()
+await settle(700)
+await sheet().getByRole('region', { name: 'Fed before it expired' }).getByRole('button', { name: 'Log that feed' }).click()
+await settle(900)
+const saveFeed = () => sheet().getByRole('button', { name: 'Save', exact: true })
+const lateLine = () => sheet().getByTestId('late-feed')
+check('Log that feed opens the bottle sheet on that bottle, and waits for the time of the feed', /Premade bottle 2 · 9\d mL/.test(squash(await sheet().getByTestId('stash-pick').innerText())) && (await lateLine().count()) === 1 && /^Premade bottle 2 kept until \d{1,2}:\d\d [AP]M\. If .+ was fed before then, set the time of the feed; if not, take it out of this feed\.$/.test(squash(await lateLine().innerText())) && (await saveFeed().isDisabled()), (await lateLine().count()) ? squash(await lateLine().innerText()) : squash(await sheet().innerText()).slice(0, 300))
+const inView = async (loc) => { const box = await loc.boundingBox(); return Boolean(box) && box.y >= 0 && box.y + box.height <= 844 }
+check('… with the time to set and the reason both on screen without scrolling', (await inView(sheet().getByLabel('Fed at:'))) && (await inView(lateLine())) && (await inView(saveFeed())))
+await shot('late-feed')
+await sheet().getByLabel('Fed at:').fill(localInput(new Date(Date.now() - 20 * 60_000)))
+await settle(400)
+check('a time after it ran out is still refused', (await lateLine().count()) === 1 && (await saveFeed().isDisabled()))
+await sheet().getByLabel('Fed at:').fill(localInput(fedWhen))
+await settle(400)
+check('the time it was really fed, before the deadline, is accepted', (await lateLine().count()) === 0 && (await saveFeed().isEnabled()))
+check('nothing wider than the screen in the bottle sheet', !(await overflow()))
+await sheet().getByRole('spinbutton', { name: 'Amount in mL' }).fill('80')
+await saveFeed().click()
+await settle(1500)
+const feedsAfter = (await api('GET', `/api/feedings/?child=${child.id}`)).body.results
+const lateFeed = feedsAfter.find((f) => Math.abs(new Date(f.start) - fedWhen) < 61_000)
+const fedBottle = (await companion('GET', `/milk/${b2.id}`)).body
+check('the feed is saved at the time it happened, fortified with its strength', feedsAfter.length === feedsBefore + 1 && lateFeed?.type === 'fortified breast milk' && lateFeed.tags.includes('kcal:22') && Number(lateFeed.amount) === 80, JSON.stringify(lateFeed ?? feedsAfter.map((f) => f.start)))
+check('… and the bottle counts as fed, not thrown away: used whole by that feeding', fedBottle.status === 'used' && fedBottle.remaining_ml === 0 && fedBottle.uses.length === 1 && fedBottle.uses[0].kind === 'bottle' && fedBottle.uses[0].feeding_id === lateFeed?.id, JSON.stringify({ status: fedBottle.status, uses: fedBottle.uses }))
+check('… its spot is free on the Stash tab', (await page.getByTestId('night-bottles').getByRole('button', { name: /^Premade bottle 2/ }).count()) === 0)
 
 await browser.close()
 for (const p of problems) console.log('problem:', p)

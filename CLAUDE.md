@@ -83,7 +83,10 @@ installing and deploying; `README.md` is the public front page (screenshots from
   `companion.milk.toNicu` (`POST /milk/nicu`, one `nicu` use each; Undo reverses it). A bag takes a travel sticker's
   code (printed ahead, `milk_travel_labels`) only through `travel_code` on create/update; codes come from `_fresh_code`.
   **No deadline is ever typed or reset**: `expires_at` follows from facts (when pumped, thawed, mixed, moved, and the household's windows), so
-  milk is "unexpired" only by correcting a fact that was wrong: `moved_at`, `pumped_at`, or a fortified bottle's `mixed_at`. Bags are created only through `companion.milk.create`, from three places: the label sheet from a pumping session
+  milk is "unexpired" only by correcting a fact that was wrong: `moved_at`, `pumped_at`, or a fortified bottle's `mixed_at`.
+  **Milk is judged at the time of the feed, not at the time it is logged**: the bottle sheet sends the feed's start as `at` with its takes,
+  offers what was good at that moment, and the server refuses only new milk whose time had run out before it; never compare a bag with "now" to
+  decide whether a feed could have used it. Bags are created only through `companion.milk.create`, from three places: the label sheet from a pumping session
   (registers on the explicit Add to stash step once a volume is typed, or at once when the caller supplies it, idempotent
   per `pumping_id`), saving a new pumping entry with a volume while auto-print is on (`useAutoPrint`, the same call with
   `pumping_id`, so the label sheet later finds that bag), and the Stash tab's "Add milk you already have" (`intake` mode:

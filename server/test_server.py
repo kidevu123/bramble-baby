@@ -1004,6 +1004,44 @@ class ServerTest(unittest.TestCase):
             status, out = self.call("PATCH", f"/milk/{other}", {"mixed_at": now.isoformat()})
             self.assertEqual((status, out["detail"]), (400, "Only a fortified premade bottle has a mixing time."))
 
+    def test_a_feed_logged_late_is_judged_at_its_own_time_not_when_it_was_logged(self):
+        # The owner's case (2026-11-22): the bottle was fed in time, the phone was offline, and by the time the feed
+        # could be logged the bottle read as expired and offered only Discard.
+        a, b = self._bag(70), self._bag(40)
+        body = {"child": 1, "bottles": [{"spot": 3, "takes": [{"bag": a["id"], "amount_ml": 70}], "kcal_per_oz": 24, "added_ml": 2, "client_key": "late-feed-bottle-1"}]}
+        bottle = self.call("POST", "/milk/bottles", body)[1][0]
+        now = datetime.now(timezone.utc).replace(microsecond=0)
+        ended = now - timedelta(hours=1)
+        for row in (bottle["id"], b["id"]):
+            self.app.store.x("UPDATE milk_bags SET pumped_at=?, expires_at=? WHERE id=?", ((now - timedelta(hours=48)).isoformat(), ended.isoformat(), row))
+        whole = [{"bag": bottle["id"], "amount_ml": bottle["remaining_ml"]}]
+        # A feed after its time ran out is refused in words, and nothing changes; so is one in the future.
+        status, out = self.call("PUT", "/milk/feeding/901", {"takes": whole, "at": (ended + timedelta(minutes=10)).isoformat()})
+        self.assertEqual(status, 400)
+        self.assertIn("Premade bottle 3 kept until", out["detail"])
+        self.assertIn("this feed is after that", out["detail"])
+        status, out = self.call("PUT", "/milk/feeding/901", {"takes": whole, "at": (now + timedelta(hours=2)).isoformat()})
+        self.assertEqual((status, out["detail"]), (400, "A feed cannot be in the future."))
+        self.assertEqual(self.call("PUT", "/milk/feeding/901", {"takes": whole, "at": "yesterday"})[0], 400)
+        self.assertEqual(self.call("GET", f"/milk/{bottle['id']}")[1]["status"], "stored")
+        # The feed that really happened, two hours before the deadline: taken as any bottle is.
+        status, out = self.call("PUT", "/milk/feeding/901", {"takes": whole, "at": (ended - timedelta(hours=2)).isoformat()})
+        self.assertEqual(status, 200)
+        self.assertEqual(self.call("GET", f"/milk/{bottle['id']}")[1]["status"], "used")
+        self.assertEqual([r for r in self.call("GET", "/reminders?child=1")[1] if r["tag"] == f"milk:{bottle['id']}"], [])
+        # Moving that feeding to a later time does not take the milk away again: only new milk is judged.
+        self.assertEqual(self.call("PUT", "/milk/feeding/901", {"takes": whole, "at": now.isoformat()})[0], 200)
+        # A bag is judged the same way, through the one-bag route too; more milk for a late feed is new milk.
+        status, out = self.call("POST", f"/milk/{b['id']}/use", {"amount_ml": 20, "feeding_id": 902, "at": now.isoformat()})
+        self.assertEqual(status, 400)
+        self.assertIn(f"Bag {b['code']} kept until", out["detail"])
+        self.assertEqual(self.call("POST", f"/milk/{b['id']}/use", {"amount_ml": 20, "feeding_id": 902, "at": (ended - timedelta(minutes=30)).isoformat()})[0], 200)
+        self.assertEqual(self.call("POST", f"/milk/{b['id']}/use", {"amount_ml": 30, "feeding_id": 902, "at": now.isoformat()})[0], 400)
+        self.assertEqual(self.call("POST", f"/milk/{b['id']}/use", {"amount_ml": 10, "feeding_id": 902, "at": now.isoformat()})[0], 200)
+        self.assertEqual(self.call("GET", f"/milk/{b['id']}")[1]["remaining_ml"], 30)
+        # A phone on an older build sends no time: nothing is judged, as before.
+        self.assertEqual(self.call("POST", f"/milk/{b['id']}/use", {"amount_ml": 15, "feeding_id": 903})[0], 200)
+
     def test_night_bottles_are_poured_from_bags_into_numbered_spots(self):
         a, b, d = self._bag(30), self._bag(60), self._bag(20)
         frozen = self._bag(100, location="freezer")

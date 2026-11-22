@@ -11,7 +11,7 @@ const timers: Timer[] = []
 const create = vi.fn((body: Record<string, unknown>) => Promise.resolve({ id: 11, ...body }))
 const update = vi.fn((id: number, body: Record<string, unknown>) => Promise.resolve({ id, ...body }))
 const remove = vi.fn((_id: number) => Promise.resolve())
-const setTakes = vi.fn((_id: number, _takes: unknown[]) => Promise.resolve({ bag: null, use: null, takes: [], total_ml: 0 }))
+const setTakes = vi.fn((_id: number, _takes: unknown[], _at?: string) => Promise.resolve({ bag: null, use: null, takes: [], total_ml: 0 }))
 let forFeeding: () => Promise<FeedingTakes> = () => new Promise(() => undefined)
 
 vi.mock('../../hooks/useEvents', async (orig) => {
@@ -32,7 +32,7 @@ vi.mock('../../lib/api/companion', async (orig) => {
     ...mod,
     companion: {
       ...mod.companion,
-      milk: { ...mod.companion.milk, list: () => Promise.resolve([]), forFeeding: () => forFeeding(), setTakes: (id: number, t: unknown[]) => setTakes(id, t) },
+      milk: { ...mod.companion.milk, list: () => Promise.resolve([]), forFeeding: () => forFeeding(), setTakes: (...args: [number, unknown[], string?]) => setTakes(...args) },
     },
   }
 })
@@ -187,6 +187,54 @@ describe('FeedingSheet', () => {
     mount({ initial: 'bottle' })
     fireEvent.change(screen.getByLabelText('Amount in mL'), { target: { value: '9999' } })
     expect(screen.getByText(/9999 mL is a lot for one bottle/)).toBeTruthy()
+    expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+})
+
+describe('FeedingSheet: a feed logged after the fact', () => {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const local = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  // A fortified premade bottle that ran out an hour ago: fed in time, the phone was offline, logged now.
+  const ended = new Date(Date.now() - 3_600_000)
+  const expired = { ...bag, id: 31, code: 'BTL003', kind: 'bottle', spot: 3, kcal_per_oz: 24, volume_ml: 72, remaining_ml: 72, expires_at: ended.toISOString() } as unknown as MilkBag
+
+  beforeEach(() => {
+    localStorage.setItem('bramble.prefs', JSON.stringify({ theme: 'system', units: { volume: 'ml' } }))
+    for (const f of [create, update, remove, setTakes]) f.mockClear()
+  })
+
+  it('waits for the time of the feed, takes one before the deadline, and tells the stash when it happened', async () => {
+    mount({ bag: expired })
+    // Opened from the Stash tab on a fortified bottle: fortified milk, not plain.
+    expect(screen.getByRole('radio', { name: 'Fortified' }).getAttribute('aria-checked')).toBe('true')
+    const save = () => screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement
+    expect(screen.getByTestId('late-feed').textContent).toMatch(/^Premade bottle 3 kept until .+\. If Ivy was fed before then, set the time of the feed; if not, take it out of this feed\.$/)
+    expect(save().disabled).toBe(true)
+    // Twenty minutes ago is still after it ran out.
+    fireEvent.change(screen.getByLabelText('Fed at:'), { target: { value: local(new Date(Date.now() - 20 * 60_000)) } })
+    expect(screen.queryByTestId('late-feed')).not.toBeNull()
+    expect(save().disabled).toBe(true)
+    const fed = new Date(Date.now() - 3 * 3_600_000)
+    fed.setSeconds(0, 0)
+    fireEvent.change(screen.getByLabelText('Fed at:'), { target: { value: local(fed) } })
+    expect(screen.queryByTestId('late-feed')).toBeNull()
+    expect(save().disabled).toBe(false)
+    fireEvent.click(save())
+    await settle()
+    const body = create.mock.calls[0][0] as { start: string; type: string }
+    expect(body.type).toBe('fortified breast milk')
+    expect(new Date(body.start).getTime()).toBe(fed.getTime())
+    expect(setTakes).toHaveBeenCalledTimes(1)
+    expect(setTakes.mock.calls[0][1]).toEqual([{ bag: 31, amount_ml: 72 }])
+    expect(new Date(setTakes.mock.calls[0][2] as string).getTime()).toBe(fed.getTime())
+  })
+
+  it('leaves an edited bottle on the milk it already took, whatever its time is moved to', async () => {
+    const was = { ...bag, expires_at: ended.toISOString() } as MilkBag
+    forFeeding = () => Promise.resolve({ ...linked, bag: was, takes: [{ bag: was, use: linked.takes[0].use }] })
+    mount({ editing: { ...bottle, start: new Date().toISOString(), end: new Date().toISOString() } })
+    await settle()
+    expect(screen.queryByTestId('late-feed')).toBeNull()
     expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(false)
   })
 })

@@ -6,7 +6,7 @@ import { Button } from '../../components/ui/Button'
 import { useBagForFeeding, useInvalidateMilk, useMilkStash } from '../../hooks/useMilk'
 import { useNow } from '../../hooks/useNow'
 import { companion, type MilkBag } from '../../lib/api/companion'
-import { formatMl, giveBackCopy, isNightBottle, LOCATION_LABEL, planTakes, roundMl, stashHint, summarizeStash, takesCopy } from '../../lib/milk'
+import { bagState, formatMl, giveBackCopy, isNightBottle, lateFeedNote, LOCATION_LABEL, pastTheirTime, planTakes, roundMl, stashHint, summarizeStash, takesCopy } from '../../lib/milk'
 import { StashPicker } from '../milk/StashPicker'
 import { Segmented } from '../../components/ui/Segmented'
 import { FieldGroup, PillChoice, TimeField } from '../../components/ui/Field'
@@ -64,6 +64,8 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
   // The amount was filled from the picked bags (not typed): adding or removing a bag keeps it in step.
   const [amountAuto, setAmountAuto] = useState(Boolean(initialBag))
   const [picking, setPicking] = useState(false)
+  /** Opened on a bag or bottle that has run out: a feed from it happened earlier, and its time is asked first. */
+  const [timeFirst] = useState(() => Boolean(initialBag && bagState(initialBag) === 'expired'))
   const invalidateMilk = useInvalidateMilk()
   const [mode, setMode] = useState<Mode>(() => (initialBag ? 'bottle' : initial ?? initialMode(editing)))
   // A new feed is anchored on when it finished (just now, until a time is set by hand), so typing the minutes moves
@@ -106,7 +108,9 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
     if (editing.method === 'both breasts') return String(Math.floor(totalMin / 2))
     return ''
   })
-  const [milk, setMilk] = useState<FeedingType>(() => (editing && editing.type !== 'solid food' ? editing.type : (prefill?.kind === 'bottle' && prefill.milk) || 'breast milk'))
+  // A premade bottle mixed to a strength is fortified milk, also when the sheet opens on it from the Stash tab
+  // (until 1.74 that path logged it as plain breast milk, so its calories were counted at 20 kcal/oz with no tag).
+  const [milk, setMilk] = useState<FeedingType>(() => (editing && editing.type !== 'solid food' ? editing.type : initialBag?.kcal_per_oz ? 'fortified breast milk' : (prefill?.kind === 'bottle' && prefill.milk) || 'breast milk'))
   const [initialAmount] = useState<string>(() => (editing?.amount ? String(editing.amount) : ''))
   const [amount, setAmount] = useState<string>(() => (initialBag ? String(fillAmount(initialBag.remaining_ml, prefs.units.volume)) : prefill?.kind === 'bottle' && prefill.amount !== undefined ? String(prefill.amount) : initialAmount))
   const nursingMinutes = (Number(leftMin) || 0) + (Number(rightMin) || 0)
@@ -131,7 +135,10 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
   // What is in the stash, so the "Use milk from the stash" card can say so (and stay quiet when there is nothing).
   const now = useNow(60_000)
   const stash = useMilkStash(mode === 'bottle' ? child.id : null)
-  const summary = useMemo(() => summarizeStash(stash.data ?? [], now), [stash.data, now])
+  // Milk is judged at the time of the feed, not at the time it is logged: a bottle fed in time and logged late
+  // (the phone was offline) is still offered, and one that had run out before the feed is not.
+  const fedAt = mode === 'bottle' && start.getTime() < now.getTime() ? start : now
+  const summary = useMemo(() => summarizeStash(stash.data ?? [], fedAt), [stash.data, fedAt])
   const hint = stashHint(summary, unit, now)
 
   const bags: MilkBag[] = choice === undefined ? (editing ? linkedBags : []) : choice
@@ -187,7 +194,8 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
     const leftStash = !fromStash && Boolean(editing) && editing!.method === 'bottle' && editing!.type !== 'formula' && (linkedTakes.length > 0 || !linked.isSuccess)
     if ((plan && takeChanged) || (!bags.length && leaving.length) || leftStash) {
       try {
-        await companion.milk.setTakes(entry.id, leftStash ? [] : takes)
+        // The feed's own time goes with the takes: the stash judges the milk at that moment, not at the moment of logging.
+        await (leftStash || !takes.length ? companion.milk.setTakes(entry.id, []) : companion.milk.setTakes(entry.id, takes, start.toISOString()))
       } catch (err) {
         throw new Error(`The feeding is saved, but the stash did not change: ${describeApiError(err)}. Tap Save to try again.`)
       }
@@ -257,6 +265,8 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
   /** Saving changes what the stash holds: a new bottle, a new amount, or other bags. */
   const takeChanged = plan !== null && (!sameBagsAsLinked || amountChanged)
   const totalTake = plan ? plan.takes.reduce((sum, t) => sum + t.takeMl, 0) : 0
+  /** Picked milk that had already run out when this feed happened: the time is wrong, or it was not in the feed. */
+  const lateNote = plan ? lateFeedNote(pastTheirTime(plan.takes, start, linkedTakeMl), child.first_name, now) : null
   const giveBacks = leaving.map((t) => giveBackCopy(t.bag, t.use, unit))
   const saveNote =
     plan && (takeChanged || totalTake <= 0) ? (
@@ -273,6 +283,10 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
         {NO_BAG_NOTE}
       </p>
     ) : null
+
+  /* A bottle is a moment: its chips set the time itself. Opened on milk that has run out since (a feed logged
+     after the fact), when it happened is the one thing to set, so it leads the sheet instead of closing it. */
+  const timeField = <TimeField label={timeFirst ? 'Fed at:' : 'Time:'} value={start} onChange={setStart} quick={editing ? undefined : setStart} />
 
   const leftField = <ValueField label="Left" unit="min" name="Left (min)" type="number" inputMode="numeric" min={0} value={leftMin} onChange={(e) => setLeftMin(e.target.value)} placeholder="0" />
   const rightField = <ValueField label="Right" unit="min" name="Right (min)" type="number" inputMode="numeric" min={0} value={rightMin} onChange={(e) => setRightMin(e.target.value)} placeholder="0" />
@@ -323,6 +337,7 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
 
       {mode === 'bottle' ? (
         <>
+          {timeFirst ? timeField : null}
           <FieldGroup title="Milk">
             <PillChoice
               tone="orange"
@@ -455,8 +470,7 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
             </div>
           </section>
           {tracking ? <CaloriesLine milk={milk} amount={Number(amount) || 0} unit={unit} strength={strength} mix={!editing && !pickedKcal ? tracking.fortify : null} /> : null}
-          {/* A bottle is a moment: its chips set the time itself. */}
-          <TimeField label="Time:" value={start} onChange={setStart} quick={editing ? undefined : setStart} />
+          {timeFirst ? null : timeField}
         </>
       ) : null}
 
@@ -468,9 +482,14 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
         busy={busy}
         error={error}
         // The picked bags must cover the bottle; a bottle on bags it did not come from needs an amount (one still on its own bags may go to zero: the milk goes back).
-        disabled={!body || !units.ready || endsInFuture || (plan !== null && plan.shortMl > 0) || (plan !== null && totalTake <= 0 && !sameBagsAsLinked)}
+        disabled={!body || !units.ready || endsInFuture || lateNote !== null || (plan !== null && plan.shortMl > 0) || (plan !== null && totalTake <= 0 && !sameBagsAsLinked)}
         note={
-          implausible ? (
+          lateNote ? (
+            // Why Save waits, where it is always in view: above the button, not under a field that may be scrolled away.
+            <p className="use-plan is-over" role="alert" data-testid="late-feed">
+              {lateNote}
+            </p>
+          ) : implausible ? (
             <>
               <p className="plausible-note" role="status">
                 {implausible}
@@ -484,7 +503,7 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
         onSave={() => body && run(() => saveBottle(body))}
         onDelete={editing ? () => run(deleteBottle) : undefined}
       />
-      <StashPicker open={picking} child={child.id} unit={unit} selected={bags.map((b) => b.id)} onPick={toggleBag} onClose={() => setPicking(false)} />
+      <StashPicker open={picking} child={child.id} unit={unit} selected={bags.map((b) => b.id)} onPick={toggleBag} onClose={() => setPicking(false)} at={mode === 'bottle' ? start : undefined} />
     </>
   )
 }

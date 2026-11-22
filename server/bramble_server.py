@@ -979,7 +979,7 @@ class App:
             if not isinstance(takes, list):
                 return 400, {"detail": "missing: takes"}
             try:
-                return 200, self.milk.set_takes(int(parts[2]), takes, user_id)
+                return 200, self.milk.set_takes(int(parts[2]), takes, user_id, data.get("at"))
             except milk_mod.MilkError as exc:
                 return 400, {"detail": str(exc)}
         if len(parts) == 3 and parts[2] == "spot" and method == "POST":
@@ -1002,7 +1002,7 @@ class App:
                 return 400, {"detail": "missing: amount_ml"}
             feeding_id = int(data["feeding_id"]) if data.get("feeding_id") not in (None, "") else None
             try:
-                bag = self.milk.use(int(parts[1]), data["amount_ml"], feeding_id, user_id)
+                bag = self.milk.use(int(parts[1]), data["amount_ml"], feeding_id, user_id, data.get("at"))
             except milk_mod.MilkError as exc:
                 return 400, {"detail": str(exc)}
             return (200, bag) if bag else (404, {"detail": "Not found."})

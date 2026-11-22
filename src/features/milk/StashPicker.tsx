@@ -19,9 +19,11 @@ import './milk.css'
  * `selected`, the bags already in the bottle are marked, a tap on one of them takes it out, and the bottle
  * sheet's "Add another bag" comes back here for the next one.
  */
-export function StashPicker({ open, child, unit, onPick, onClose, selected }: { open: boolean; child: Id; unit: VolumeUnit; onPick: (bag: MilkBag) => void; onClose: () => void; selected?: Id[] }) {
+export function StashPicker({ open, child, unit, onPick, onClose, selected, at }: { open: boolean; child: Id; unit: VolumeUnit; onPick: (bag: MilkBag) => void; onClose: () => void; selected?: Id[]; /** When the feed happened, for one logged after the fact: the milk is judged at that moment, not now. */ at?: Date }) {
   const multi = selected !== undefined
   const now = useNow(60_000)
+  // A feed logged late can be from milk that was good then and has run out since; one logged now is judged now.
+  const fedAt = at && at.getTime() < now.getTime() - 60_000 ? at : undefined
   const stash = useMilkStash(open ? child : null)
   const [scanning, setScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -34,7 +36,7 @@ export function StashPicker({ open, child, unit, onPick, onClose, selected }: { 
       setError(null)
     }
   }, [open])
-  const stored = useMemo(() => stashOrder(stash.data ?? [], now), [stash.data, now])
+  const stored = useMemo(() => stashOrder(stash.data ?? [], fedAt ?? now), [stash.data, now, fedAt])
   const lookup = useMutation({
     mutationFn: (code: string) => companion.milk.byCode(code),
     onSuccess: (bag) => {
@@ -44,8 +46,8 @@ export function StashPicker({ open, child, unit, onPick, onClose, selected }: { 
         return
       }
       // The same rule as the list, where an expired bag cannot be tapped.
-      if (bagState(bag, new Date()) === 'expired') {
-        setError(`Bag ${bag.code} has expired. Discard it from the stash; it cannot go into a bottle.`)
+      if (bagState(bag, fedAt ?? new Date()) === 'expired') {
+        setError(fedAt ? `Bag ${bag.code} was already past its time when this feed happened. It cannot have been in this bottle.` : `Bag ${bag.code} has expired. Discard it from the stash; it cannot go into a bottle.`)
         setAttempt((n) => n + 1)
         return
       }
@@ -93,7 +95,7 @@ export function StashPicker({ open, child, unit, onPick, onClose, selected }: { 
           {!stash.isLoading && stored.length === 0 ? <p className="small muted">The stash is empty. Print a milk label from a pumping session to add a bag.</p> : null}
           <ul className="bag-list">
             {stored.map((bag) => (
-              <BagRow key={bag.id} bag={bag} unit={unit} now={now} disabledWhenExpired picked={multi ? selected.includes(bag.id) : undefined} onOpen={() => { onPick(bag); onClose() }} />
+              <BagRow key={bag.id} bag={bag} unit={unit} now={now} at={fedAt} disabledWhenExpired picked={multi ? selected.includes(bag.id) : undefined} onOpen={() => { onPick(bag); onClose() }} />
             ))}
           </ul>
         </div>

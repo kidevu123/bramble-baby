@@ -24,7 +24,7 @@ import { usePrefs } from '../../hooks/usePrefs'
 import { stashKeyItems } from '../../lib/stash-key'
 import { describeApiError } from '../../lib/api/client'
 import { companion, type MilkBag, type MilkLocation } from '../../lib/api/companion'
-import { bagAmountIn, bagLeft, bagState, bagVolume, describeUse, formatMl, freeSpots, isNightBottle, isPartlyUsed, LOCATION_LABEL, NIGHT_SPOTS, nightBottleSources, parseQrPayload, sectionPreview, stashItemName, stashSections, summarizeStash, toMl, type StashSectionKey } from '../../lib/milk'
+import { bagAmountIn, bagLeft, bagStamp, bagState, bagVolume, describeUse, formatMl, freeSpots, isNightBottle, isPartlyUsed, LOCATION_LABEL, NIGHT_SPOTS, nightBottleSources, parseQrPayload, sectionPreview, stashItemName, stashSections, summarizeStash, toMl, type StashSectionKey } from '../../lib/milk'
 import { goalLine, runwayHeadline, runwayLine, stashRunway } from '../../lib/stash-runway'
 import { ageBasis, inNicuOn } from '../../lib/preterm'
 import { isColostrum, nicuCandidates, nicuTrips } from '../../lib/nicu-stash'
@@ -348,7 +348,7 @@ export function MilkPage() {
                   {section.bags.length} {section.bags.length === 1 ? 'bag' : 'bags'} · {formatMl(section.ml, unit)}
                 </span>
               </header>
-              {section.key === 'expired' ? <p className="xs muted stash-section-note">Past their window: tap one to discard it.</p> : null}
+              {section.key === 'expired' ? <p className="xs muted stash-section-note">Past their window: tap one to discard it, or to log a feed from it that was never logged.</p> : null}
               <ul className="bag-list">
                 {section.bags.slice(0, shown).map((bag) => (
                   <BagRow key={bag.id} bag={bag} unit={unit} now={now} place={false} useFirst={bag.id === summary.useFirst?.id} colostrum={nicu && isColostrum(bag.pumped_at, birth)} onOpen={() => setSelected(bag)} />
@@ -589,6 +589,7 @@ function BagActions({ bag, unit, now, busy, error, onUndo, onUnmake, onMixed, on
           <TrashIcon className="btn-icon" /> Discard expired milk
         </Button>
       )}
+      {state === 'expired' ? <FedInTime bag={bag} now={now} busy={busy} onLog={onBottle} /> : null}
       {state === 'expired' && bag.location === 'room' ? (
         <InTimeMove bag={bag} now={now} at={fridgedAt} onAt={setFridgedAt} busy={busy} onMove={(at) => onMove('fridge', at)} />
       ) : null}
@@ -673,6 +674,29 @@ function InTimeMove({ bag, now, at, onAt, busy, onMove }: { bag: MilkBag; now: D
 }
 
 /**
+ * Milk that reads as expired because the feed it went into was never logged (the phone was offline, a busy night):
+ * log that feed now, at the time it happened. The bottle sheet opens on this bag or bottle and takes it as usual
+ * once its time is before the deadline; a feed after the deadline is refused there and on the server. Nothing is
+ * made good again: the record catches up with what happened.
+ */
+function FedInTime({ bag, now, busy, onLog }: { bag: MilkBag; now: Date; busy: boolean; onLog: () => void }) {
+  const until = bagStamp(parseDate(bag.expires_at), now, { today: '' })
+  return (
+    <section className="in-time-move stack" aria-label="Fed before it expired" data-testid="fed-in-time">
+      <div>
+        <p className="strong in-time-title">Fed before {until}?</p>
+        <p className="small muted in-time-note">
+          {isNightBottle(bag) ? 'If this bottle was fed in time and the feed was never logged' : 'If milk from this bag was fed in time and never logged'}, log the feed now with the time it happened. It then counts as fed, not thrown away.
+        </p>
+      </div>
+      <Button variant="outline" block onClick={onLog} disabled={busy}>
+        Log that feed
+      </Button>
+    </section>
+  )
+}
+
+/**
  * A bag that has left the stash, opened by its code (a scan of a used bottle's label): what became of it and
  * Undo, as in the history list. No bottle, move or discard: there is nothing in the stash to act on.
  */
@@ -727,10 +751,11 @@ function GoneBag({ bag, unit, now, busy, error, onUndo, onReprint }: { bag: Milk
  * A fortified premade bottle keeps 24 hours from when the formula went in, and Bramble takes that as the moment the
  * bottle was made in the app. When the two differ (made in the app first, mixed later; or the other way round), the
  * mixing time is corrected here and the deadline follows. The deadline itself is never typed: a bottle is not made
- * good again by saying so, only by a fact that was wrong. Open on an expired bottle, a quiet line on a good one.
+ * good again by saying so, only by a fact that was wrong. A quiet line that opens: on an expired bottle the common
+ * case is a feed that was never logged (`FedInTime`), which leads.
  */
-function MixedTime({ bag, now, busy, expired, onMixed }: { bag: MilkBag; now: Date; busy: boolean; expired: boolean; onMixed: (at: Date) => void }) {
-  const [open, setOpen] = useState(expired)
+function MixedTime({ bag, now, busy, onMixed }: { bag: MilkBag; now: Date; busy: boolean; onMixed: (at: Date) => void }) {
+  const [open, setOpen] = useState(false)
   const [at, setAt] = useState<Date | null>(null)
   const mixed = parseDate(bag.mixed_at as string)
   const until = at ? new Date(at.getTime() + 24 * 3_600_000) : null
@@ -792,7 +817,8 @@ function BottleActions({ bag, unit, now, busy, error, onBottle, onDiscard, onUnm
         <TrashIcon className="btn-icon" /> {state === 'expired' ? 'Discard expired bottle' : 'Discard this bottle'}
       </Button>
       {state !== 'expired' ? <p className="xs muted">Feed it and the whole bottle leaves the stash: she drinks what she drinks and the rest is thrown away. Its spot is free again.</p> : null}
-      {bag.mixed_at ? <MixedTime key={bag.mixed_at} bag={bag} now={now} busy={busy} expired={state === 'expired'} onMixed={onMixed} /> : null}
+      {state === 'expired' ? <FedInTime bag={bag} now={now} busy={busy} onLog={onBottle} /> : null}
+      {bag.mixed_at ? <MixedTime key={bag.mixed_at} bag={bag} now={now} busy={busy} onMixed={onMixed} /> : null}
       {confirming ? (
         <div className="stack unmake-confirm" data-testid="unmake-confirm">
           <p className="small">

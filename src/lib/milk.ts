@@ -279,6 +279,28 @@ export const isNightBottle = (bag: Pick<MilkBag, 'kind'>): boolean => bag.kind =
 /** "Premade bottle 3" for a bottle, "Bag K7M2QP" for a bag: how a stash item is named in titles and lists. */
 export const stashItemName = (bag: Pick<MilkBag, 'kind' | 'spot' | 'code'>): string => (isNightBottle(bag) ? `Premade bottle ${bag.spot}` : `Bag ${bag.code}`)
 
+/**
+ * The picked bags or bottles a feed cannot have been from: their time had already run out when it happened,
+ * earliest deadline first. Milk is judged at the feed's own time, not when it is logged, so a bottle fed in time
+ * and logged late (the phone was offline) is taken as usual. `taken` is what this same feeding already took from
+ * a bag: an edited bottle keeps the milk it was poured from whatever time it is moved to, only milk newly coming
+ * out is judged. Mirrors `_check_take` in server/milk.py.
+ */
+export function pastTheirTime(takes: { bag: MilkBag; takeMl: number }[], fedAt: Date, taken: (bagId: number) => number = () => 0): MilkBag[] {
+  return takes
+    .filter((t) => t.takeMl > taken(t.bag.id) + 0.01 && parseDate(t.bag.expires_at).getTime() <= fedAt.getTime())
+    .map((t) => t.bag)
+    .sort((a, b) => a.expires_at.localeCompare(b.expires_at))
+}
+
+/** What the bottle sheet says while a picked bag or bottle had run out before the feed's time: until when it kept, and what to set. */
+export function lateFeedNote(late: MilkBag[], name: string, now: Date = new Date()): string | null {
+  if (!late.length) return null
+  const first = late[0]
+  const others = late.length > 1 ? ` (and ${late.length - 1} more of the picked ones)` : ''
+  return `${stashItemName(first)} kept until ${bagStamp(parseDate(first.expires_at), now, { today: '' })}${others}. If ${name} was fed before then, set the time of the feed; if not, take it out of this feed.`
+}
+
 /** Spots without a bottle in them (an expired bottle still holds its spot until it is discarded). */
 export function freeSpots(bags: MilkBag[]): number[] {
   const held = new Set(bags.filter((b) => isNightBottle(b) && b.status === 'stored' && b.spot).map((b) => b.spot))

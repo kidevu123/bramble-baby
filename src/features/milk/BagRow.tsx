@@ -21,16 +21,18 @@ const PLACE_ICON: Record<MilkLocation, { tone: string; icon: ReactElement }> = {
  * over it on the bag to use first). The place is the icon; the picker also says it in words (`place`), the Stash
  * tab does not (its sections are the places).
  */
-export function BagRow({ bag, unit, now, onOpen, disabledWhenExpired = false, picked, useFirst = false, place = true, colostrum = false }: { bag: MilkBag; unit: VolumeUnit; now: Date; onOpen: () => void; disabledWhenExpired?: boolean; /** In a multi-select list: whether this bag is in the bottle (undefined outside one). */ picked?: boolean; /** The usable bag that expires first: tagged "Use first" (Stash tab). */ useFirst?: boolean; /** Say the place in words on the second line. */ place?: boolean; /** Pumped in the first days after the birth (Settings › Born early's NICU stash): tagged, it goes in first. */ colostrum?: boolean }) {
+export function BagRow({ bag, unit, now, at, onOpen, disabledWhenExpired = false, picked, useFirst = false, place = true, colostrum = false }: { bag: MilkBag; unit: VolumeUnit; now: Date; /** The moment the milk is judged at, when not now: the time of a feed being logged after the fact. */ at?: Date; onOpen: () => void; disabledWhenExpired?: boolean; /** In a multi-select list: whether this bag is in the bottle (undefined outside one). */ picked?: boolean; /** The usable bag that expires first: tagged "Use first" (Stash tab). */ useFirst?: boolean; /** Say the place in words on the second line. */ place?: boolean; /** Pumped in the first days after the birth (Settings › Born early's NICU stash): tagged, it goes in first. */ colostrum?: boolean }) {
   const { prefs } = usePrefs()
-  const state = bagState(bag, now)
+  const state = bagState(bag, at ?? now)
   const expires = parseDate(bag.expires_at)
   const pumped = parseDate(bag.pumped_at)
   const expired = state === 'expired'
+  // Good when the feed happened, past its time by now: it can be in that feed, and the row says until when it kept.
+  const kept = !expired && bagState(bag, now) === 'expired'
   // A freezer deadline is months out: the date says enough. Fridge and room deadlines are hours or days: the clock matters.
   // Today is the bare clock ("Good until 4:05 PM"); other days carry a weekday or a date.
   const until = bagStamp(expires, now, { time: bag.location !== 'freezer', today: '' })
-  const when = expired ? (disabledWhenExpired ? 'Expired — discard it from the stash' : `Expired ${formatAgo(bag.expires_at, now)}`) : `Good until ${until}`
+  const when = expired ? (disabledWhenExpired ? (at ? 'Past its time before this feed' : 'Expired — discard it from the stash') : `Expired ${formatAgo(bag.expires_at, now)}`) : `${kept ? 'Kept' : 'Good'} until ${until}`
   const disabled = disabledWhenExpired && expired
   const bottle = isNightBottle(bag)
   // A premade bottle mixes milk from several pumps: no sun or moon, and its name is its spot.
@@ -69,8 +71,8 @@ export function BagRow({ bag, unit, now, onOpen, disabledWhenExpired = false, pi
           </span>
         </span>
         <span className="bag-due" aria-hidden>
-          {useFirst && !expired ? <span className="bag-first-tag">Use first</span> : <span className="xs muted">{expired ? 'Expired' : 'Good until'}</span>}
-          <span className={`xs bag-when ${expired ? 'text-health' : state === 'soon' ? 'text-pumping' : ''}`}>{expired ? (disabledWhenExpired ? 'discard it' : formatAgo(bag.expires_at, now)) : until}</span>
+          {useFirst && !expired ? <span className="bag-first-tag">Use first</span> : <span className="xs muted">{expired ? 'Expired' : kept ? 'Kept until' : 'Good until'}</span>}
+          <span className={`xs bag-when ${expired ? 'text-health' : state === 'soon' && !kept ? 'text-pumping' : ''}`}>{expired ? (disabledWhenExpired ? (at ? 'before this feed' : 'discard it') : formatAgo(bag.expires_at, now)) : until}</span>
         </span>
       </button>
     </li>

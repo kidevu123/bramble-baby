@@ -12,6 +12,16 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.74.0',
+    date: 'Nov 22',
+    items: [
+      'Fed a bottle in time but could not log it (no internet, a busy night)? Open the expired bottle or bag on the Stash tab and tap Log that feed. Set when {name} was fed, and it counts as fed, not thrown away.',
+      'Milk is now judged at the time of the feed, not at the time you log it. A bottle logged for this morning is offered the milk that was good this morning.',
+      'A feed set after the milk had already run out is still refused, with the time it kept until.',
+      'Feeding a fortified premade bottle from the Stash tab now logs it as fortified, with its calories. Before, it was saved as plain breast milk.',
+    ],
+  },
+  {
     version: '1.73.0',
     date: 'Nov 22',
     items: [

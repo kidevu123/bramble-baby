@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MilkBag } from './api/companion'
-import { freeSpots, nightBottleSources, planNightBottles, stashItemName, bagAmountIn, bagStamp, sectionPreview, stashSections, bagLeft, bagState, bagVolume, describeUse, expectedExpiry, formatMl, formatTimeLeft, giveBackCopy, intakeProblem, isPartlyUsed, placeNote, newClientKey, nextIntakeDraft, parseQrPayload, planTakes, planUse, pumpedWhen, qrPayload, stashHint, stashOrder, summarizeStash, takesCopy, toMl, takeCopy, windowLabel, type IntakeDraft } from './milk'
+import { lateFeedNote, pastTheirTime, freeSpots, nightBottleSources, planNightBottles, stashItemName, bagAmountIn, bagStamp, sectionPreview, stashSections, bagLeft, bagState, bagVolume, describeUse, expectedExpiry, formatMl, formatTimeLeft, giveBackCopy, intakeProblem, isPartlyUsed, placeNote, newClientKey, nextIntakeDraft, parseQrPayload, planTakes, planUse, pumpedWhen, qrPayload, stashHint, stashOrder, summarizeStash, takesCopy, toMl, takeCopy, windowLabel, type IntakeDraft } from './milk'
 
 const now = new Date('2026-09-30T12:00:00Z')
 const bag = (over: Partial<MilkBag>): MilkBag => ({
@@ -348,5 +348,42 @@ describe('planTakes and premade bottles (sweep 2026-10-21)', () => {
     expect(plan.takes.map((t) => t.takeMl)).toEqual([60, 0])
     // needed: taken whole
     expect(planTakes([b2], 60, 'ml').takes[0].takeMl).toBe(90)
+  })
+})
+
+describe('a feed logged after the fact', () => {
+  const at = (iso: string) => new Date(iso)
+  const item = (id: number, expires: string, over: Partial<MilkBag> = {}): MilkBag =>
+    ({ id, child: 1, code: `BAG00${id}`, volume_ml: 70, remaining_ml: 70, location: 'fridge', thawed: false, thawed_at: null, pumped_at: '2026-11-20T12:13:00Z', expires_at: expires, status: 'stored', pumping_id: null, feeding_id: null, notes: '', created: '', used_at: null, used_by: null, uses: [], client_key: null, ...over }) as unknown as MilkBag
+  const bottle = item(3, '2026-11-22T14:12:00Z', { kind: 'bottle', spot: 3 } as Partial<MilkBag>)
+  const fresh = item(4, '2026-11-24T12:00:00Z')
+
+  it('judges the milk at the time of the feed, not at the time it is logged', () => {
+    const takes = [{ bag: bottle, takeMl: 70 }, { bag: fresh, takeMl: 20 }]
+    // Fed at 1:10 PM UTC, an hour before the bottle ran out, and logged the next day: nothing is past its time.
+    expect(pastTheirTime(takes, at('2026-11-22T13:10:00Z'))).toEqual([])
+    // Fed at the deadline or after it: the bottle cannot have been in this feed; the fresh bag can.
+    expect(pastTheirTime(takes, at('2026-11-22T14:12:00Z')).map((b) => b.id)).toEqual([3])
+    expect(pastTheirTime(takes, at('2026-11-22T16:00:00Z')).map((b) => b.id)).toEqual([3])
+  })
+
+  it('leaves the milk an edited bottle already took alone, and judges only what is new', () => {
+    const late = at('2026-11-22T16:00:00Z')
+    const already = (id: number) => (id === 3 ? 70 : 0)
+    expect(pastTheirTime([{ bag: bottle, takeMl: 70 }], late, already)).toEqual([])
+    expect(pastTheirTime([{ bag: bottle, takeMl: 40 }], late, already)).toEqual([])
+    expect(pastTheirTime([{ bag: item(5, '2026-11-22T14:12:00Z'), takeMl: 30 }], late, (id) => (id === 5 ? 20 : 0)).map((b) => b.id)).toEqual([5])
+  })
+
+  it('says until when it kept and what to do, earliest deadline first', () => {
+    const now = at('2026-11-22T20:00:00Z')
+    expect(lateFeedNote([], 'Ada', now)).toBeNull()
+    const one = lateFeedNote([bottle], 'Ada', now)!
+    expect(one).toMatch(/^Premade bottle 3 kept until \d{1,2}:12 [AP]M\. If Ada was fed before then, set the time of the feed; if not, take it out of this feed\.$/)
+    const earlier = item(6, '2026-11-22T10:00:00Z')
+    const both = pastTheirTime([{ bag: bottle, takeMl: 70 }, { bag: earlier, takeMl: 10 }], now)
+    expect(both.map((b) => b.id)).toEqual([6, 3])
+    expect(lateFeedNote(both, 'Ada', now)).toContain('Bag BAG006 kept until')
+    expect(lateFeedNote(both, 'Ada', now)).toContain('(and 1 more of the picked ones)')
   })
 })

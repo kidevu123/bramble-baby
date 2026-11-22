@@ -528,8 +528,10 @@ export const companion = {
      * One bottle from several bags: the feeding's whole allocation at once. A bag of the feeding's not in the
      * list gets its milk back, a listed bag's take is set to the amount, and [] gives everything back (the
      * bottle was deleted or is no longer from the stash). Checked as a whole: a refusal changes nothing.
+     * `at` is when the feed happened: milk is judged at that moment, so a bottle fed in time and logged late is
+     * taken as usual, and new milk whose time had run out before the feed is refused.
      */
-    setTakes: (feedingId: Id, takes: { bag: Id; amount_ml: number }[]) => api<FeedingTakes>(`${COMPANION}/milk/feeding/${feedingId}`, { method: 'PUT', body: JSON.stringify({ takes }) }),
+    setTakes: (feedingId: Id, takes: { bag: Id; amount_ml: number }[], at?: string) => api<FeedingTakes>(`${COMPANION}/milk/feeding/${feedingId}`, { method: 'PUT', body: JSON.stringify(at ? { takes, at } : { takes }) }),
     remove: (id: Id) => api<void>(`${COMPANION}/milk/${id}`, { method: 'DELETE' }),
     /**
      * Premade bottles poured ahead of time, one per numbered fridge spot: the milk leaves the listed bags now and

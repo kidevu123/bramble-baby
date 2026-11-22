@@ -695,7 +695,7 @@ class MilkStore:
         rows = self.store.q("SELECT feeding_id FROM milk_uses WHERE bag=? AND feeding_id IS NOT NULL ORDER BY id DESC LIMIT 1", (bag_id,))
         return rows[0]["feeding_id"] if rows else None
 
-    def use(self, bag_id: int, amount_ml, feeding_id: int | None, user_id: int | None) -> dict | None:
+    def use(self, bag_id: int, amount_ml, feeding_id: int | None, user_id: int | None, at=None) -> dict | None:
         """A bottle of `amount_ml` poured from the bag (scan out), linked to `feeding_id`.
 
         One use per feeding, on one bag: saving the same feeding again does not take the milk twice,
@@ -710,26 +710,33 @@ class MilkStore:
             return None
         if feeding_id is not None:
             # The one-bag case of set_takes: this bag and no other.
-            self.set_takes(feeding_id, [{"bag": bag_id, "amount_ml": amount}], user_id)
+            self.set_takes(feeding_id, [{"bag": bag_id, "amount_ml": amount}], user_id, at)
             return self.get(bag_id)
+        fed_at = self._fed_at(at)
         with self.store.atomic():
             bag = self.get(bag_id)
             if not bag:
                 return None
-            self._check_take(bag, amount, None)
+            self._check_take(bag, amount, None, fed_at)
             self._apply_take(bag, amount, None, user_id)
             fresh = self.get(bag_id)
             self.sync_reminders(fresh)  # type: ignore[arg-type]
             return fresh
 
-    def set_takes(self, feeding_id: int, takes: list[dict], user_id: int | None) -> dict:
+    def set_takes(self, feeding_id: int, takes: list[dict], user_id: int | None, at=None) -> dict:
         """One bottle poured from several bags: the feeding's whole allocation, set at once.
 
         `takes` is [{"bag", "amount_ml"}]; a bag of the feeding's that is not in the list gets its milk
         back (and comes back into the stash if that bottle had emptied it), a listed bag's take is set to
         the amount (up or down, even on a bag it had emptied), and zero drops the take. Every take is
         checked before anything is written, so a refusal changes nothing. An empty list is "the bottle
-        was deleted" or "no longer from the stash"."""
+        was deleted" or "no longer from the stash".
+
+        `at` is when the feed happened. Milk is judged at that moment, not at the moment it is logged: a
+        bottle fed in time and logged late (the phone was offline) is taken as usual, and new milk from a
+        bag or bottle whose time had already run out when the feed happened is refused. Without `at`
+        (a phone on an older build) nothing is judged, as before."""
+        fed_at = self._fed_at(at)
         wanted: list[tuple[dict, float]] = []
         seen: set[int] = set()
         for t in takes:
@@ -752,7 +759,7 @@ class MilkStore:
                     raise MilkError(f"Bag {bag['code']} is not in the stash.")
             wanted = [(now_bag, amount) for now_bag, _, amount in fresh]
             for bag, amount in wanted:
-                self._check_take(bag, amount, feeding_id)
+                self._check_take(bag, amount, feeding_id, fed_at)
             # (`NOT IN ()` is not SQL, and `NOT IN (NULL)` matches nothing: an empty list is spelled out.)
             others = (
                 self.store.q("SELECT * FROM milk_uses WHERE feeding_id=?", (feeding_id,))
@@ -772,9 +779,27 @@ class MilkStore:
         rows = self.store.q("SELECT * FROM milk_uses WHERE bag=? AND feeding_id=?", (bag_id, feeding_id))
         return rows[0] if rows else None
 
-    def _check_take(self, bag: dict, amount: float, feeding_id: int | None) -> None:
+    def _fed_at(self, at) -> datetime | None:
+        """When the feed happened, as the phone sent it: None when it sent nothing; never in the future."""
+        if at in (None, ""):
+            return None
+        try:
+            fed = self.parse_iso(str(at))
+        except (ValueError, OverflowError):
+            raise ValueError("missing: at (not a date and time)")
+        if fed > datetime.now(timezone.utc) + CLOCK_SKEW:
+            raise MilkError("A feed cannot be in the future.")
+        return fed
+
+    def _check_take(self, bag: dict, amount: float, feeding_id: int | None, fed_at: datetime | None = None) -> None:
         """Refuses in plain words before anything is written."""
         existing = self._existing_use(bag["id"], feeding_id)
+        # Judged at the feed's own time. Only milk newly coming out is judged: a bottle already poured from the
+        # bag keeps its take (and may be corrected downwards) whatever time the feeding is moved to.
+        if fed_at is not None and amount > (existing["amount_ml"] if existing else 0) + 0.01 and fed_at >= self.parse_iso(bag["expires_at"]):
+            name = f"Premade bottle {bag['spot']}" if bag.get("kind") == "bottle" and bag.get("spot") else f"Bag {bag['code']}"
+            kept = self.parse_iso(bag["expires_at"]).astimezone(self.zone()).strftime("%a %-I:%M %p")
+            raise MilkError(f"{name} kept until {kept}, and this feed is after that. If the feed was earlier, set its time; if not, log it without the stash and discard the milk.")
         # A bottle already poured from a bag that was discarded afterwards can still be corrected downwards (or
         # kept as it is): nothing new comes out of the bag. Only a new or larger take is refused.
         if bag["status"] == "discarded" and (existing is None or amount > existing["amount_ml"] + 0.01):
