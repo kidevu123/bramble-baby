@@ -9,6 +9,7 @@ import type { Child } from '../../lib/api/types'
 import { blobToBase64 } from '../../lib/auto-print'
 import { canShareFiles, canvasToPng, drawTravelLabel } from '../../lib/labels'
 import { newClientKey } from '../../lib/milk'
+import { partlyPrinted, printInOrder } from '../../lib/print'
 
 const COUNTS = ['5', '10', '20'] as const
 
@@ -23,6 +24,9 @@ export function TravelStickers({ printer, child }: { printer: boolean; child: Ch
   const [count, setCount] = useState<(typeof COUNTS)[number]>('10')
   // One key per batch: a retry after a failed print reprints the same codes instead of reserving more.
   const key = useRef(newClientKey())
+  // The codes of this batch that have already gone to the printer: a tap after a failure sends only the rest.
+  const done = useRef(new Set<string>())
+  const [progress, setProgress] = useState<{ sent: number; of: number } | null>(null)
   const list = useQuery({ queryKey: ['milk-travel', child?.id], queryFn: () => companion.milk.travel(child!.id), enabled: Boolean(child) })
   const unused = (list.data ?? []).filter((t) => t.status === 'unused').length
 
@@ -43,7 +47,8 @@ export function TravelStickers({ printer, child }: { printer: boolean; child: Ch
         }),
       )
       if (printer) {
-        for (const [i, blob] of blobs.entries()) await companion.print.label(await blobToBase64(blob), stickers[i].code)
+        const jobs = stickers.map((t, i) => ({ code: t.code, blob: blobs[i] }))
+        await printInOrder(jobs, (j) => j.code, async (j) => companion.print.label(await blobToBase64(j.blob), j.code), done.current, (sent, of) => setProgress({ sent, of }))
         return { how: 'printed' as const, n: stickers.length }
       }
       const files = blobs.map((b, i) => new File([b], `travel-sticker-${stickers[i].code}.png`, { type: 'image/png' }))
@@ -62,9 +67,23 @@ export function TravelStickers({ printer, child }: { printer: boolean; child: Ch
     },
     onSuccess: () => {
       key.current = newClientKey() // the next tap is a new batch
+      done.current = new Set()
+      setProgress(null)
       void qc.invalidateQueries({ queryKey: ['milk-travel'] })
     },
+    onError: () => void qc.invalidateQueries({ queryKey: ['milk-travel'] }),
   })
+  const partly = send.isError && progress ? partlyPrinted(progress.sent, progress.of) : null
+  /** Another count is another batch: a run that stopped part-way is let go (its unprinted codes stay unused). */
+  const pick = (c: (typeof COUNTS)[number]) => {
+    if (c !== count) {
+      key.current = newClientKey()
+      done.current = new Set()
+      setProgress(null)
+      send.reset()
+    }
+    setCount(c)
+  }
 
   return (
     <section className="card ls-spots stack" aria-label="Travel stickers" data-testid="travel-stickers">
@@ -75,10 +94,15 @@ export function TravelStickers({ printer, child }: { printer: boolean; child: Ch
           {unused ? ` ${unused} printed and not used yet.` : ''}
         </span>
       </span>
-      <PillChoice label="How many travel stickers" tone="teal" value={count} onChange={setCount} options={COUNTS.map((c) => ({ value: c, label: c }))} />
+      <PillChoice label="How many travel stickers" tone="teal" value={count} onChange={pick} options={COUNTS.map((c) => ({ value: c, label: c }))} />
       <Button variant="secondary" block onClick={() => send.mutate()} loading={send.isPending} disabled={!child}>
-        {printer ? `Print ${count} travel stickers` : `Share ${count} travel stickers`}
+        {printer ? (partly ? `Print the other ${progress!.of - progress!.sent}` : `Print ${count} travel stickers`) : `Share ${count} travel stickers`}
       </Button>
+      {send.isPending && printer && progress && progress.of > 0 ? (
+        <p className="small muted" role="status" data-testid="travel-progress">
+          Sent {progress.sent} of {progress.of} to the printer…
+        </p>
+      ) : null}
       {send.isSuccess ? (
         <p className="small ls-spots-done" role="status">
           {send.data.how === 'printed' ? `Sent ${send.data.n} travel stickers to the printer.` : send.data.how === 'shared' ? 'Shared.' : 'Saved to Downloads.'}
@@ -87,6 +111,7 @@ export function TravelStickers({ printer, child }: { printer: boolean; child: Ch
       {send.isError && !(send.error instanceof DOMException && send.error.name === 'AbortError') ? (
         <p className="log-error" role="alert">
           Could not {printer ? 'print' : 'share'} the travel stickers: {describeApiError(send.error)}
+          {partly ? ` ${partly}` : ''}
         </p>
       ) : null}
     </section>

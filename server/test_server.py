@@ -1604,6 +1604,173 @@ class ServerTest(unittest.TestCase):
         bg.wait_for_checks(5)
         self.assertEqual(bg.job(first["id"])["state"], "ready")
 
+    def _one_at_a_time_printer(self, answer_after: float = 0.05):
+        """A fake print server like the owner's AP1: it takes ONE raw-port connection and refuses any other while
+        that one is open. Returns (port, log, stop): log["jobs"] is the bytes each connection carried."""
+        import socket
+        import threading
+
+        ready = b"\x02030,0,0,0210,000,0,0,0,000,0,0,0\x03\r\n\x02000,0,0,0,0,2,1,0,00000000,1,000\x03\r\n\x021234,0\x03\r\n"
+        first = socket.socket()
+        first.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        first.bind(("127.0.0.1", 0))
+        port = first.getsockname()[1]
+        first.listen(1)
+        log = {"jobs": [], "hang_up_after": None}
+        stopping = threading.Event()
+
+        def serve():
+            srv = first
+            while not stopping.is_set():
+                srv.settimeout(0.2)
+                try:
+                    conn, _ = srv.accept()
+                except OSError:
+                    continue
+                srv.close()  # busy: the next connection is refused until this one ends
+                got = b""
+                answered = 0
+                conn.settimeout(0.1)
+                while not stopping.is_set():
+                    try:
+                        chunk = conn.recv(65536)
+                    except socket.timeout:
+                        chunk = None
+                    except OSError:
+                        break
+                    if chunk == b"":
+                        break
+                    if chunk:
+                        got += chunk
+                    asked = got.count(b"~HS")
+                    if asked > answered:
+                        time.sleep(answer_after)
+                        try:
+                            conn.sendall(ready * (asked - answered))
+                        except OSError:
+                            break
+                        answered = asked
+                    if log["hang_up_after"] is not None and got.count(b"^XZ") >= log["hang_up_after"]:
+                        break
+                conn.close()
+                log["jobs"].append(got)
+                srv = socket.socket()
+                srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                srv.bind(("127.0.0.1", port))
+                srv.listen(1)
+            srv.close()
+
+        t = threading.Thread(target=serve, daemon=True)
+        t.start()
+
+        def stop():
+            stopping.set()
+            t.join(3)
+
+        return port, log, stop
+
+    def _label_png(self):
+        try:
+            from PIL import Image
+        except Exception:
+            self.skipTest("Pillow not installed here")
+        buf = io.BytesIO()
+        Image.new("L", (400, 240), 255).save(buf, format="PNG")
+        return buf.getvalue()
+
+    def test_labels_sent_back_to_back_share_the_printers_one_connection(self):
+        """Twenty travel stickers (2026-11-23): the second was refused because the first label's connection was
+        still open, waiting for the printer's answer. Labels that follow each other now go out on that connection."""
+        import socket
+
+        import milk as milk_mod
+
+        png = self._label_png()
+        port, log, stop = self._one_at_a_time_printer(answer_after=0.3)
+        try:
+            p = milk_mod.Printer(f"zebra://127.0.0.1:{port}")
+            first = p.print_label(png, code="TRAVEL1")
+            self.assertTrue(first["ok"])
+            # The fake behaves like the real print server: while that connection is open, another is refused.
+            time.sleep(0.05)
+            with self.assertRaises(ConnectionRefusedError):
+                socket.create_connection(("127.0.0.1", port), timeout=2).close()
+            jobs = [first["job"]["id"]] + [p.print_label(png, code=f"TRAVEL{n}")["job"]["id"] for n in range(2, 6)]
+            p.wait_for_checks(5)
+            deadline = time.monotonic() + 3
+            while not log["jobs"] and time.monotonic() < deadline:
+                time.sleep(0.05)
+            self.assertEqual(len(log["jobs"]), 1)  # one connection carried all five
+            self.assertEqual(log["jobs"][0].count(b"^XA"), 5)
+            self.assertEqual(log["jobs"][0].count(b"^XZ"), 5)
+            states = [p.job(j) for j in jobs]
+            # The printer answers for the last label; the ones before it say another label followed, and none is left "checking".
+            self.assertEqual([j["state"] for j in states], ["sent"] * 4 + ["ready"])
+            self.assertTrue(all("Another label went out right after it" in j["detail"] for j in states[:4]))
+            self.assertFalse(any(j["checking"] for j in states))
+            self.assertIsNone(p._line)  # the line is given up once the last label is answered
+            # A label after the burst is over opens a connection of its own.
+            p.print_label(png, code="LATER1", background=False)
+            deadline = time.monotonic() + 3
+            while len(log["jobs"]) < 2 and time.monotonic() < deadline:
+                time.sleep(0.05)
+            self.assertEqual([j.count(b"^XA") for j in log["jobs"]], [5, 1])
+        finally:
+            stop()
+
+    def test_a_busy_print_server_is_waited_for_and_a_hung_up_line_is_replaced(self):
+        import socket
+
+        import milk as milk_mod
+
+        png = self._label_png()
+        port, log, stop = self._one_at_a_time_printer()
+        try:
+            # Another computer is printing: its connection holds the port for a moment, then lets go.
+            other = socket.create_connection(("127.0.0.1", port), timeout=2)
+            threading.Timer(0.6, other.close).start()
+            p = milk_mod.Printer(f"zebra://127.0.0.1:{port}")
+            p.BUSY_PAUSE = 0.1
+            started = time.monotonic()
+            self.assertTrue(p.print_label(png, code="WAITED1", background=False)["ok"])
+            self.assertGreater(time.monotonic() - started, 0.4)
+            # Still busy when the wait is over: said in words that name the cause, not "is it on?".
+            other = None
+            for _ in range(40):  # the fake listens again a moment after the label's connection closed
+                try:
+                    other = socket.create_connection(("127.0.0.1", port), timeout=2)
+                    break
+                except ConnectionRefusedError:
+                    time.sleep(0.05)
+            self.assertIsNotNone(other)
+            try:
+                p.BUSY_WAIT = 0.3
+                with self.assertRaises(milk_mod.PrinterError) as ctx:
+                    p.print_label(png, code="REFUSED1")
+                self.assertIn("Could not reach the Zebra", str(ctx.exception))
+                self.assertIn("refused the connection for 0.3 seconds", str(ctx.exception))
+                self.assertIn("one job at a time", str(ctx.exception))
+            finally:
+                other.close()
+            # The printer's side hangs up after a label: the next label notices and opens a new connection.
+            p.BUSY_WAIT = 3
+            time.sleep(0.4)
+            before = len(log["jobs"])
+            log["hang_up_after"] = 1
+            p.print_label(png, code="HANGUP1")
+            deadline = time.monotonic() + 3
+            while len(log["jobs"]) < before + 1 and time.monotonic() < deadline:
+                time.sleep(0.05)
+            log["hang_up_after"] = None
+            self.assertTrue(p.print_label(png, code="HANGUP2", background=False)["ok"])
+            p.wait_for_checks(5)
+            deadline = time.monotonic() + 3
+            while len(log["jobs"]) < before + 2 and time.monotonic() < deadline:
+                time.sleep(0.05)
+            self.assertEqual([j.count(b"^XA") for j in log["jobs"][before:]], [1, 1])
+        finally:
+            stop()
+
     def test_zebra_link_keeps_one_connection_and_reads_split_and_queued_replies(self):
         import socket
         import milk as milk_mod

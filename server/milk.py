@@ -1142,6 +1142,12 @@ class Printer:
     # print went unanswered three times; sent together with the ZPL it was answered). So the question rides
     # along with the label, the print socket stays open for CHECK_WINDOW, and "still printing" is asked again.
     CHECK_WINDOW = 10.0
+    # A print server takes one raw-port connection at a time and refuses the next while it is busy (seen 2026-11-23:
+    # twenty travel stickers sent back to back, the second refused because the first label's connection was still
+    # open waiting for the printer's answer). So labels that follow each other go out on the line that is already
+    # open, and a refused connection is tried again for this long before it is reported.
+    BUSY_WAIT = 8.0
+    BUSY_PAUSE = 0.4
     # What a job says per backend when the backend has no printer state to report (file, bridge, niimbot, brother).
     SENT_DETAIL = {
         "file": "Saved as a file on the server (file:// printer); nothing was printed.",
@@ -1165,6 +1171,12 @@ class Printer:
         self._checks: list[threading.Thread] = []
         self._public: tuple[float, dict] | None = None  # (monotonic time, answer) of public_status for a bridge
         self._public_lock = threading.Lock()
+        # The Zebra's open line: one connection for the labels of a burst. `_line_turn` counts the labels sent on it,
+        # so the check of an earlier label knows a later one has taken the line over and leaves it open.
+        self._print_lock = threading.Lock()
+        self._line_lock = threading.Lock()
+        self._line: "ZebraLink | None" = None
+        self._line_turn = 0
 
     # ---- print jobs: what each request did, so the phone can show it and the journal can answer "did it print?"
     def print_label(self, png: bytes, code: str | None = None, background: bool = True) -> dict:
@@ -1176,7 +1188,10 @@ class Printer:
         bag = code if isinstance(code, str) and 0 < len(code) <= 12 and code.isalnum() else None
         started = time.monotonic()
         try:
-            result, link = self._print(png)
+            # One label at a time: two phones (or twenty stickers) never interleave on the printer's line.
+            with self._print_lock:
+                result, link = self._print(png)
+                turn = self._line_turn if link else None
         except PrinterError as exc:
             log.warning("print failed: backend=%s bag=%s after %dms: %s", self.kind, bag or "-", (time.monotonic() - started) * 1000, exc)
             raise
@@ -1201,11 +1216,11 @@ class Printer:
         log.info("print job %d: backend=%s bag=%s result=%s in %dms", job["id"], self.kind, bag or "-", result.get("printed"), ms)
         if checking:
             if background:
-                t = threading.Thread(target=self._check_zebra, args=(job["id"], link), name=f"zebra-check-{job['id']}", daemon=True)
+                t = threading.Thread(target=self._check_zebra, args=(job["id"], link, turn), name=f"zebra-check-{job['id']}", daemon=True)
                 self._checks = [c for c in self._checks if c.is_alive()] + [t]
                 t.start()
             else:
-                self._check_zebra(job["id"], link)
+                self._check_zebra(job["id"], link, turn)
         elif link:
             link.close()
         return {**result, "job": self.job(job["id"])}
@@ -1225,8 +1240,12 @@ class Printer:
             if job_id in self._jobs:
                 self._jobs[job_id].update(changes)
 
-    def _check_zebra(self, job_id: int, link: "ZebraLink | None") -> None:
-        """Read the Zebra's ~HS answer on the print socket until it is no longer busy or the window is up."""
+    def _check_zebra(self, job_id: int, link: "ZebraLink | None", turn: int | None = None) -> None:
+        """Read the Zebra's ~HS answer on the print socket until it is no longer busy or the window is up.
+
+        `turn` is this label's place on the open line. When a later label goes out on the same line, this check
+        stops and leaves the line to that label: the printer answers for what it holds now, and the line must stay
+        open for the labels still coming."""
         try:
             _, addr, port = self._zebra_addr()
         except PrinterError:  # the label went out, so the address parsed; never let the check thread die on it
@@ -1235,6 +1254,7 @@ class Printer:
         fields = None
         state, detail = "no_answer", NO_ANSWER_DETAIL
         asked = link is not None  # the first ~HS went out together with the label
+        passed_on = lambda: turn is not None and self._line_turn != turn  # noqa: E731
         try:
             while True:
                 wait = max(0.5, deadline - time.monotonic())
@@ -1245,10 +1265,14 @@ class Printer:
                         link = link or ZebraLink(addr, port)
                         if not asked:
                             link.send(b"~HS")
-                        raw = link.read(wait)
+                        raw = link.read(wait, stop=passed_on)
                 except OSError as exc:
                     raw = b""
                     log.warning("print job %d: status check failed: %s", job_id, exc)
+                if passed_on():
+                    state, fields = "sent", None
+                    self._update_job(job_id, state=state, detail=FOLLOWED_DETAIL, checking=False, checked_at=_iso(datetime.now(timezone.utc)))
+                    break
                 asked = False
                 fields = parse_host_status(raw)
                 state, detail = describe_host_status(fields) if fields else ("no_answer", NO_ANSWER_DETAIL)
@@ -1259,7 +1283,12 @@ class Printer:
                 time.sleep(self._check_pause)
         finally:
             if link:
-                link.close()
+                # Closed only by the label that still holds the line; a later label's check closes it in its turn.
+                with self._line_lock:
+                    if not passed_on():
+                        if self._line is link:
+                            self._line = None
+                        link.close()
         log.info("print job %d: Zebra answered %s%s", job_id, state, f" ({fields['raw']})" if fields else "")
 
     @property
@@ -1358,9 +1387,10 @@ class Printer:
             return dict(answer)
 
     def print_png(self, png: bytes) -> dict:
-        result, link = self._print(png)
-        if link:
-            link.close()
+        with self._print_lock:
+            result, link = self._print(png)
+            if link:
+                link.close()
         return result
 
     def _print(self, png: bytes) -> "tuple[dict, ZebraLink | None]":
@@ -1405,13 +1435,56 @@ class Printer:
                 # the printer's answer only comes back to the connection that wrote (see CHECK_WINDOW).
                 # ~PS first: a paused printer (after a jam, a head-open or a calibration) resumes on its own
                 # instead of asking the owner to find the feed button.
-                link = ZebraLink(addr, port)
-                link.send(b"~PS" + zpl + b"~HS")
+                link = self._send_on_line(addr, port, b"~PS" + zpl + b"~HS")
+        except ConnectionRefusedError:
+            raise PrinterError(
+                f"Could not reach the Zebra at {host}: its print server refused the connection for {self.BUSY_WAIT:g} seconds. "
+                "It takes one job at a time, so another label or another computer may be printing. Try again in a moment; if it keeps happening, check that the printer is on."
+            )
         except OSError as exc:
-            if link:
-                link.close()
             raise PrinterError(f"Could not reach the Zebra at {host}: {exc}. Is it on and on the network?")
         return {"ok": True, "printed": f"zebra {host}", "width": image.width, "height": image.height}, link
+
+    def _send_on_line(self, addr: str, port: int, data: bytes) -> "ZebraLink":
+        """The label out on the printer's line: the one already open from the label before, else a new one.
+
+        A print server takes one connection at a time. While the last label's connection is still open (it waits
+        up to CHECK_WINDOW for the printer's answer), the next label goes out on that same connection and the
+        printer queues it, instead of knocking on a second connection that is refused."""
+        with self._line_lock:
+            # The turn passes first: the check of the label before sees it at once, stops reading and leaves the line open.
+            self._line_turn += 1
+            link = self._line
+            if link is not None and link.alive():
+                try:
+                    link.fresh()  # answers still on their way belong to the labels before
+                    link.send(data)
+                except OSError as exc:
+                    log.info("the Zebra's open line went away (%s); opening a new one", exc)
+                    link.close()
+                    link = None
+            else:
+                link = None
+            if link is None:
+                link = self._open_line(addr, port)
+                try:
+                    link.send(data)
+                except OSError:
+                    link.close()
+                    raise
+            self._line = link
+            return link
+
+    def _open_line(self, addr: str, port: int) -> "ZebraLink":
+        """A new connection to the printer; a refusal (the print server is still busy with a job) is tried again for BUSY_WAIT."""
+        until = time.monotonic() + self.BUSY_WAIT
+        while True:
+            try:
+                return ZebraLink(addr, port)
+            except ConnectionRefusedError:
+                if time.monotonic() >= until:
+                    raise
+                time.sleep(self.BUSY_PAUSE)
 
     def _bridge_request(self, method: str, path: str, body: dict | None = None) -> dict:
         """Talk to print_bridge.py (same Printer class, running where the Bluetooth adapter is)."""
@@ -1509,7 +1582,14 @@ class Printer:
 
 
 class ZebraLink:
-    """One raw-port connection kept open from the label to the printer's ~HS answer, so a slow reply is not lost."""
+    """One raw-port connection kept open from the label to the printer's ~HS answer, so a slow reply is not lost.
+
+    Labels that follow within the answer window go out on the same connection (`Printer._send_on_line`), so one
+    thread may send while another is still reading: reads are under a lock, and a send never changes the socket's
+    timeout under the reader."""
+
+    # How long a send may wait on a printer that is taking data slowly (a burst of labels fills its buffer).
+    SEND_WINDOW = 30.0
 
     def __init__(self, addr: str, port: int):
         import socket
@@ -1517,35 +1597,91 @@ class ZebraLink:
         self.sock = socket.create_connection((addr, port), timeout=10)
         self.sock.settimeout(0.5)
         self.buf = b""
+        self.closed = False
+        self._reading = threading.Lock()
 
     def send(self, data: bytes) -> None:
-        self.sock.sendall(data)
+        """All of `data`, waiting through short stalls (the socket's own timeout is 0.5 s, for the reader)."""
+        import socket
+
+        end = time.monotonic() + self.SEND_WINDOW
+        view = memoryview(data)
+        while len(view):
+            try:
+                sent = self.sock.send(view)
+            except socket.timeout:
+                if time.monotonic() >= end:
+                    raise
+                continue
+            view = view[sent:]
 
     def ask(self, wait: float) -> bytes:
         """~HS, then its answer."""
         self.send(b"~HS")
         return self.read(wait)
 
-    def read(self, wait: float) -> bytes:
-        """The first complete three-line ~HS reply within `wait` seconds, else b""."""
+    def read(self, wait: float, stop=None) -> bytes:
+        """The first complete three-line ~HS reply within `wait` seconds, else b"". `stop()` true ends the wait early.
+
+        The wait for bytes is outside the lock, so a label going out on this line (`fresh`, `send`) never waits on it."""
+        import select
         import socket
 
         end = time.monotonic() + wait
-        while time.monotonic() < end and self.buf.count(b"\x03") < 3:
+        while time.monotonic() < end and not (stop and stop()):
+            with self._reading:
+                if self.buf.count(b"\x03") >= 3:
+                    break
             try:
-                chunk = self.sock.recv(4096)
-            except socket.timeout:
-                continue
-            if not chunk:
+                readable, _, _ = select.select([self.sock], [], [], 0.25)
+            except (OSError, ValueError):  # closed under us
+                self.closed = True
                 break
-            self.buf += chunk
-        parts = self.buf.split(b"\x03")
-        if len(parts) < 4:
-            return b""
-        self.buf = b"\x03".join(parts[3:])  # a later reply, if one is already queued, is read next time
-        return b"\x03".join(parts[:3]) + b"\x03"
+            if not readable:
+                continue
+            with self._reading:
+                try:
+                    chunk = self.sock.recv(4096)
+                except socket.timeout:
+                    continue
+                except OSError:
+                    self.closed = True
+                    break
+                if not chunk:
+                    self.closed = True  # the printer's side hung up: the next label needs a new connection
+                    break
+                self.buf += chunk
+        if stop and stop():
+            return b""  # a later label has the line: what is buffered now is its to read
+        with self._reading:
+            parts = self.buf.split(b"\x03")
+            if len(parts) < 4:
+                return b""
+            self.buf = b"\x03".join(parts[3:])  # a later reply, if one is already queued, is read next time
+            return b"\x03".join(parts[:3]) + b"\x03"
+
+    def fresh(self) -> None:
+        """Forget replies already buffered: they answer for the labels before the one about to go out."""
+        with self._reading:
+            self.buf = b""
+
+    def alive(self) -> bool:
+        """Still usable for another label: not closed here, and the printer's side has not hung up."""
+        import select
+        import socket
+
+        if self.closed:
+            return False
+        try:
+            readable, _, _ = select.select([self.sock], [], [], 0)
+            if readable and self.sock.recv(1, socket.MSG_PEEK) == b"":
+                self.closed = True
+        except OSError:
+            self.closed = True
+        return not self.closed
 
     def close(self) -> None:
+        self.closed = True
         try:
             self.sock.close()
         except OSError:
@@ -1567,6 +1703,7 @@ def zebra_label(image, darkness: int | None = None) -> bytes:
     return b"".join(head) + body + b"^PQ1^XZ"
 
 
+FOLLOWED_DETAIL = "Sent to the Zebra. Another label went out right after it, so the printer answers for that one."
 NO_ANSWER_DETAIL = "The printer did not answer within a few seconds, which happens through the print server. The label usually prints anyway."
 
 # Plain language for what the Zebra said about itself, by the state it is in. Nothing here claims "printed":

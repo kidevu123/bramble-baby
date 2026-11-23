@@ -12,6 +12,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.76.1',
+    date: 'Nov 23',
+    items: [
+      'Printing several stickers in a row (travel stickers, the fridge spots 1 to 5) no longer stops after the first one with “Could not reach the Zebra”. The printer takes one connection at a time, so they now all go out on the same one.',
+      'While travel stickers print, the screen says how many have gone out.',
+      'If a run of stickers does stop part-way, the next tap sends only the ones that did not print, so no code comes out twice.',
+    ],
+  },
+  {
     version: '1.76.0',
     date: 'Nov 22',
     items: [

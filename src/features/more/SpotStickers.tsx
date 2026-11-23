@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '../../components/ui/Button'
 import { usePrefs } from '../../hooks/usePrefs'
 import { describeApiError } from '../../lib/api/client'
@@ -7,6 +7,7 @@ import { companion } from '../../lib/api/companion'
 import { blobToBase64 } from '../../lib/auto-print'
 import { canShareFiles, canvasToPng, drawSpotLabel } from '../../lib/labels'
 import { NIGHT_SPOTS } from '../../lib/milk'
+import { partlyPrinted, printInOrder } from '../../lib/print'
 
 const SPOTS = Array.from({ length: NIGHT_SPOTS }, (_, i) => i + 1)
 
@@ -49,12 +50,17 @@ export function SpotStickers({ printer }: { printer: boolean }) {
     }
   }, [prefs.labels.size])
 
+  // The spots already sent in a run that stopped part-way: the next tap sends only the rest.
+  const done = useRef(new Set<string>())
+  const [progress, setProgress] = useState<{ sent: number; of: number } | null>(null)
   const send = useMutation({
     mutationFn: async () => {
       const blobs = await renderSpots({ size: prefs.labels.size })
       if (printer) {
         // One at a time, in order, so they come out 1 to 5.
-        for (const [i, blob] of blobs.entries()) await companion.print.label(await blobToBase64(blob), `SPOT${i + 1}`)
+        const jobs = blobs.map((blob, i) => ({ code: `SPOT${i + 1}`, blob }))
+        await printInOrder(jobs, (j) => j.code, async (j) => companion.print.label(await blobToBase64(j.blob), j.code), done.current, (sent, of) => setProgress({ sent, of }))
+        done.current = new Set()
         return 'printed' as const
       }
       const files = blobs.map((b, i) => new File([b], `night-bottle-spot-${i + 1}.png`, { type: 'image/png' }))
@@ -93,6 +99,7 @@ export function SpotStickers({ printer }: { printer: boolean }) {
       {send.isError && !(send.error instanceof DOMException && send.error.name === 'AbortError') ? (
         <p className="log-error" role="alert">
           Could not {printer ? 'print' : 'share'} the stickers: {describeApiError(send.error)}
+          {progress && partlyPrinted(progress.sent, progress.of) ? ` ${partlyPrinted(progress.sent, progress.of)}` : ''}
         </p>
       ) : null}
     </section>
