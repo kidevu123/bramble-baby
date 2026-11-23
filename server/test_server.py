@@ -1616,7 +1616,8 @@ class ServerTest(unittest.TestCase):
         first.bind(("127.0.0.1", 0))
         port = first.getsockname()[1]
         first.listen(1)
-        log = {"jobs": [], "hang_up_after": None}
+        # log["busy"] is set while a connection is being served (the listener is closed: others are refused).
+        log = {"jobs": [], "hang_up_after": None, "busy": threading.Event()}
         stopping = threading.Event()
 
         def serve():
@@ -1628,6 +1629,7 @@ class ServerTest(unittest.TestCase):
                 except OSError:
                     continue
                 srv.close()  # busy: the next connection is refused until this one ends
+                log["busy"].set()
                 got = b""
                 answered = 0
                 conn.settimeout(0.1)
@@ -1658,6 +1660,7 @@ class ServerTest(unittest.TestCase):
                 srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 srv.bind(("127.0.0.1", port))
                 srv.listen(1)
+                log["busy"].clear()
             srv.close()
 
         t = threading.Thread(target=serve, daemon=True)
@@ -1668,6 +1671,12 @@ class ServerTest(unittest.TestCase):
             t.join(3)
 
         return port, log, stop
+
+    def _until(self, done, seconds: float = 8.0) -> None:
+        """Wait for the fake printer's thread to get somewhere (it may be slow on a loaded machine)."""
+        deadline = time.monotonic() + seconds
+        while not done() and time.monotonic() < deadline:
+            time.sleep(0.02)
 
     def _label_png(self):
         try:
@@ -1692,14 +1701,12 @@ class ServerTest(unittest.TestCase):
             first = p.print_label(png, code="TRAVEL1")
             self.assertTrue(first["ok"])
             # The fake behaves like the real print server: while that connection is open, another is refused.
-            time.sleep(0.05)
+            self.assertTrue(log["busy"].wait(3))
             with self.assertRaises(ConnectionRefusedError):
                 socket.create_connection(("127.0.0.1", port), timeout=2).close()
             jobs = [first["job"]["id"]] + [p.print_label(png, code=f"TRAVEL{n}")["job"]["id"] for n in range(2, 6)]
-            p.wait_for_checks(5)
-            deadline = time.monotonic() + 3
-            while not log["jobs"] and time.monotonic() < deadline:
-                time.sleep(0.05)
+            p.wait_for_checks(12)
+            self._until(lambda: bool(log["jobs"]))
             self.assertEqual(len(log["jobs"]), 1)  # one connection carried all five
             self.assertEqual(log["jobs"][0].count(b"^XA"), 5)
             self.assertEqual(log["jobs"][0].count(b"^XZ"), 5)
@@ -1711,9 +1718,7 @@ class ServerTest(unittest.TestCase):
             self.assertIsNone(p._line)  # the line is given up once the last label is answered
             # A label after the burst is over opens a connection of its own.
             p.print_label(png, code="LATER1", background=False)
-            deadline = time.monotonic() + 3
-            while len(log["jobs"]) < 2 and time.monotonic() < deadline:
-                time.sleep(0.05)
+            self._until(lambda: len(log["jobs"]) >= 2)
             self.assertEqual([j.count(b"^XA") for j in log["jobs"]], [5, 1])
         finally:
             stop()
@@ -1728,6 +1733,7 @@ class ServerTest(unittest.TestCase):
         try:
             # Another computer is printing: its connection holds the port for a moment, then lets go.
             other = socket.create_connection(("127.0.0.1", port), timeout=2)
+            self.assertTrue(log["busy"].wait(3))  # the print server has taken it: anyone else is refused now
             threading.Timer(0.6, other.close).start()
             p = milk_mod.Printer(f"zebra://127.0.0.1:{port}")
             p.BUSY_PAUSE = 0.1
@@ -1735,14 +1741,10 @@ class ServerTest(unittest.TestCase):
             self.assertTrue(p.print_label(png, code="WAITED1", background=False)["ok"])
             self.assertGreater(time.monotonic() - started, 0.4)
             # Still busy when the wait is over: said in words that name the cause, not "is it on?".
-            other = None
-            for _ in range(40):  # the fake listens again a moment after the label's connection closed
-                try:
-                    other = socket.create_connection(("127.0.0.1", port), timeout=2)
-                    break
-                except ConnectionRefusedError:
-                    time.sleep(0.05)
-            self.assertIsNotNone(other)
+            idle = lambda: not log["busy"].is_set()  # noqa: E731
+            self._until(idle)  # the fake listens again a moment after the label's connection closed
+            other = socket.create_connection(("127.0.0.1", port), timeout=2)
+            self.assertTrue(log["busy"].wait(3))
             try:
                 p.BUSY_WAIT = 0.3
                 with self.assertRaises(milk_mod.PrinterError) as ctx:
@@ -1752,24 +1754,74 @@ class ServerTest(unittest.TestCase):
                 self.assertIn("one job at a time", str(ctx.exception))
             finally:
                 other.close()
-            # The printer's side hangs up after a label: the next label notices and opens a new connection.
-            p.BUSY_WAIT = 3
-            time.sleep(0.4)
+            # The printer's side answers and hangs up after a label: the next label notices and opens a new
+            # connection, instead of being written into the dead one and lost.
+            p.BUSY_WAIT = 5
+            self._until(idle)
             before = len(log["jobs"])
             log["hang_up_after"] = 1
             p.print_label(png, code="HANGUP1")
-            deadline = time.monotonic() + 3
-            while len(log["jobs"]) < before + 1 and time.monotonic() < deadline:
-                time.sleep(0.05)
+            self._until(lambda: len(log["jobs"]) >= before + 1)
             log["hang_up_after"] = None
             self.assertTrue(p.print_label(png, code="HANGUP2", background=False)["ok"])
-            p.wait_for_checks(5)
-            deadline = time.monotonic() + 3
-            while len(log["jobs"]) < before + 2 and time.monotonic() < deadline:
-                time.sleep(0.05)
+            p.wait_for_checks(12)
+            self._until(lambda: len(log["jobs"]) >= before + 2)
             self.assertEqual([j.count(b"^XA") for j in log["jobs"][before:]], [1, 1])
         finally:
             stop()
+
+    def test_a_line_the_printer_answered_and_then_hung_up_on_is_not_alive(self):
+        """The hang-up sits behind an answer nobody has read yet. A peek at the first byte saw the answer and called
+        the line alive, so the next label was written into a dead connection and lost without an error."""
+        import socket
+
+        import milk as milk_mod
+
+        ready = b"\x02030,0,0,0210,000,0,0,0,000,0,0,0\x03\r\n\x02000,0,0,0,0,2,1,0,00000000,1,000\x03\r\n\x021234,0\x03\r\n"
+        srv = socket.socket()
+        srv.bind(("127.0.0.1", 0))
+        srv.listen(1)
+
+        def printer():
+            conn, _ = srv.accept()
+            conn.recv(64)
+            conn.sendall(ready)
+            conn.close()
+
+        t = threading.Thread(target=printer, daemon=True)
+        t.start()
+        link = milk_mod.ZebraLink("127.0.0.1", srv.getsockname()[1])
+        try:
+            link.send(b"^XA^XZ~HS")
+            t.join(3)
+            time.sleep(0.1)
+            self.assertFalse(link.alive())
+            self.assertEqual(link.read(0.2), ready.rstrip(b"\r\n"))  # the answer itself was kept for whoever reads next
+        finally:
+            link.close()
+            srv.close()
+        # A line that is simply quiet is alive, and stays so after an answer has been read in.
+        srv = socket.socket()
+        srv.bind(("127.0.0.1", 0))
+        srv.listen(1)
+        held = {}
+
+        def quiet():
+            held["conn"], _ = srv.accept()
+            held["conn"].sendall(ready)
+
+        t = threading.Thread(target=quiet, daemon=True)
+        t.start()
+        link = milk_mod.ZebraLink("127.0.0.1", srv.getsockname()[1])
+        try:
+            t.join(3)
+            time.sleep(0.1)
+            self.assertTrue(link.alive())
+            self.assertTrue(link.alive())
+        finally:
+            link.close()
+            held["conn"].close()
+            srv.close()
 
     def test_zebra_link_keeps_one_connection_and_reads_split_and_queued_replies(self):
         import socket

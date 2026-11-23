@@ -12,6 +12,13 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.76.2',
+    date: 'Nov 23',
+    items: [
+      'A sticker could go missing without any error when the printer had closed its connection right after the one before it. Bramble now checks the connection properly and opens a new one, so every sticker in a run reaches the printer.',
+    ],
+  },
+  {
     version: '1.76.1',
     date: 'Nov 23',
     items: [

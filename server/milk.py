@@ -1666,18 +1666,31 @@ class ZebraLink:
             self.buf = b""
 
     def alive(self) -> bool:
-        """Still usable for another label: not closed here, and the printer's side has not hung up."""
+        """Still usable for another label: not closed here, and the printer's side has not hung up.
+
+        Everything already waiting is read in first: a hang-up can sit behind an answer that has not been read yet,
+        and a peek at the first byte would see the answer and call a dead line alive (the label would then be
+        written into it and lost without an error)."""
         import select
         import socket
 
         if self.closed:
             return False
-        try:
-            readable, _, _ = select.select([self.sock], [], [], 0)
-            if readable and self.sock.recv(1, socket.MSG_PEEK) == b"":
+        with self._reading:
+            try:
+                while True:
+                    readable, _, _ = select.select([self.sock], [], [], 0)
+                    if not readable:
+                        break
+                    chunk = self.sock.recv(4096)
+                    if chunk == b"":
+                        self.closed = True
+                        break
+                    self.buf += chunk
+            except socket.timeout:
+                pass
+            except (OSError, ValueError):
                 self.closed = True
-        except OSError:
-            self.closed = True
         return not self.closed
 
     def close(self) -> None:
