@@ -12,6 +12,16 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.77.0',
+    date: 'Nov 24',
+    items: [
+      'Make a batch: on the Stash tab, mix milk from several bags in one container (fortified or plain) and keep it cold. Bramble gives the one measure of formula for all of it and says what the container comes to.',
+      'When {name} is hungry, open Bottle, tap the batch and set what she drank. Only that comes out of the batch; the rest stays for the next bottle.',
+      'If she leaves some in the bottle, say how much: it is thrown away, so it comes out of the batch too, but is not counted as fed or in her calories.',
+      'A fortified batch keeps 24 hours from mixing, like a fortified premade bottle. Premade bottles in spots 1 to 5 work as before.',
+    ],
+  },
+  {
     version: '1.76.2',
     date: 'Nov 23',
     items: [

@@ -55,7 +55,8 @@ def merge_milk(rows: list[dict]) -> dict:
     head = parts[0].group("head")
     names = [p.group("name") for p in parts]
     bottles = [n for n in names if n.startswith("premade bottle ")]
-    things = "premade bottles" if len(bottles) == len(names) else "bags" if not bottles else "containers"
+    batches = [n for n in names if n.startswith("batch ")]
+    things = "premade bottles" if len(bottles) == len(names) else "batches" if len(batches) == len(names) else "bags" if not bottles and not batches else "containers"
     lines = [f"{p.group('name')[0].upper()}{p.group('name')[1:]} \u00b7 {p.group('volume')}" for p in parts[:6]]
     if len(parts) > 6:
         lines.append(f"and {len(parts) - 6} more")
@@ -936,6 +937,14 @@ class App:
                 return 400, {"detail": "missing: child"}
             try:
                 return 201, self.milk.make_bottles(int(data["child"]), data.get("bottles"), user_id, windows)
+            except milk_mod.MilkError as exc:
+                return 400, {"detail": str(exc)}
+        if len(parts) == 2 and parts[1] == "batch" and method == "POST":
+            # A batch mixed ahead in one container; each bottle is poured from it later.
+            if data.get("child") in (None, ""):
+                return 400, {"detail": "missing: child"}
+            try:
+                return 201, self.milk.make_batch(int(data["child"]), data, user_id, windows)
             except milk_mod.MilkError as exc:
                 return 400, {"detail": str(exc)}
         if len(parts) == 2 and parts[1] == "nicu" and method == "POST":

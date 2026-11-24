@@ -29,6 +29,14 @@ export const BottleIcon = (p: P) => (
     <path d="M8 13h8" />
   </svg>
 )
+/** A jug: milk mixed ahead in one container (a batch), each bottle poured from it. */
+export const JugIcon = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M6 4h9l-1 3v11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V7L6 4Z" />
+    <path d="M14 9h2.5a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H14" />
+    <path d="M7 12h7" />
+  </svg>
+)
 export const PooIcon = (p: P) => (
   <svg {...base(p)}>
     <path d="M7 20h10a3 3 0 0 0 .8-5.9A3 3 0 0 0 16 9.5a3 3 0 0 0-2.4-4C13 4 12 3 12 3s-1.5 2-1 4a3 3 0 0 0-3 2.6A3 3 0 0 0 6.2 14 3 3 0 0 0 7 20Z" />

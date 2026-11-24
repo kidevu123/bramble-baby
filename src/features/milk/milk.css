@@ -648,9 +648,114 @@
   align-self: flex-start;
 }
 
+/* ---- a batch: milk mixed ahead in one container, each bottle poured from it ---- */
+.batches {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.batch-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.batch-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 76px;
+  padding: var(--space-3);
+  text-align: left;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  color: var(--text);
+  border-left: 4px solid var(--orange);
+}
+.batch-row.state-soon {
+  border-left-color: var(--purple);
+}
+.batch-row:active {
+  transform: scale(0.99);
+}
+.batch-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.batch-row-vol {
+  font-size: var(--text-lg);
+  font-weight: var(--w-head);
+  color: var(--text-strong);
+}
+.batch-gauge {
+  display: block;
+  height: 6px;
+  margin-top: 4px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.batch-gauge-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--orange);
+}
+/* Two full-width buttons, one under the other: side by side "Make premade bottles" broke onto two lines at 390. */
+.made-ahead-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+/* the bottle sheet: one tap on the batch, then set what she drank */
+.batch-pick {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 64px;
+  padding: var(--space-3);
+  text-align: left;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1.5px solid var(--orange);
+  color: var(--text-strong);
+}
+.batch-pick:active {
+  transform: scale(0.99);
+}
+.batch-pick-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.batch-pick-vol {
+  font-size: var(--text-lg);
+  font-weight: var(--w-head);
+}
+.batch-tossed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.batch-tossed .value-field {
+  max-width: 260px;
+}
+
 /* the sheet that makes them */
 .night-size .value-field {
   max-width: 220px;
+}
+/* "Milk in the batch" is a longer label than "Each bottle": the number needs its room beside it. */
+.night-size.is-batch .value-field {
+  max-width: 320px;
 }
 .night-plan,
 .night-sources {

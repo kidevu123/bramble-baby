@@ -1002,7 +1002,7 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(self.call("GET", f"/milk/{fortified['id']}")[1]["mixed_at"], capped["mixed_at"])
         for other in (plain["id"], self._bag(30)["id"]):
             status, out = self.call("PATCH", f"/milk/{other}", {"mixed_at": now.isoformat()})
-            self.assertEqual((status, out["detail"]), (400, "Only a fortified premade bottle has a mixing time."))
+            self.assertEqual((status, out["detail"]), (400, "Only fortified milk mixed ahead (a premade bottle or a batch) has a mixing time."))
 
     def test_a_feed_logged_late_is_judged_at_its_own_time_not_when_it_was_logged(self):
         # The owner's case (2026-11-22): the bottle was fed in time, the phone was offline, and by the time the feed
@@ -2251,6 +2251,75 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(self.app.store.q("SELECT COUNT(*) AS n FROM reminders WHERE tag=? AND sent=0", (f"milk:{bottle['id']}",))[0]["n"], 0)
         # The spot is free again: a new bottle can go in it.
         self.assertEqual(self.call("POST", "/milk/bottles", {"child": 1, "bottles": [{"spot": 2, "takes": [{"bag": b["id"], "amount_ml": 50}], "client_key": "undo-bottle-0002"}]})[0], 201)
+
+    def test_a_batch_is_mixed_in_one_container_and_each_bottle_takes_only_what_was_poured(self):
+        a, b = self._bag(120), self._bag(100)
+        body = {"child": 1, "takes": [{"bag": a["id"], "amount_ml": 120}, {"bag": b["id"], "amount_ml": 80}], "kcal_per_oz": 24, "added_ml": 5, "client_key": "batch-key-00000001"}
+        status, batch = self.call("POST", "/milk/batch", body)
+        self.assertEqual(status, 201)
+        self.assertEqual((batch["kind"], batch["spot"], batch["location"], batch["kcal_per_oz"]), ("batch", None, "fridge", 24))
+        # it holds the milk and what the formula adds; the bags gave only their milk, the emptied one left the stash
+        self.assertEqual((batch["volume_ml"], batch["remaining_ml"]), (205, 205))
+        self.assertEqual(self.call("GET", f"/milk/{a['id']}")[1]["status"], "used")
+        self.assertEqual(self.call("GET", f"/milk/{b['id']}")[1]["remaining_ml"], 20)
+        mixed = datetime.fromisoformat(batch["mixed_at"])
+        self.assertEqual(datetime.fromisoformat(batch["expires_at"]) - mixed, timedelta(hours=24))
+        # sent again with the same key (a dropped answer): the same batch, nothing poured twice
+        again = self.call("POST", "/milk/batch", body)[1]
+        self.assertEqual(again["id"], batch["id"])
+        self.assertEqual(self.call("GET", f"/milk/{b['id']}")[1]["remaining_ml"], 20)
+        # a bottle takes what was poured and the rest stays: unlike a premade bottle it is not fed whole
+        self.assertEqual(self.call("PUT", "/milk/feeding/9911", {"takes": [{"bag": batch["id"], "amount_ml": 70}]})[0], 200)
+        self.assertEqual(self.call("PUT", "/milk/feeding/9912", {"takes": [{"bag": batch["id"], "amount_ml": 45}]})[0], 200)
+        left = self.call("GET", f"/milk/{batch['id']}")[1]
+        self.assertEqual((left["status"], left["remaining_ml"], left["volume_ml"]), ("stored", 90, 205))
+        # a corrected bottle moves the balance, a deleted one gives its milk back
+        self.call("PUT", "/milk/feeding/9912", {"takes": [{"bag": batch["id"], "amount_ml": 60}]})
+        self.assertEqual(self.call("GET", f"/milk/{batch['id']}")[1]["remaining_ml"], 75)
+        self.call("PUT", "/milk/feeding/9911", {"takes": []})
+        self.assertEqual(self.call("GET", f"/milk/{batch['id']}")[1]["remaining_ml"], 145)
+        # more than is left is refused in words that name the batch
+        status, out = self.call("PUT", "/milk/feeding/9913", {"takes": [{"bag": batch["id"], "amount_ml": 200}]})
+        self.assertEqual(status, 400)
+        self.assertIn(f"batch {batch['code']}", out["detail"])
+        # never frozen, not poured into a premade bottle or another batch, not taken to the NICU
+        self.assertEqual(self.call("PATCH", f"/milk/{batch['id']}", {"location": "freezer"})[0], 400)
+        status, out = self.call("POST", "/milk/bottles", {"child": 1, "bottles": [{"spot": 1, "takes": [{"bag": batch["id"], "amount_ml": 50}], "client_key": "batch-into-bottle1"}]})
+        self.assertEqual(status, 400)
+        self.assertIn("already mixed", out["detail"])
+        self.assertEqual(self.call("POST", "/milk/batch", {"child": 1, "takes": [{"bag": batch["id"], "amount_ml": 50}]})[0], 400)
+        self.assertEqual(self.call("POST", "/milk/nicu", {"child": 1, "bags": [batch["id"]]})[0], 400)
+        # its reminders name it as a batch; a bag whose last milk went into it cannot be undone by itself
+        titles = [r["title"] for r in self.app.store.q("SELECT title FROM reminders WHERE tag=? AND sent=0", (f"milk:{batch['id']}",))]
+        self.assertTrue(titles and all(f"(batch {batch['code']})" in t for t in titles), titles)
+        status, out = self.call("PATCH", f"/milk/{a['id']}", {"status": "stored"})
+        self.assertEqual(status, 400)
+        self.assertIn(f"batch {batch['code']}", out["detail"])
+        # the mixing time is corrected like a fortified bottle's, and the day follows
+        earlier = (mixed - timedelta(hours=1)).replace(microsecond=0)  # its milk was pumped two hours ago
+        status, fixed = self.call("PATCH", f"/milk/{batch['id']}", {"mixed_at": earlier.isoformat()})
+        self.assertEqual((status, datetime.fromisoformat(fixed["expires_at"])), (200, earlier + timedelta(hours=24)))
+        # poured from already, so it cannot be undone
+        status, out = self.call("POST", f"/milk/{batch['id']}/unmake", {})
+        self.assertEqual(status, 400)
+        self.assertIn("already fed", out["detail"])
+
+    def test_a_batch_nothing_was_poured_from_is_undone_and_a_plain_one_keeps_its_milks_days(self):
+        a, b = self._bag(60), self._bag(90)
+        status, batch = self.call("POST", "/milk/batch", {"child": 1, "takes": [{"bag": a["id"], "amount_ml": 60}, {"bag": b["id"], "amount_ml": 90}], "client_key": "batch-key-00000002"})
+        self.assertEqual(status, 201)
+        # plain pooled milk: no mixing time, good for as long as its oldest milk's fridge days
+        self.assertEqual((batch["kcal_per_oz"], batch["mixed_at"], batch["volume_ml"]), (None, None, 150))
+        self.assertEqual(datetime.fromisoformat(batch["expires_at"]) - datetime.fromisoformat(batch["pumped_at"]), timedelta(days=4))
+        status, bags = self.call("POST", f"/milk/{batch['id']}/unmake", {})
+        self.assertEqual(status, 200)
+        self.assertEqual(sorted(x["remaining_ml"] for x in bags), [60, 90])
+        self.assertEqual(self.call("GET", f"/milk/{batch['id']}")[0], 404)
+        # nothing in it, a bag twice, or a strength outside a home recipe: refused and nothing poured
+        self.assertEqual(self.call("POST", "/milk/batch", {"child": 1, "takes": [{"bag": a["id"], "amount_ml": 0}]})[0], 400)
+        self.assertEqual(self.call("POST", "/milk/batch", {"child": 1, "takes": [{"bag": a["id"], "amount_ml": 10}, {"bag": a["id"], "amount_ml": 10}]})[0], 400)
+        self.assertEqual(self.call("POST", "/milk/batch", {"child": 1, "takes": [{"bag": a["id"], "amount_ml": 30}], "kcal_per_oz": 40})[0], 400)
+        self.assertEqual(self.call("GET", f"/milk/{a['id']}")[1]["remaining_ml"], 60)
 
     def test_a_premade_bottle_already_fed_from_cannot_be_undone(self):
         bag = self._bag(100)

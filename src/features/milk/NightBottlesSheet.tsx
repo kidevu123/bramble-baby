@@ -182,23 +182,7 @@ export function NightBottlesSheet({ open, child, bags, unit, now, typical, forti
             </p>
           ) : null}
           <FieldGroup title="Poured from" hint="Soonest to expire first. Tap a bag to leave it out.">
-            <ul className="night-sources">
-              {all.map((b) => {
-                const out = left.has(b.id)
-                const used = plan.flatMap((p) => p.takes).filter((t) => t.bag.id === b.id).reduce((s, t) => s + t.ml, 0)
-                return (
-                  <li key={b.id}>
-                    <button type="button" className={`night-source${out ? ' is-out' : ''}`} aria-pressed={!out} onClick={() => toggle(b.id)} aria-label={`Bag ${b.code}, ${formatMl(b.remaining_ml, unit)}${out ? ', left out' : ''}`}>
-                      <span className="strong">{b.code}</span>
-                      <span className="grow small muted">
-                        {formatMl(b.remaining_ml, unit)} · good until {bagStamp(parseDate(b.expires_at), now, { today: '' })}
-                      </span>
-                      <span className="xs night-source-use">{out ? 'left out' : used > 0 ? (used >= b.remaining_ml - 0.5 ? 'all of it' : `${formatMl(used, unit)}`) : 'not needed'}</span>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
+            <SourceList all={all} left={left} takes={plan.flatMap((p) => p.takes)} unit={unit} now={now} onToggle={toggle} />
           </FieldGroup>
           {frozen ? <p className="xs muted">Frozen milk is not used: thaw a bag in the fridge first.</p> : null}
           <p className="xs muted">
@@ -219,11 +203,35 @@ export function NightBottlesSheet({ open, child, bags, unit, now, typical, forti
   )
 }
 
+/** The bags the milk is poured from, soonest to expire first: each says what it gives, and a tap leaves it out. */
+export function SourceList({ all, left, takes, unit, now, onToggle }: { all: MilkBag[]; left: Set<Id>; takes: { bag: MilkBag; ml: number }[]; unit: VolumeUnit; now: Date; onToggle: (id: Id) => void }) {
+  return (
+    <ul className="night-sources">
+      {all.map((b) => {
+        const out = left.has(b.id)
+        const used = takes.filter((t) => t.bag.id === b.id).reduce((s, t) => s + t.ml, 0)
+        return (
+          <li key={b.id}>
+            <button type="button" className={`night-source${out ? ' is-out' : ''}`} aria-pressed={!out} onClick={() => onToggle(b.id)} aria-label={`Bag ${b.code}, ${formatMl(b.remaining_ml, unit)}${out ? ', left out' : ''}`}>
+              <span className="strong">{b.code}</span>
+              <span className="grow small muted">
+                {formatMl(b.remaining_ml, unit)} · good until {bagStamp(parseDate(b.expires_at), now, { today: '' })}
+              </span>
+              <span className="xs night-source-use">{out ? 'left out' : used > 0 ? (used >= b.remaining_ml - 0.5 ? 'all of it' : `${formatMl(used, unit)}`) : 'not needed'}</span>
+            </button>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
 /**
  * Several fortified bottles mixed as one batch: four numbered steps with the two numbers that matter large (all the
  * milk, the formula), then what to pour into each bottle. Nothing to work out: read the step, do the step.
+ * With `keep` the batch is not split: it stays in its one container and each bottle is poured from it when needed.
  */
-function BatchSteps({ batch, fortify, unit, sizeMl, onSize }: { batch: Batch; fortify: FortifySettings; unit: VolumeUnit; /** What each bottle is set to, and how to set it: a family with no scale can make the batch fit the can's scoop. */ sizeMl: number; onSize: (ml: number) => void }) {
+export function BatchSteps({ batch, fortify, unit, sizeMl, onSize, keep = false }: { batch: Batch; fortify: FortifySettings; unit: VolumeUnit; /** What each bottle is set to (the batch's milk, when kept whole), and how to set it: a family with no scale can make the batch fit the can's scoop. */ sizeMl: number; onSize: (ml: number) => void; /** The batch stays in one container (Stash › Make a batch). */ keep?: boolean }) {
   const r = batch.recipe
   const powder = fortify.with === 'powder' ? powderOf(fortify) : null
   const name = r.with === 'powder' ? (r.powderName === 'powder' ? 'formula powder' : r.powderName) : 'liquid concentrate'
@@ -235,12 +243,12 @@ function BatchSteps({ batch, fortify, unit, sizeMl, onSize }: { batch: Batch; fo
   if (r.tooSmall) {
     return (
       <p className="small text-pumping" role="status">
-        Too little milk to measure {strengthText(fortify.kcalPerOz)} for. Make the bottles bigger.
+        Too little milk to measure {strengthText(fortify.kcalPerOz)} for. {keep ? 'Make the batch bigger.' : 'Make the bottles bigger.'}
       </p>
     )
   }
   return (
-    <ol className="batch-steps" aria-label="Mix them as one batch" data-testid="batch-steps">
+    <ol className="batch-steps" aria-label={keep ? 'Mix the batch' : 'Mix them as one batch'} data-testid="batch-steps">
       <li className="batch-step">
         <span className="batch-n" aria-hidden>1</span>
         <span className="batch-main">
@@ -263,10 +271,12 @@ function BatchSteps({ batch, fortify, unit, sizeMl, onSize }: { batch: Batch; fo
           {fit ? (
             <span className="batch-fit">
               <span className="small" data-testid="batch-fit">
-                No scale? {batch.pours.length} bottles of {formatMl(fit.sizeMl, unit)} take exactly {fit.scoops} level scoop{fit.scoops === 1 ? '' : 's'} from the can.
+                {keep
+                  ? `No scale? ${formatMl(fit.sizeMl, unit)} of milk takes exactly ${fit.scoops} level scoop${fit.scoops === 1 ? '' : 's'} from the can.`
+                  : `No scale? ${batch.pours.length} bottles of ${formatMl(fit.sizeMl, unit)} take exactly ${fit.scoops} level scoop${fit.scoops === 1 ? '' : 's'} from the can.`}
               </span>
               <button type="button" className="link-btn" onClick={() => onSize(fit.sizeMl)}>
-                Make them {formatMl(fit.sizeMl, unit)}
+                {keep ? 'Make it' : 'Make them'} {formatMl(fit.sizeMl, unit)}
               </button>
             </span>
           ) : null}
@@ -281,8 +291,17 @@ function BatchSteps({ batch, fortify, unit, sizeMl, onSize }: { batch: Batch; fo
       <li className="batch-step">
         <span className="batch-n" aria-hidden>4</span>
         <span className="batch-main">
-          <span className="batch-do">{same ? `Pour into each of the ${pours.length} bottles` : 'Pour each bottle to the amount beside its spot'}</span>
-          {same ? <span className="batch-big" data-testid="batch-pour">{pours[0]}</span> : null}
+          {keep ? (
+            <>
+              <span className="batch-do">Keep it cold, and pour each bottle from it. It comes to</span>
+              <span className="batch-big" data-testid="batch-holds">{formatMl(batch.ml, unit)}</span>
+            </>
+          ) : (
+            <>
+              <span className="batch-do">{same ? `Pour into each of the ${pours.length} bottles` : 'Pour each bottle to the amount beside its spot'}</span>
+              {same ? <span className="batch-big" data-testid="batch-pour">{pours[0]}</span> : null}
+            </>
+          )}
         </span>
       </li>
     </ol>

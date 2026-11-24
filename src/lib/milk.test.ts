@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MilkBag } from './api/companion'
-import { lateFeedNote, pastTheirTime, freeSpots, nightBottleSources, planNightBottles, stashItemName, bagAmountIn, bagStamp, sectionPreview, stashSections, bagLeft, bagState, bagVolume, describeUse, expectedExpiry, formatMl, formatTimeLeft, giveBackCopy, intakeProblem, isPartlyUsed, placeNote, newClientKey, nextIntakeDraft, parseQrPayload, planTakes, planUse, pumpedWhen, qrPayload, stashHint, stashOrder, summarizeStash, takesCopy, toMl, takeCopy, windowLabel, type IntakeDraft } from './milk'
+import { batchStrength, isBatch, isMadeAhead, planBatch, lateFeedNote, pastTheirTime, freeSpots, nightBottleSources, planNightBottles, stashItemName, bagAmountIn, bagStamp, sectionPreview, stashSections, bagLeft, bagState, bagVolume, describeUse, expectedExpiry, formatMl, formatTimeLeft, giveBackCopy, intakeProblem, isPartlyUsed, placeNote, newClientKey, nextIntakeDraft, parseQrPayload, planTakes, planUse, pumpedWhen, qrPayload, stashHint, stashOrder, summarizeStash, takesCopy, toMl, takeCopy, windowLabel, type IntakeDraft } from './milk'
 
 const now = new Date('2026-09-30T12:00:00Z')
 const bag = (over: Partial<MilkBag>): MilkBag => ({
@@ -337,6 +337,54 @@ describe('premade bottles', () => {
     expect(summary.useFirst?.id).toBe(1)
     expect(stashHint(summary, 'ml', now)).toBe('1 bag · use first: 10 mL from yesterday')
     expect(describeUse({ id: 1, bag: 1, feeding_id: null, amount_ml: 30, kind: 'combined', at: '', by_user: null, into_bag: 7 }, 'ml')).toBe('30 mL into a premade bottle')
+  })
+})
+
+describe('a batch mixed ahead in one container', () => {
+  const b = (id: number, ml: number, over: Partial<MilkBag> = {}) => bag({ id, code: `BAG00${id}`, volume_ml: ml, ...over })
+  const batch = (id: number, ml: number, over: Partial<MilkBag> = {}) => bag({ id, code: `BCH00${id}`, kind: 'batch', volume_ml: ml, kcal_per_oz: 24, ...over })
+
+  it('is poured from the bags that have to go first, and is what they hold when they hold less', () => {
+    const soon = b(1, 60, { expires_at: '2026-10-01T12:00:00+00:00' })
+    const later = b(2, 150, { remaining_ml: 100, expires_at: '2026-10-03T12:00:00+00:00' })
+    const held = batch(3, 300)
+    const sources = nightBottleSources([later, soon, held], now)
+    expect(sources.map((x) => x.id)).toEqual([1, 2]) // never out of another batch
+    const plan = planBatch(sources, 120)
+    expect([plan.ml, plan.short]).toEqual([120, false])
+    expect(plan.takes.map((t) => [t.bag.id, t.ml])).toEqual([[1, 60], [2, 60]])
+    const all = planBatch(sources, 500)
+    expect([all.ml, all.short]).toEqual([160, true])
+    expect(planBatch(sources, 0).takes).toEqual([])
+    expect(planBatch([], 100)).toEqual({ ml: 0, short: true, takes: [] })
+  })
+
+  it('a feed takes only what was poured and the rest stays, unlike a premade bottle', () => {
+    const mixed = batch(4, 370, { remaining_ml: 310 })
+    const plan = planTakes([mixed], 90, 'ml')
+    expect([plan.takes[0].takeMl, plan.takes[0].leftMl, plan.takes[0].empties]).toEqual([90, 220, false])
+    expect(takesCopy(plan, 'ml')).toBe('90 mL from the batch (220 mL stays)')
+    // what she left in the bottle is thrown away: it comes out with what she drank (the sheet adds the two)
+    expect(takesCopy(planTakes([mixed], 70 + 20, 'ml'), 'ml')).toBe('90 mL from the batch (220 mL stays)')
+    expect(takesCopy(planTakes([mixed], 310, 'ml'), 'ml')).toBe('the last 310 mL of the batch · the batch is finished')
+    expect(takesCopy(planTakes([mixed], 0, 'ml'), 'ml')).toBe('Set how much she drank; that much comes out of the batch')
+    expect(takesCopy(planTakes([mixed], 400, 'ml'), 'ml')).toMatch(/^Only 310 mL is left in the batch, 90 mL short\./)
+    expect(stashItemName(mixed)).toBe('Batch BCH004')
+    expect([batchStrength(mixed), batchStrength(batch(5, 100, { kcal_per_oz: null }))]).toEqual(['24 kcal/oz', 'plain milk'])
+    expect([isBatch(mixed), isMadeAhead(mixed), isMadeAhead(b(1, 10))]).toEqual([true, true, false])
+  })
+
+  it('has its own block on the Stash tab, is offered by the bottle sheet, and is never the bag to use first', () => {
+    const mixed = batch(4, 370, { remaining_ml: 310 })
+    const gone = batch(5, 200, { expires_at: '2026-09-30T11:00:00+00:00' })
+    const empty = batch(6, 200, { remaining_ml: 0.4 })
+    const sections = stashSections([mixed, gone, b(1, 10)], now)
+    expect(sections.map((x) => [x.key, x.bags.map((y) => y.id)])).toEqual([['fridge', [1]], ['expired', [5]]])
+    const summary = summarizeStash([mixed, gone, empty, b(1, 10)], now)
+    expect(summary.batches.map((x) => x.id)).toEqual([4])
+    expect(summary.useFirst?.id).toBe(1)
+    expect(summarizeStash([mixed], now).useFirst).toBeNull()
+    expect(describeUse({ id: 1, bag: 1, feeding_id: null, amount_ml: 30, kind: 'combined', at: '', by_user: null, into_bag: 4 }, 'ml', mixed)).toBe('30 mL into a batch')
   })
 })
 

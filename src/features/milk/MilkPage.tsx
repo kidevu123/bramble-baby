@@ -1,15 +1,16 @@
 import { useMutation } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { TopBar } from '../../components/nav/TopBar'
 import { Button } from '../../components/ui/Button'
 import { QrScanner } from '../../components/ui/QrScanner'
 import { Sheet } from '../../components/ui/Sheet'
-import { ChevronDownIcon, PlusIcon, QrIcon, TrashIcon } from '../../components/icons'
+import { ChevronDownIcon, JugIcon, PlusIcon, QrIcon, TrashIcon } from '../../components/icons'
 import { TextField, TimeField } from '../../components/ui/Field'
 import { volumeLabel } from '../../lib/units'
 import { BagRow, StashKey } from './BagRow'
 import { NicuTripSheet } from './NicuTripSheet'
+import { BatchSheet } from './BatchSheet'
 import { NightBottlesSheet } from './NightBottlesSheet'
 import { calorieTracking } from '../../lib/calories'
 import { stashCounts } from './stash-counts'
@@ -24,7 +25,7 @@ import { usePrefs } from '../../hooks/usePrefs'
 import { stashKeyItems } from '../../lib/stash-key'
 import { describeApiError } from '../../lib/api/client'
 import { companion, type MilkBag, type MilkLocation } from '../../lib/api/companion'
-import { bagAmountIn, bagLeft, bagStamp, bagState, bagVolume, describeUse, formatMl, freeSpots, isNightBottle, isPartlyUsed, LOCATION_LABEL, NIGHT_SPOTS, nightBottleSources, parseQrPayload, sectionPreview, stashItemName, stashSections, summarizeStash, toMl, type StashSectionKey } from '../../lib/milk'
+import { bagAmountIn, bagLeft, bagStamp, bagState, bagVolume, batchStrength, describeUse, formatMl, freeSpots, isBatch, isMadeAhead, isNightBottle, isPartlyUsed, LOCATION_LABEL, NIGHT_SPOTS, nightBottleSources, parseQrPayload, sectionPreview, stashItemName, stashSections, summarizeStash, toMl, type StashSectionKey } from '../../lib/milk'
 import { goalLine, runwayHeadline, runwayLine, stashRunway } from '../../lib/stash-runway'
 import { ageBasis, inNicuOn } from '../../lib/preterm'
 import { isColostrum, nicuCandidates, nicuTrips } from '../../lib/nicu-stash'
@@ -96,6 +97,10 @@ export function MilkPage() {
   // Premade bottles: the spots (1–5) and whether there is fridge milk to pour more from.
   const spotBottles = useMemo(() => new Map(bags.filter((b) => isNightBottle(b) && b.status === 'stored').map((b) => [b.spot ?? 0, b])), [bags])
   const canPour = useMemo(() => nightBottleSources(bags, now).length > 0, [bags, now])
+  // Batches mixed ahead that still hold milk and have not run out: each bottle is poured from one (an expired one
+  // joins the Expired list, to be discarded).
+  const batches = useMemo(() => bags.filter((b) => isBatch(b) && b.status === 'stored' && bagState(b, now) !== 'expired').sort((a, b) => a.expires_at.localeCompare(b.expires_at)), [bags, now])
+  const [batching, setBatching] = useState(false)
   const canMake = canPour && freeSpots(bags).length > 0
   // A usual bottle for the size field: the middle of the last ten breast-milk bottles (phone unit).
   const typical = useMemo(() => {
@@ -254,6 +259,44 @@ export function MilkPage() {
           </p>
         ) : null}
 
+        {!stash.isLoading && batches.length ? (
+          <section className="batches" aria-label="Batch" data-testid="batches">
+            <header className="stash-section-head">
+              <h3>{batches.length === 1 ? 'Batch' : 'Batches'}</h3>
+              <span className="small muted">Pour each bottle from it</span>
+            </header>
+            <ul className="batch-list">
+              {batches.map((b) => {
+                const state = bagState(b, now)
+                return (
+                  <li key={b.id}>
+                    <button type="button" className={`batch-row state-${state}`} onClick={() => setSelected(b)} aria-label={`Batch ${b.code}, ${formatMl(b.remaining_ml, unit)} left of ${formatMl(b.volume_ml, unit)}, ${batchStrength(b)}, good until ${bagStamp(parseDate(b.expires_at), now)}`}>
+                      <span className="icon-circle tone-feeding" aria-hidden>
+                        <JugIcon />
+                      </span>
+                      <span className="grow batch-row-main" aria-hidden>
+                        <span className="batch-row-vol">
+                          {formatMl(b.remaining_ml, unit)} <span className="bag-left-tag">left</span>
+                        </span>
+                        <span className="xs muted">
+                          of {formatMl(b.volume_ml, unit)} · {batchStrength(b)}
+                        </span>
+                        <span className="batch-gauge">
+                          <span className="batch-gauge-fill" style={{ width: `${Math.max(3, Math.min(100, Math.round((b.remaining_ml / Math.max(1, b.volume_ml)) * 100)))}%` }} />
+                        </span>
+                      </span>
+                      <span className="bag-due" aria-hidden>
+                        <span className="xs muted">Good until</span>
+                        <span className={`xs bag-when ${state === 'soon' ? 'text-pumping' : ''}`}>{bagStamp(parseDate(b.expires_at), now, { today: '' })}</span>
+                      </span>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        ) : null}
+
         {!stash.isLoading && (spotBottles.size || (canPour && !nicu)) ? (
           <section className="night-bottles" aria-label="Premade bottles" data-testid="night-bottles">
             <header className="stash-section-head">
@@ -323,16 +366,24 @@ export function MilkPage() {
                 {describeApiError(move.error)}
               </p>
             ) : null}
-            {canMake && !rearranging ? (
-              <Button variant="secondary" block onClick={() => setMaking(true)}>
-                Make premade bottles
-              </Button>
+            {/* Two ways to make milk ahead: bottles in the numbered spots, or one container to pour from. */}
+            {canPour && !rearranging ? (
+              <div className="made-ahead-actions">
+                {canMake ? (
+                  <Button variant="secondary" block onClick={() => setMaking(true)}>
+                    Make premade bottles
+                  </Button>
+                ) : null}
+                <Button variant="secondary" block onClick={() => setBatching(true)}>
+                  Make a batch
+                </Button>
+              </div>
             ) : null}
           </section>
         ) : null}
 
         {stash.isLoading ? <p className="small muted">Loading…</p> : null}
-        {!stash.isLoading && sections.length === 0 ? (
+        {!stash.isLoading && sections.length === 0 && !spotBottles.size && !batches.length ? (
           <p className="small muted">Nothing in the stash. Print a milk label from a pumping session, or add milk you already have, and each bag shows up here with a QR code.</p>
         ) : null}
         <StashKey items={keyItems} />
@@ -380,7 +431,7 @@ export function MilkPage() {
                   <li key={bag.id} className="bag-row static">
                     <span className="bag-vol">{bagLeft(bag, unit)}</span>
                     <span className="grow small muted">
-                      {historyLine(bag, unit)} {bag.used_at ? formatAgo(bag.used_at, now) : ''} · pumped {format(parseDate(bag.pumped_at), 'MMM d h:mm a')} · {isNightBottle(bag) ? `premade bottle ${bag.spot}` : bag.code}
+                      {historyLine(bag, unit)} {bag.used_at ? formatAgo(bag.used_at, now) : ''} · pumped {format(parseDate(bag.pumped_at), 'MMM d h:mm a')} · {isNightBottle(bag) ? `premade bottle ${bag.spot}` : isBatch(bag) ? `batch ${bag.code}` : bag.code}
                     </span>
                     <button type="button" className="link-btn xs" onClick={() => patch.mutate({ id: bag.id, body: { status: 'stored' } })}>
                       Undo
@@ -410,6 +461,7 @@ export function MilkPage() {
         {selected ? (
           <BagActions
             bag={selected}
+            all={bags}
             unit={unit}
             now={now}
             busy={patch.isPending || unmake.isPending}
@@ -464,6 +516,7 @@ export function MilkPage() {
       </Sheet>
       <NicuTripSheet open={trip} child={child.id} candidates={toTake} birth={child.birth_date} unit={unit} now={now} onClose={() => setTrip(false)} />
       <NightBottlesSheet open={making} child={child.id} bags={bags} unit={unit} now={now} typical={typical} fortify={tracking?.fortify ?? null} onClose={() => setMaking(false)} />
+      <BatchSheet open={batching} child={child.id} name={child.first_name} bags={bags} unit={unit} now={now} dayMl={runway.intakeMlPerDay} fortify={tracking?.fortify ?? null} onClose={() => setBatching(false)} />
       <LogSheet request={request} child={child} names={names} onClose={() => setRequest(null)} />
       <MilkLabelSheet
         open={reprint !== null || adding}
@@ -495,7 +548,7 @@ function historyLine(bag: MilkBag, unit: 'oz' | 'ml'): string {
   return bottles > 1 ? `Used up over ${bottles} bottles` : 'Used'
 }
 
-function BagActions({ bag, unit, now, busy, error, onUndo, onUnmake, onMixed, onBottle, onMove, onDiscard, onUsedElsewhere, onSetLeft, onReprint, onTravel }: { bag: MilkBag; unit: 'oz' | 'ml'; now: Date; busy: boolean; error: string | null; onUndo: () => void; onUnmake: () => void; onMixed: (at: Date) => void; onBottle: () => void; onMove: (l: MilkLocation, at?: Date) => void; onDiscard: () => void; onUsedElsewhere: () => void; onSetLeft: (ml: number) => void; onReprint: () => void; onTravel: () => void }) {
+function BagActions({ bag, all, unit, now, busy, error, onUndo, onUnmake, onMixed, onBottle, onMove, onDiscard, onUsedElsewhere, onSetLeft, onReprint, onTravel }: { bag: MilkBag; /** The whole stash, to say what a pour went into. */ all: MilkBag[]; unit: 'oz' | 'ml'; now: Date; busy: boolean; error: string | null; onUndo: () => void; onUnmake: () => void; onMixed: (at: Date) => void; onBottle: () => void; onMove: (l: MilkLocation, at?: Date) => void; onDiscard: () => void; onUsedElsewhere: () => void; onSetLeft: (ml: number) => void; onReprint: () => void; onTravel: () => void }) {
   const state = bagState(bag, now)
   const partly = isPartlyUsed(bag)
   const [adjusting, setAdjusting] = useState(false)
@@ -510,9 +563,51 @@ function BagActions({ bag, unit, now, busy, error, onUndo, onUnmake, onMixed, on
   }, [adjusting])
   if (bag.status !== 'stored') return <GoneBag bag={bag} unit={unit} now={now} busy={busy} error={error} onUndo={onUndo} onReprint={onReprint} />
   if (isNightBottle(bag)) return <BottleActions bag={bag} unit={unit} now={now} busy={busy} error={error} onBottle={onBottle} onDiscard={onDiscard} onUnmake={onUnmake} onMixed={onMixed} />
+  const batch = isBatch(bag)
+  const thing = batch ? 'batch' : 'bag'
   const leftMl = leftText === '' ? null : toMl(Number(leftText), unit)
-  const leftProblem = leftMl === null || Number.isNaN(leftMl) ? 'Enter what is left in the bag.' : leftMl < 0 ? 'It cannot be less than nothing.' : leftMl > bag.volume_ml + 0.01 ? `The bag held ${bagVolume(bag, unit)}; it cannot have more than that left.` : null
-  const leftWhat = leftMl === null || leftProblem ? null : leftMl < 1 ? 'Nothing left: the bag leaves the stash as used.' : `${formatMl(leftMl, unit)} stays in the stash.`
+  const leftProblem = leftMl === null || Number.isNaN(leftMl) ? `Enter what is left in the ${thing}.` : leftMl < 0 ? 'It cannot be less than nothing.' : leftMl > bag.volume_ml + 0.01 ? `The ${thing} held ${bagVolume(bag, unit)}; it cannot have more than that left.` : null
+  const leftWhat = leftMl === null || leftProblem ? null : leftMl < 1 ? `Nothing left: the ${thing} leaves the stash as used.` : `${formatMl(leftMl, unit)} stays in the stash.`
+  const adjustForm = adjusting ? (
+    <form
+      className="bag-adjust stack"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (leftMl !== null && !leftProblem) onSetLeft(leftMl)
+      }}
+    >
+      <div ref={leftRef}>
+        <TextField
+          label={`What's left in the ${thing} (${volumeLabel(unit)})`}
+          type="number"
+          inputMode="decimal"
+          min={0}
+          step={unit === 'oz' ? 0.1 : 1}
+          value={leftText}
+          onChange={(e) => setLeftText(e.target.value)}
+          hint={batch ? 'A spill, a bottle poured and not logged, a misread: set what is really in the container. 0 means it is finished.' : 'A spill, a syringe, a misread: set what is really in the bag. 0 means it is used up.'}
+        />
+      </div>
+      {leftText !== '' ? (
+        <p className={`small ${leftProblem ? 'text-health' : 'muted'}`} role={leftProblem ? 'alert' : 'status'}>
+          {leftProblem ?? leftWhat}
+        </p>
+      ) : null}
+      <div className="row">
+        <Button variant="secondary" block type="button" onClick={() => { setAdjusting(false); setLeftText(String(bagAmountIn(bag, unit))) }} disabled={busy}>
+          Cancel
+        </Button>
+        <Button block type="submit" loading={busy} disabled={leftMl === null || leftProblem !== null || leftText === String(bagAmountIn(bag, unit))}>
+          Set what's left
+        </Button>
+      </div>
+    </form>
+  ) : null
+  if (batch) {
+    return (
+      <BatchActions bag={bag} unit={unit} now={now} busy={busy} error={error} adjusting={adjusting} adjustForm={adjustForm} onAdjust={() => setAdjusting(true)} onBottle={onBottle} onDiscard={onDiscard} onUnmake={onUnmake} onMixed={onMixed} onTravel={onTravel} />
+    )
+  }
   return (
     <div className="stack">
       <div className="bag-head">
@@ -534,7 +629,7 @@ function BagActions({ bag, unit, now, busy, error, onUndo, onUnmake, onMixed, on
         <ul className="bag-uses" aria-label="What came out of this bag">
           {bag.uses.map((u) => (
             <li key={u.id}>
-              <span>{describeUse(u, unit)}</span>
+              <span>{describeUse(u, unit, u.into_bag ? all.find((b) => b.id === u.into_bag) : null)}</span>
               <span className="xs muted">{format(parseDate(u.at), 'EEE MMM d, h:mm a')}</span>
             </li>
           ))}
@@ -545,41 +640,7 @@ function BagActions({ bag, unit, now, busy, error, onUndo, onUnmake, onMixed, on
           {error}
         </p>
       ) : null}
-      {adjusting ? (
-        <form
-          className="bag-adjust stack"
-          onSubmit={(e) => {
-            e.preventDefault()
-            if (leftMl !== null && !leftProblem) onSetLeft(leftMl)
-          }}
-        >
-          <div ref={leftRef}>
-            <TextField
-              label={`What's left in the bag (${volumeLabel(unit)})`}
-              type="number"
-              inputMode="decimal"
-              min={0}
-              step={unit === 'oz' ? 0.1 : 1}
-              value={leftText}
-              onChange={(e) => setLeftText(e.target.value)}
-              hint="A spill, a syringe, a misread: set what is really in the bag. 0 means it is used up."
-            />
-          </div>
-          {leftText !== '' ? (
-            <p className={`small ${leftProblem ? 'text-health' : 'muted'}`} role={leftProblem ? 'alert' : 'status'}>
-              {leftProblem ?? leftWhat}
-            </p>
-          ) : null}
-          <div className="row">
-            <Button variant="secondary" block type="button" onClick={() => { setAdjusting(false); setLeftText(String(bagAmountIn(bag, unit))) }} disabled={busy}>
-              Cancel
-            </Button>
-            <Button block type="submit" loading={busy} disabled={leftMl === null || leftProblem !== null || leftText === String(bagAmountIn(bag, unit))}>
-              Set what's left
-            </Button>
-          </div>
-        </form>
-      ) : null}
+      {adjustForm}
       {state !== 'expired' ? (
         <Button size="lg" block onClick={onBottle} disabled={busy}>
           Make a bottle with this bag
@@ -686,7 +747,7 @@ function FedInTime({ bag, now, busy, onLog }: { bag: MilkBag; now: Date; busy: b
       <div>
         <p className="strong in-time-title">Fed before {until}?</p>
         <p className="small muted in-time-note">
-          {isNightBottle(bag) ? 'If this bottle was fed in time and the feed was never logged' : 'If milk from this bag was fed in time and never logged'}, log the feed now with the time it happened. It then counts as fed, not thrown away.
+          {isNightBottle(bag) ? 'If this bottle was fed in time and the feed was never logged' : isBatch(bag) ? 'If a bottle from this batch was fed in time and never logged' : 'If milk from this bag was fed in time and never logged'}, log the feed now with the time it happened. It then counts as fed, not thrown away.
         </p>
       </div>
       <Button variant="outline" block onClick={onLog} disabled={busy}>
@@ -732,9 +793,107 @@ function GoneBag({ bag, unit, now, busy, error, onUndo, onReprint }: { bag: Milk
       <Button variant="secondary" size="lg" block onClick={onUndo} loading={busy}>
         Undo · put it back in the stash
       </Button>
-      {isNightBottle(bag) ? null : (
+      {isMadeAhead(bag) ? null : (
         <Button variant="ghost" block onClick={onReprint} disabled={busy}>
           Reprint label
+        </Button>
+      )}
+    </div>
+  )
+}
+
+/**
+ * A batch in its container: what is left of what was mixed, how long it keeps, and what was poured from it. Pour a
+ * bottle (the bottle sheet, taking only what she drank and what was thrown away with it), set what is really left,
+ * put it on a travel sticker, throw it out, or undo it while nothing was poured. No moves: it stays cold, and
+ * fortified milk is never frozen. No label of its own: a travel sticker is the way to mark the container.
+ */
+function BatchActions({ bag, unit, now, busy, error, adjusting, adjustForm, onAdjust, onBottle, onDiscard, onUnmake, onMixed, onTravel }: { bag: MilkBag; unit: 'oz' | 'ml'; now: Date; busy: boolean; error: string | null; adjusting: boolean; adjustForm: ReactNode; onAdjust: () => void; onBottle: () => void; onDiscard: () => void; onUnmake: () => void; onMixed: (at: Date) => void; onTravel: () => void }) {
+  const state = bagState(bag, now)
+  const [confirming, setConfirming] = useState(false)
+  const sources = (bag.notes?.match(/ of bag /g) ?? []).length
+  const poured = bag.uses.length > 0
+  return (
+    <div className="stack" data-testid="batch-actions">
+      <div className="bag-head">
+        <p className="strong bag-head-vol">
+          {formatMl(bag.remaining_ml, unit)}
+          <span className="bag-head-left"> left</span>
+        </p>
+        <div className="bag-gauge" role="img" aria-label={`${formatMl(bag.remaining_ml, unit)} of ${bagVolume(bag, unit)} left`}>
+          <span className="bag-gauge-fill" style={{ width: `${Math.max(4, Math.min(100, Math.round((bag.remaining_ml / Math.max(1, bag.volume_ml)) * 100)))}%` }} />
+        </div>
+        <p className={`small ${state === 'expired' ? 'text-health' : state === 'soon' ? 'text-pumping' : 'muted'}`}>
+          {bagVolume(bag, unit)} mixed · {batchStrength(bag)} · {state === 'expired' ? `expired ${formatAgo(bag.expires_at, now)}` : `good until ${format(parseDate(bag.expires_at), 'EEE MMM d, h:mm a')}`}
+          {bag.thawed ? ' · has thawed milk' : ''}
+        </p>
+        <p className="xs muted">
+          Oldest milk pumped {format(parseDate(bag.pumped_at), 'EEE MMM d, h:mm a')}
+          {bag.notes ? ` · ${bag.notes}` : ''}
+        </p>
+      </div>
+      {bag.uses.length ? (
+        <ul className="bag-uses" aria-label="What came out of this batch">
+          {bag.uses.map((u) => (
+            <li key={u.id}>
+              <span>{describeUse(u, unit)}</span>
+              <span className="xs muted">{format(parseDate(u.at), 'EEE MMM d, h:mm a')}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {error ? (
+        <p className="log-error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      {adjustForm}
+      {state !== 'expired' ? (
+        <Button size="lg" block onClick={onBottle} disabled={busy}>
+          Pour a bottle from this batch
+        </Button>
+      ) : (
+        <Button size="lg" block variant="danger" onClick={onDiscard} loading={busy}>
+          <TrashIcon className="btn-icon" /> Discard what is left
+        </Button>
+      )}
+      {state !== 'expired' ? <p className="xs muted">Only what she drank (and what was thrown away with that bottle) comes out; the rest stays here. Pour into a clean bottle each time and never pour a bottle back.</p> : null}
+      {state === 'expired' ? <FedInTime bag={bag} now={now} busy={busy} onLog={onBottle} /> : null}
+      {bag.mixed_at ? <MixedTime key={bag.mixed_at} bag={bag} now={now} busy={busy} onMixed={onMixed} /> : null}
+      <div className="bag-actions-ghosts">
+        {!adjusting ? (
+          <Button variant="ghost" block onClick={onAdjust} disabled={busy}>
+            Adjust what's left
+          </Button>
+        ) : null}
+        {state !== 'expired' ? (
+          <Button variant="ghost" block onClick={onTravel} disabled={busy}>
+            It's on a travel sticker
+          </Button>
+        ) : null}
+      </div>
+      {state !== 'expired' ? (
+        <Button variant="danger" block onClick={onDiscard} disabled={busy}>
+          <TrashIcon className="btn-icon" /> Discard this batch
+        </Button>
+      ) : null}
+      {poured ? null : confirming ? (
+        <div className="stack unmake-confirm" data-testid="unmake-confirm">
+          <p className="small">
+            Put the milk back on {sources === 1 ? 'its bag' : sources > 1 ? `its ${sources} bags` : 'the bags it came from'}? For a batch that was not really mixed.
+          </p>
+          <div className="row gap">
+            <Button variant="outline" onClick={() => setConfirming(false)} disabled={busy}>
+              Keep the batch
+            </Button>
+            <Button onClick={onUnmake} loading={busy}>
+              Put it back
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Button variant="outline" block onClick={() => setConfirming(true)} disabled={busy}>
+          Undo this batch
         </Button>
       )}
     </div>
@@ -771,7 +930,7 @@ function MixedTime({ bag, now, busy, onMixed }: { bag: MilkBag; now: Date; busy:
     <section className="in-time-move stack" aria-label="When it was mixed" data-testid="mixed-time">
       <div>
         <p className="strong in-time-title">Mixed {format(mixed, 'EEE h:mm a')}?</p>
-        <p className="small muted in-time-note">Fortified milk keeps 24 hours in the fridge from when the formula went in. Bramble counts from when this bottle was made in the app. If the formula went in at another time, set it.</p>
+        <p className="small muted in-time-note">Fortified milk keeps 24 hours in the fridge from when the formula went in. Bramble counts from when this {isBatch(bag) ? 'batch' : 'bottle'} was made in the app. If the formula went in at another time, set it.</p>
       </div>
       <TimeField label="Formula went in at" value={at} min={parseDate(bag.pumped_at)} max={now} onChange={setAt} placeholder="Choose when" />
       {until ? (

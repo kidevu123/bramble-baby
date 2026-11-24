@@ -251,9 +251,10 @@ export interface MilkBag {
   uses: MilkUse[]
   /**
    * 'bottle': a premade bottle poured ahead of time from stash bags into a numbered fridge spot (`spot`, 1–5),
-   * dated from its oldest milk; 'bag' (or absent, from an older server): pumped milk with a label.
+   * dated from its oldest milk; 'batch': milk from several bags mixed ahead in one container (no spot), which each
+   * bottle is poured from as it is needed; 'bag' (or absent, from an older server): pumped milk with a label.
    */
-  kind?: 'bag' | 'bottle'
+  kind?: 'bag' | 'bottle' | 'batch'
   spot?: number | null
   /** A premade bottle mixed with formula to this strength (kcal per ounce); it keeps 24 hours from `mixed_at`. */
   kcal_per_oz?: number | null
@@ -296,7 +297,7 @@ export interface MilkUse {
   feeding_id: Id | null
   /** Taken out of the bag; negative on a correction that put milk back. */
   amount_ml: number
-  /** 'combined': poured into a premade bottle (`into_bag`). */
+  /** 'combined': poured into a premade bottle or a batch (`into_bag`). */
   /** … or `nicu`: the whole bag taken to the NICU (Stash › Take to the NICU). */
   kind: 'bottle' | 'elsewhere' | 'adjust' | 'combined' | 'nicu'
   at: string
@@ -550,6 +551,13 @@ export const companion = {
     /** A premade bottle moved to another fridge spot; a bottle already there swaps into its old one. */
     moveBottle: (id: Id, spot: number) => api<MilkBag[]>(`${COMPANION}/milk/${id}/spot`, { method: 'POST', body: JSON.stringify({ spot }) }),
     unmakeBottle: (id: Id) => api<MilkBag[]>(`${COMPANION}/milk/${id}/unmake`, { method: 'POST', body: '{}' }),
+    /**
+     * A batch mixed ahead in one container: the milk leaves the listed bags now and the batch becomes a stash item
+     * (`kind: 'batch'`) that each bottle pours from. `added_ml` is the room the formula takes. Checked as a whole; sent
+     * again with its `client_key` it is returned, not made twice. Undone with `unmakeBottle` while nothing was poured.
+     */
+    makeBatch: (body: { child: Id; takes: { bag: Id; amount_ml: number }[]; client_key: string; kcal_per_oz?: number; added_ml?: number; windows?: MilkWindows }) =>
+      api<MilkBag>(`${COMPANION}/milk/batch`, { method: 'POST', body: JSON.stringify(body) }),
     makeBottles: (body: { child: Id; bottles: { spot: number; takes: { bag: Id; amount_ml: number }[]; client_key: string; kcal_per_oz?: number }[]; windows?: MilkWindows }) =>
       api<MilkBag[]>(`${COMPANION}/milk/bottles`, { method: 'POST', body: JSON.stringify(body) }),
   },

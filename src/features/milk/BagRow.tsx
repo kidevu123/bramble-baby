@@ -1,9 +1,9 @@
 import type { ReactElement } from 'react'
-import { BottleIcon, DayIcon, FridgeIcon, NightIcon, SnowflakeIcon, ThermoIcon } from '../../components/icons'
+import { BottleIcon, DayIcon, FridgeIcon, JugIcon, NightIcon, SnowflakeIcon, ThermoIcon } from '../../components/icons'
 import { usePrefs } from '../../hooks/usePrefs'
 import type { MilkBag, MilkLocation } from '../../lib/api/companion'
 import { milkDaypart } from '../../lib/labels'
-import { bagLeft, bagStamp, bagState, formatMl, isNightBottle, isPartlyUsed, LOCATION_LABEL } from '../../lib/milk'
+import { bagLeft, bagStamp, bagState, batchStrength, formatMl, isBatch, isNightBottle, isPartlyUsed, LOCATION_LABEL } from '../../lib/milk'
 import { STASH_KEY_LABEL, type StashKeyItem } from '../../lib/stash-key'
 import { formatAgo, parseDate } from '../../lib/time'
 import type { VolumeUnit } from '../../lib/units'
@@ -35,12 +35,13 @@ export function BagRow({ bag, unit, now, at, onOpen, disabledWhenExpired = false
   const when = expired ? (disabledWhenExpired ? (at ? 'Past its time before this feed' : 'Expired — discard it from the stash') : `Expired ${formatAgo(bag.expires_at, now)}`) : `${kept ? 'Kept' : 'Good'} until ${until}`
   const disabled = disabledWhenExpired && expired
   const bottle = isNightBottle(bag)
-  // A premade bottle mixes milk from several pumps: no sun or moon, and its name is its spot.
-  const part = bottle ? null : milkDaypart(pumped, prefs.labels)
-  const where = bottle ? { tone: 'tone-feeding', icon: <BottleIcon /> } : PLACE_ICON[bag.location]
+  const batch = isBatch(bag)
+  // A premade bottle or a batch mixes milk from several pumps: no sun or moon, and a bottle's name is its spot.
+  const part = bottle || batch ? null : milkDaypart(pumped, prefs.labels)
+  const where = bottle ? { tone: 'tone-feeding', icon: <BottleIcon /> } : batch ? { tone: 'tone-feeding', icon: <JugIcon /> } : PLACE_ICON[bag.location]
   return (
     <li>
-      <button type="button" className={`bag-row state-${state}${picked ? ' is-picked' : ''}`} onClick={onOpen} disabled={disabled} aria-pressed={picked === undefined ? undefined : picked} aria-label={`${bottle ? `Premade bottle ${bag.spot}, ${formatMl(bag.remaining_ml, unit)}` : `Bag ${bag.code}, ${bagLeft(bag, unit)}${isPartlyUsed(bag) ? ' left' : ''}`}, ${LOCATION_LABEL[bag.location]}${bag.thawed ? ', thawed' : ''}${colostrum ? ', colostrum' : ''}${part ? `, ${part} milk` : ''}, ${when}${useFirst ? ', use first' : ''}`}>
+      <button type="button" className={`bag-row state-${state}${picked ? ' is-picked' : ''}`} onClick={onOpen} disabled={disabled} aria-pressed={picked === undefined ? undefined : picked} aria-label={`${bottle ? `Premade bottle ${bag.spot}, ${formatMl(bag.remaining_ml, unit)}` : batch ? `Batch ${bag.code}, ${formatMl(bag.remaining_ml, unit)} left, ${batchStrength(bag)}` : `Bag ${bag.code}, ${bagLeft(bag, unit)}${isPartlyUsed(bag) ? ' left' : ''}`}, ${LOCATION_LABEL[bag.location]}${bag.thawed ? ', thawed' : ''}${colostrum ? ', colostrum' : ''}${part ? `, ${part} milk` : ''}, ${when}${useFirst ? ', use first' : ''}`}>
         {picked !== undefined ? (
           <span className={`bag-check${picked ? ' on' : ''}`} aria-hidden>
             {picked ? '✓' : ''}
@@ -54,6 +55,10 @@ export function BagRow({ bag, unit, now, at, onOpen, disabledWhenExpired = false
             <span className="bag-vol">
               {formatMl(bag.remaining_ml, unit)} <span className="xs muted">· premade bottle {bag.spot}</span>
             </span>
+          ) : batch ? (
+            <span className="bag-vol">
+              {formatMl(bag.remaining_ml, unit)} <span className="bag-left-tag">left</span> <span className="xs muted">· batch · {batchStrength(bag)}</span>
+            </span>
           ) : (
             <span className="bag-vol">
               {bagLeft(bag, unit)}
@@ -64,7 +69,7 @@ export function BagRow({ bag, unit, now, at, onOpen, disabledWhenExpired = false
           <span className="xs muted bag-pumped">
             {part ? <span className={`bag-part is-${part}`}>{part === 'night' ? <NightIcon /> : <DayIcon />}</span> : null}
             <span>
-              {bottle ? 'Oldest milk' : 'Pumped'} {bagStamp(pumped, now, { today: '' })}
+              {batch && bag.mixed_at ? `Mixed ${bagStamp(parseDate(bag.mixed_at), now, { today: '' })}` : `${bottle || batch ? 'Oldest milk' : 'Pumped'} ${bagStamp(pumped, now, { today: '' })}`}
               {place ? ` · ${LOCATION_LABEL[bag.location]}` : ''}
               {bag.thawed ? ' · thawed' : ''}
             </span>
@@ -98,8 +103,8 @@ export function StashKey({ items }: { items: StashKeyItem[] }) {
                   {item === 'night' ? <NightIcon /> : <DayIcon />}
                 </span>
               ) : (
-                <span className={`icon-circle stash-key-dot ${item === 'bottle' ? 'tone-feeding' : PLACE_ICON[item].tone}`} aria-hidden>
-                  {item === 'bottle' ? <BottleIcon /> : PLACE_ICON[item].icon}
+                <span className={`icon-circle stash-key-dot ${item === 'bottle' || item === 'batch' ? 'tone-feeding' : PLACE_ICON[item].tone}`} aria-hidden>
+                  {item === 'bottle' ? <BottleIcon /> : item === 'batch' ? <JugIcon /> : PLACE_ICON[item].icon}
                 </span>
               )}
               <span>{STASH_KEY_LABEL[item]}</span>

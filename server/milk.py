@@ -117,6 +117,10 @@ NICU_MAX = 100
 # Premade bottles: made ahead from stash bags and kept in numbered spots in the fridge (stickers 1 to SPOTS), so
 # a night feed is "grab bottle 3". A bottle is a stash item of its own: `kind` 'bottle' (a pumped bag is 'bag').
 SPOTS = 5
+# A batch: milk from several bags mixed ahead in ONE container (usually fortified), and each bottle poured from it as
+# it is needed, however much she wants that feed. `kind` 'batch', no spot. Unlike a premade bottle it is not fed
+# whole: a feed takes what was poured and the rest stays, like a bag. Made by `make_batch`, undone by `unmake_bottle`.
+MADE_AHEAD = ("bottle", "batch")
 # Travel stickers printed in one go.
 TRAVEL_MAX = 30
 # Under this much left, the bag is empty: nobody pours half a millilitre.
@@ -557,9 +561,9 @@ class MilkStore:
             # it was mixed. This is the only way a fortified bottle's 24 hours move: the deadline is never typed,
             # it follows from this moment and from how long its milk keeps.
             if not bag.get("mixed_at"):
-                raise MilkError("Only a fortified premade bottle has a mixing time.")
+                raise MilkError("Only fortified milk mixed ahead (a premade bottle or a batch) has a mixing time.")
             if moved or bag["location"] != "fridge" or bag["status"] != "stored":
-                raise MilkError("The mixing time is corrected while the bottle is in its fridge spot.")
+                raise MilkError("The mixing time is corrected while it is in the fridge.")
             mixed = self.parse_iso(str(data["mixed_at"]))
             if mixed > datetime.now(timezone.utc) + CLOCK_SKEW or mixed < self.parse_iso(bag["pumped_at"]) - CLOCK_SKEW:
                 raise MilkError("The time it was mixed has to be after its milk was pumped and not in the future.")
@@ -611,6 +615,8 @@ class MilkStore:
             if last and last[0]["kind"] in ("combined", "prepared"):
                 # That milk is in a premade bottle now; putting it back here as well would count it twice.
                 into = self.get(last[0]["into_bag"]) if last[0].get("into_bag") else None
+                if into and into.get("kind") == "batch":
+                    raise MilkError(f"The last of this bag went into batch {into['code']}. Undo the batch (if nothing was poured from it yet), or feed or discard it.")
                 where = f"the premade bottle in spot {into['spot']}" if into and into.get("spot") else "a premade bottle"
                 raise MilkError(f"The last of this bag went into {where}. Feed or discard that bottle instead.")
             if last:
@@ -684,6 +690,8 @@ class MilkStore:
                     raise MilkError(f"Bag {bag['code']} is no longer in the stash.")
                 if bag.get("kind") == "bottle":
                     raise MilkError(f"Premade bottle {bag.get('spot') or ''} is for feeding at home; undo it to send its milk.".replace("bottle  is", "bottle is"))
+                if bag.get("kind") == "batch":
+                    raise MilkError(f"Batch {bag['code']} is mixed for feeding at home; undo it to send its milk.")
                 if self.parse_iso(bag["expires_at"]) <= now:
                     raise MilkError(f"Bag {bag['code']} is past its window; discard it rather than take it in.")
             for bag_id in ids:
@@ -797,18 +805,18 @@ class MilkStore:
         # Judged at the feed's own time. Only milk newly coming out is judged: a bottle already poured from the
         # bag keeps its take (and may be corrected downwards) whatever time the feeding is moved to.
         if fed_at is not None and amount > (existing["amount_ml"] if existing else 0) + 0.01 and fed_at >= self.parse_iso(bag["expires_at"]):
-            name = f"Premade bottle {bag['spot']}" if bag.get("kind") == "bottle" and bag.get("spot") else f"Bag {bag['code']}"
+            name = item_name(bag)
             kept = self.parse_iso(bag["expires_at"]).astimezone(self.zone()).strftime("%a %-I:%M %p")
             raise MilkError(f"{name} kept until {kept}, and this feed is after that. If the feed was earlier, set its time; if not, log it without the stash and discard the milk.")
         # A bottle already poured from a bag that was discarded afterwards can still be corrected downwards (or
         # kept as it is): nothing new comes out of the bag. Only a new or larger take is refused.
         if bag["status"] == "discarded" and (existing is None or amount > existing["amount_ml"] + 0.01):
-            raise MilkError(f"Bag {bag['code']} was discarded.")
+            raise MilkError(f"{item_name(bag)} was discarded.")
         if bag["status"] == "used" and existing is None:
-            raise MilkError(f"Bag {bag['code']} is already used up.")
+            raise MilkError(f"{item_name(bag)} is already used up.")
         available = round(bag["remaining_ml"] + (existing["amount_ml"] if existing else 0), 2)
         if amount > available + OVER_TOLERANCE_ML:
-            raise MilkError(f"Only {describe_ml(available)} is left in bag {bag['code']}.")
+            raise MilkError(f"Only {describe_ml(available)} is left in {item_name(bag, capital=False)}.")
         if bag.get("kind") == "bottle" and amount > 0 and amount < available - OVER_TOLERANCE_ML:
             # A premade bottle is fed whole (what she leaves is thrown away). An older phone that knows nothing of
             # premade bottles would otherwise take part of one and leave a bottle in its spot holding less than it says.
@@ -931,62 +939,112 @@ class MilkStore:
                     raise MilkError(f"Spot {spot} already has a bottle ({describe_ml(taken[spot]['remaining_ml'])}). Feed it or discard it first.")
                 for bag_id, amount in parsed:
                     need[bag_id] = round(need.get(bag_id, 0.0) + amount, 2)
-            bags: dict[int, dict] = {}
-            for bag_id, amount in need.items():
-                bag = self.get(bag_id)
-                if not bag or bag["child"] != child:
-                    raise MilkError(f"Bag {bag_id} is not in the stash.")
-                code = bag["code"]
-                if bag["kind"] == "bottle":
-                    raise MilkError("A premade bottle cannot be poured into another bottle.")
-                if bag["status"] != "stored":
-                    raise MilkError(f"Bag {code} is {'already used up' if bag['status'] == 'used' else 'discarded'}.")
-                if bag["location"] == "freezer":
-                    raise MilkError(f"Bag {code} is in the freezer. Thaw it in the fridge first.")
-                if self.parse_iso(bag["expires_at"]) <= now:
-                    raise MilkError(f"Bag {code} is past its storage window. Discard it instead.")
-                if amount > bag["remaining_ml"] + OVER_TOLERANCE_ML:
-                    raise MilkError(f"Only {describe_ml(bag['remaining_ml'])} is left in bag {code}.")
-                bags[bag_id] = bag
+            self._check_sources(child, need, now, "A premade bottle cannot be poured into another bottle.")
             for spot, parsed, key, location, kcal, added in todo:
-                sources = [(self.get(bag_id), amount) for bag_id, amount in parsed]
-                pours = [(bag, round(min(amount, bag["remaining_ml"]), 2)) for bag, amount in sources if bag]  # type: ignore[index]
-                pours = [(bag, ml) for bag, ml in pours if ml > 0]
-                if not pours:
-                    raise MilkError(f"The bottle for spot {spot} has no milk in it.")
-                pumped = min(self.parse_iso(bag["pumped_at"]) for bag, _ in pours)
-                thawed_from = [self.parse_iso(bag["thawed_at"]) for bag, _ in pours if bag["thawed"] and bag.get("thawed_at")]
-                thawed = any(bag["thawed"] for bag, _ in pours)
-                thawed_at = min(thawed_from) if thawed_from else (pumped if thawed else None)
-                volume = round(sum(ml for _, ml in pours) + added, 2)
-                expires = expiry_for(pumped, location, thawed, since=thawed_at, windows=windows)
-                if kcal is not None:
-                    # Fortified: a day from mixing, never longer than its milk keeps.
-                    expires = min(expires, now + FORTIFIED_WINDOW)
-                code = self._fresh_code()
-                notes = "From " + ", ".join(f"{describe_ml(ml)} of bag {bag['code']}" for bag, ml in pours)
-                if kcal is not None:
-                    notes += f"\nFortified to {_kcal_text(kcal)} kcal/oz"
-                stamp = self.now_iso()
-                cur = self.store.x(
-                    "INSERT INTO milk_bags (child, code, pumped_at, volume_ml, remaining_ml, location, thawed, thawed_at, expires_at, status, client_key, notes, created, created_by, kind, spot, kcal_per_oz, mixed_at)"
-                    " VALUES (?,?,?,?,?,?,?,?,?,'stored',?,?,?,?,'bottle',?,?,?)",
-                    (child, code, _iso(pumped), volume, volume, location, 1 if thawed else 0, _iso(thawed_at) if thawed_at else None, _iso(expires), key, notes, stamp, user_id, spot, kcal, _iso(now) if kcal is not None else None),
-                )
-                bottle_id = cur.lastrowid
-                for bag, ml in pours:
-                    fresh = self.get(bag["id"])
-                    left = round(fresh["remaining_ml"] - ml, 2)  # type: ignore[index]
-                    self.store.x("INSERT INTO milk_uses (bag, feeding_id, amount_ml, kind, at, by_user, into_bag) VALUES (?,?,?,'combined',?,?,?)", (bag["id"], None, ml, stamp, user_id, bottle_id))
-                    if left < EMPTY_ML:
-                        self.store.x("UPDATE milk_bags SET remaining_ml=0, status='used', used_at=?, used_by=? WHERE id=?", (stamp, user_id, bag["id"]))
-                    else:
-                        self.store.x("UPDATE milk_bags SET remaining_ml=? WHERE id=?", (left, bag["id"]))
-                    self.sync_reminders(self.get(bag["id"]))  # type: ignore[arg-type]
-                bottle = self.get(bottle_id)  # type: ignore[arg-type]
-                self.sync_reminders(bottle)  # type: ignore[arg-type]
-                made.append(bottle)  # type: ignore[arg-type]
+                made.append(self._pour_ahead(child, parsed, key, kcal, added, user_id, windows, now, "bottle", spot, f"The bottle for spot {spot} has no milk in it."))
             return made
+
+    def _check_sources(self, child: int, need: dict[int, float], now: datetime, made_ahead: str) -> None:
+        """The bags milk is about to be poured out of, into something made ahead: all checked before any is touched."""
+        for bag_id, amount in need.items():
+            bag = self.get(bag_id)
+            if not bag or bag["child"] != child:
+                raise MilkError(f"Bag {bag_id} is not in the stash.")
+            code = bag["code"]
+            if bag["kind"] == "batch":
+                raise MilkError(f"Batch {code} is already mixed: pour each bottle from it when it is needed.")
+            if bag["kind"] == "bottle":
+                raise MilkError(made_ahead)
+            if bag["status"] != "stored":
+                raise MilkError(f"Bag {code} is {'already used up' if bag['status'] == 'used' else 'discarded'}.")
+            if bag["location"] == "freezer":
+                raise MilkError(f"Bag {code} is in the freezer. Thaw it in the fridge first.")
+            if self.parse_iso(bag["expires_at"]) <= now:
+                raise MilkError(f"Bag {code} is past its storage window. Discard it instead.")
+            if amount > bag["remaining_ml"] + OVER_TOLERANCE_ML:
+                raise MilkError(f"Only {describe_ml(bag['remaining_ml'])} is left in bag {code}.")
+
+    def _pour_ahead(self, child: int, parsed: list[tuple[int, float]], key: str | None, kcal: float | None, added: float, user_id: int | None, windows: dict | None, now: datetime, kind: str, spot: int | None, empty: str) -> dict:
+        """One premade bottle or one batch, poured from checked bags inside the caller's transaction: the milk leaves
+        the bags as `combined` uses (`into_bag` the new item), which is dated from its oldest milk and earliest thaw,
+        and from now when formula goes in."""
+        sources = [(self.get(bag_id), amount) for bag_id, amount in parsed]
+        pours = [(bag, round(min(amount, bag["remaining_ml"]), 2)) for bag, amount in sources if bag]  # type: ignore[index]
+        pours = [(bag, ml) for bag, ml in pours if ml > 0]
+        if not pours:
+            raise MilkError(empty)
+        pumped = min(self.parse_iso(bag["pumped_at"]) for bag, _ in pours)
+        thawed_from = [self.parse_iso(bag["thawed_at"]) for bag, _ in pours if bag["thawed"] and bag.get("thawed_at")]
+        thawed = any(bag["thawed"] for bag, _ in pours)
+        thawed_at = min(thawed_from) if thawed_from else (pumped if thawed else None)
+        volume = round(sum(ml for _, ml in pours) + added, 2)
+        expires = expiry_for(pumped, "fridge", thawed, since=thawed_at, windows=windows)
+        if kcal is not None:
+            # Fortified: a day from mixing, never longer than its milk keeps.
+            expires = min(expires, now + FORTIFIED_WINDOW)
+        code = self._fresh_code()
+        notes = "From " + ", ".join(f"{describe_ml(ml)} of bag {bag['code']}" for bag, ml in pours)
+        if kcal is not None:
+            notes += f"\nFortified to {_kcal_text(kcal)} kcal/oz"
+        stamp = self.now_iso()
+        cur = self.store.x(
+            "INSERT INTO milk_bags (child, code, pumped_at, volume_ml, remaining_ml, location, thawed, thawed_at, expires_at, status, client_key, notes, created, created_by, kind, spot, kcal_per_oz, mixed_at)"
+            " VALUES (?,?,?,?,?,'fridge',?,?,?,'stored',?,?,?,?,?,?,?,?)",
+            (child, code, _iso(pumped), volume, volume, 1 if thawed else 0, _iso(thawed_at) if thawed_at else None, _iso(expires), key, notes, stamp, user_id, kind, spot, kcal, _iso(now) if kcal is not None else None),
+        )
+        made_id = cur.lastrowid
+        for bag, ml in pours:
+            fresh = self.get(bag["id"])
+            left = round(fresh["remaining_ml"] - ml, 2)  # type: ignore[index]
+            self.store.x("INSERT INTO milk_uses (bag, feeding_id, amount_ml, kind, at, by_user, into_bag) VALUES (?,?,?,'combined',?,?,?)", (bag["id"], None, ml, stamp, user_id, made_id))
+            if left < EMPTY_ML:
+                self.store.x("UPDATE milk_bags SET remaining_ml=0, status='used', used_at=?, used_by=? WHERE id=?", (stamp, user_id, bag["id"]))
+            else:
+                self.store.x("UPDATE milk_bags SET remaining_ml=? WHERE id=?", (left, bag["id"]))
+            self.sync_reminders(self.get(bag["id"]))  # type: ignore[arg-type]
+        item = self.get(made_id)  # type: ignore[arg-type]
+        self.sync_reminders(item)  # type: ignore[arg-type]
+        return item  # type: ignore[return-value]
+
+    def make_batch(self, child: int, data: dict, user_id: int | None, windows: dict | None = None) -> dict:
+        """A batch mixed ahead in one container: {"takes": [{"bag", "amount_ml"}], "kcal_per_oz", "added_ml",
+        "client_key"}. The milk leaves the bags now, like a premade bottle's; the batch is a stash item of its own
+        (`kind` 'batch', in the fridge, no spot) that each feed pours from, the rest staying in it. Fortified, it
+        keeps a day from now and is never frozen. Checked as a whole; a retry with the same key returns the batch."""
+        takes = data.get("takes")
+        if not isinstance(takes, list) or not takes:
+            raise ValueError("missing: takes")
+        parsed: list[tuple[int, float]] = []
+        seen: set[int] = set()
+        for t in takes:
+            if not isinstance(t, dict):
+                raise ValueError("missing: takes")
+            try:
+                bag_id = int(t.get("bag"))  # type: ignore[arg-type]
+            except (TypeError, ValueError):
+                raise ValueError("bad bag")
+            if bag_id in seen:
+                raise ValueError("a bag is listed twice")
+            seen.add(bag_id)
+            amount = _clean_take(t.get("amount_ml", 0))
+            if amount > 0:
+                parsed.append((bag_id, amount))
+        if not parsed:
+            raise MilkError("The batch has no milk in it.")
+        kcal = _clean_kcal(data.get("kcal_per_oz"))
+        added = 0.0
+        if kcal is not None and data.get("added_ml") not in (None, ""):
+            added = round(_number(data.get("added_ml")), 2)
+            if not 0 <= added <= sum(ml for _, ml in parsed) * 0.5:
+                raise ValueError("bad added_ml")
+        key = _clean_client_key(data.get("client_key"))
+        now = datetime.now(timezone.utc)
+        with self.store.atomic():
+            existing = self.by_client_key(child, key) if key else None
+            if existing:
+                return existing  # sent again: the milk already moved
+            self._check_sources(child, dict(parsed), now, "A premade bottle is not poured into a batch. Undo the bottle first, and its milk is back on its bags.")
+            return self._pour_ahead(child, parsed, key, kcal, added, user_id, windows, now, "batch", None, "The batch has no milk in it.")
 
     def move_bottle(self, bottle_id: int, spot) -> list[dict] | None:
         """A premade bottle moved to another fridge spot (the family rearranged the fridge). A bottle already in that
@@ -1025,9 +1083,9 @@ class MilkStore:
             bottle = self.get(bottle_id)
             if not bottle:
                 return None
-            name = f"Premade bottle {bottle['spot']}" if bottle.get("spot") else "This bottle"
-            if bottle.get("kind") != "bottle":
-                raise MilkError("Only a premade bottle can be undone this way.")
+            if bottle.get("kind") not in MADE_AHEAD:
+                raise MilkError("Only a premade bottle or a batch can be undone this way.")
+            name = item_name(bottle) if bottle.get("kind") == "batch" or bottle.get("spot") else "This bottle"
             if bottle["status"] != "stored":
                 raise MilkError(f"{name} is already {'fed' if bottle['status'] == 'used' else 'discarded'}, so its milk cannot go back in the bags.")
             if self.store.q("SELECT 1 FROM milk_uses WHERE bag=? LIMIT 1", (bottle_id,)):
@@ -1071,7 +1129,7 @@ class MilkStore:
         soon_at = expires - LEAD[bag["location"]]
         until = expires.astimezone(self.zone()).strftime("%-I:%M %p")
         # A premade bottle is found by its spot, not its code.
-        name = f"premade bottle {bag['spot']}" if bag.get("kind") == "bottle" and bag.get("spot") else bag["code"]
+        name = f"premade bottle {bag['spot']}" if bag.get("kind") == "bottle" and bag.get("spot") else f"batch {bag['code']}" if bag.get("kind") == "batch" else bag["code"]
         rows = []
         if bag["location"] == "room" and not bag["thawed"]:
             # Fresh milk kept out on purpose (a bottle due soon needs no warming): the useful push is the fridge
@@ -1101,6 +1159,17 @@ class MilkStore:
                 "INSERT INTO reminders (child, at, title, body, tag, source, sent, created) VALUES (?,?,?,?,?,'milk',0,?)",
                 (bag["child"], _iso(at), title, body, tag, self.now_iso()),
             )
+
+
+def item_name(bag: dict, capital: bool = True) -> str:
+    """How a stash item is called in a sentence: "Premade bottle 3", "Batch K7M2QP", "Bag K7M2QP"."""
+    if bag.get("kind") == "bottle" and bag.get("spot"):
+        name = f"premade bottle {bag['spot']}"
+    elif bag.get("kind") == "batch":
+        name = f"batch {bag['code']}"
+    else:
+        name = f"bag {bag['code']}"
+    return name[0].upper() + name[1:] if capital else name
 
 
 def describe_ml(ml: float) -> str:

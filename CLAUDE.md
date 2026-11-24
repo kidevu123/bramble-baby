@@ -79,7 +79,10 @@ installing and deploying; `README.md` is the public front page (screenshots from
   Night bottles (`kind: 'bottle'`, `spot` 1–5) are made only through `companion.milk.makeBottles` (Stash › Make night bottles):
   the milk leaves the bags then (`combined` uses), and a feed from a bottle takes it whole; an unfed bottle is undone only
   through `companion.milk.unmakeBottle` (the pours given back, the bottle removed), and changes spot only through
-  `companion.milk.moveBottle` (`POST /milk/<id>/spot`; a bottle already in that spot swaps into the old one). Bags taken to the NICU leave only through
+  `companion.milk.moveBottle` (`POST /milk/<id>/spot`; a bottle already in that spot swaps into the old one).
+  A batch (`kind: 'batch'`, no spot) is made only through `companion.milk.makeBatch` (Stash › Make a batch): one container mixed ahead,
+  and a feed from it takes only what was poured (what she drank plus what she left in the bottle), never the whole; it is undone through
+  `unmakeBottle` while nothing was poured, and is never a source for a premade bottle or another batch. Bags taken to the NICU leave only through
   `companion.milk.toNicu` (`POST /milk/nicu`, one `nicu` use each; Undo reverses it). A bag takes a travel sticker's
   code (printed ahead, `milk_travel_labels`) only through `travel_code` on create/update; codes come from `_fresh_code`.
   **No deadline is ever typed or reset**: `expires_at` follows from facts (when pumped, thawed, mixed, moved, and the household's windows), so

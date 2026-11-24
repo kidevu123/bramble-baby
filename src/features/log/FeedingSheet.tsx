@@ -1,12 +1,12 @@
 import { useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
-import { BottleIcon, ChevronRightIcon, PlayIcon, QrIcon, SnowflakeIcon, TagIcon } from '../../components/icons'
+import { BottleIcon, ChevronRightIcon, JugIcon, PlayIcon, QrIcon, SnowflakeIcon, TagIcon } from '../../components/icons'
 import { Button } from '../../components/ui/Button'
 import { useBagForFeeding, useInvalidateMilk, useMilkStash } from '../../hooks/useMilk'
 import { useNow } from '../../hooks/useNow'
 import { companion, type MilkBag } from '../../lib/api/companion'
-import { bagState, formatMl, giveBackCopy, isNightBottle, lateFeedNote, LOCATION_LABEL, pastTheirTime, planTakes, roundMl, stashHint, summarizeStash, takesCopy } from '../../lib/milk'
+import { bagStamp, bagState, batchStrength, formatMl, giveBackCopy, isBatch, isNightBottle, lateFeedNote, LOCATION_LABEL, pastTheirTime, planTakes, roundMl, stashHint, summarizeStash, takesCopy, toMl } from '../../lib/milk'
 import { StashPicker } from '../milk/StashPicker'
 import { Segmented } from '../../components/ui/Segmented'
 import { FieldGroup, PillChoice, TimeField } from '../../components/ui/Field'
@@ -62,7 +62,12 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
   // the bags it was poured from (`linkedTakes`, below); [] is "no bag", after Remove.
   const [choice, setChoice] = useState<MilkBag[] | undefined>(initialBag ? [initialBag] : undefined)
   // The amount was filled from the picked bags (not typed): adding or removing a bag keeps it in step.
-  const [amountAuto, setAmountAuto] = useState(Boolean(initialBag))
+  // (Not for a batch: a bottle poured from one is what she wanted that feed, never all of it.)
+  const [amountAuto, setAmountAuto] = useState(Boolean(initialBag) && !isBatch(initialBag!))
+  // Poured from a batch and not drunk: what was left in the bottle and thrown away. It comes out of the batch with
+  // what she drank, and is not counted as fed. null is "not touched" (an edited bottle shows what it was saved with).
+  const [tossedText, setTossedText] = useState<string | null>(null)
+  const [tossedOpen, setTossedOpen] = useState(false)
   const [picking, setPicking] = useState(false)
   /** Opened on a bag or bottle that has run out: a feed from it happened earlier, and its time is asked first. */
   const [timeFirst] = useState(() => Boolean(initialBag && bagState(initialBag) === 'expired'))
@@ -112,7 +117,7 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
   // (until 1.74 that path logged it as plain breast milk, so its calories were counted at 20 kcal/oz with no tag).
   const [milk, setMilk] = useState<FeedingType>(() => (editing && editing.type !== 'solid food' ? editing.type : initialBag?.kcal_per_oz ? 'fortified breast milk' : (prefill?.kind === 'bottle' && prefill.milk) || 'breast milk'))
   const [initialAmount] = useState<string>(() => (editing?.amount ? String(editing.amount) : ''))
-  const [amount, setAmount] = useState<string>(() => (initialBag ? String(fillAmount(initialBag.remaining_ml, prefs.units.volume)) : prefill?.kind === 'bottle' && prefill.amount !== undefined ? String(prefill.amount) : initialAmount))
+  const [amount, setAmount] = useState<string>(() => (initialBag ? (isBatch(initialBag) ? '' : String(fillAmount(initialBag.remaining_ml, prefs.units.volume))) : prefill?.kind === 'bottle' && prefill.amount !== undefined ? String(prefill.amount) : initialAmount))
   const nursingMinutes = (Number(leftMin) || 0) + (Number(rightMin) || 0)
   /** When the feed began: the anchor itself, or the finish less the minutes typed (a bottle has no length). */
   const start = anchor.on === 'start' || mode !== 'nursing' ? anchor.at : new Date(anchor.at.getTime() - nursingMinutes * 60_000)
@@ -157,6 +162,15 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
     // A premade bottle mixed to a strength is fortified milk, whatever the sheet said before.
     if (!bags.some((x) => x.id === b.id) && b.kcal_per_oz) setMilk('fortified breast milk')
     else if (milk === 'formula') setMilk('breast milk')
+    // A batch is poured from, not emptied: the amount is what she drank, typed. The field takes the cursor at once.
+    if (next.some(isBatch)) {
+      if (amountAuto) {
+        setAmount('')
+        setAmountAuto(false)
+      }
+      if (isBatch(b)) document.querySelector<HTMLInputElement>('.amount-group .value-field-input')?.focus({ preventScroll: true })
+      return
+    }
     if (next.length && (amountAuto || !(Number(amount) > 0))) {
       setAmount(String(fillAmount(suggested(next), unit)))
       setAmountAuto(true)
@@ -260,8 +274,14 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
   const sliderValue = Math.min(sliderMax, Number(amount) || 0)
   // The picked bags, filled in order: each gives all it can (what is in it plus what this bottle already took
   // from it) before the next is touched, so the same amount on the same bags is no change.
-  const plan = fromStash && bags.length ? planTakes(bags, Number(amount) || 0, unit, available) : null
-  const amountChanged = !editing || amount !== initialAmount
+  const fromBatch = bags.some(isBatch)
+  // What an edited bottle threw away with it: what it took from the stash beyond what she drank (a batch only).
+  const linkedTossedMl = editing && linkedBags.some(isBatch) ? Math.max(0, linkedTakes.reduce((sum, t) => sum + t.use.amount_ml, 0) - toMl(Number(initialAmount) || 0, unit)) : 0
+  const linkedTossed = linkedTossedMl >= 0.5 ? String(fillAmount(linkedTossedMl, unit)) : ''
+  const tossed = fromBatch ? tossedText ?? linkedTossed : ''
+  const tossedShown = fromBatch && (tossedOpen || tossed !== '')
+  const plan = fromStash && bags.length ? planTakes(bags, (Number(amount) || 0) + (Number(tossed) > 0 ? Number(tossed) : 0), unit, available) : null
+  const amountChanged = !editing || amount !== initialAmount || tossed !== linkedTossed
   /** Saving changes what the stash holds: a new bottle, a new amount, or other bags. */
   const takeChanged = plan !== null && (!sameBagsAsLinked || amountChanged)
   const totalTake = plan ? plan.takes.reduce((sum, t) => sum + t.takeMl, 0) : 0
@@ -376,6 +396,28 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
                       </li>
                     )
                   }
+                  if (isBatch(b)) {
+                    return (
+                      <li key={b.id} className="stash-bag" data-testid="batch-picked">
+                        <span className="icon-circle sm tone-feeding" aria-hidden>
+                          <JugIcon />
+                        </span>
+                        <span className="grow stash-pick-main">
+                          <span className="stash-pick-title">
+                            <span className="strong stash-pick-vol">
+                              {take && take.takeMl > 0 ? `${formatMl(take.takeMl, unit)} from the batch` : was ? `${formatMl(was, unit)} from the batch` : `The batch · ${formatMl(take?.availableMl ?? available(b), unit)} left`}
+                            </span>
+                            <button type="button" className="link-btn" onClick={() => toggleBag(b)} aria-label="Take the batch out of this bottle">
+                              Remove
+                            </button>
+                          </span>
+                          <span className="xs muted">
+                            {take && take.takeMl > 0 ? (take.empties ? 'the last of it' : `${formatMl(take.leftMl, unit)} stays`) : 'set what she drank'} · {batchStrength(b)} · good until {bagStamp(parseDate(b.expires_at), now, { today: '' })}
+                          </span>
+                        </span>
+                      </li>
+                    )
+                  }
                   return (
                     <li key={b.id} className="stash-bag">
                       <span className={`icon-circle sm ${b.location === 'freezer' ? 'tone-sleep' : 'tone-pumping'}`} aria-hidden>
@@ -404,6 +446,8 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
               <span className="xs muted">
                 {bags.some(isNightBottle)
                   ? 'Set what she drank. What is left in the bottle is thrown away.'
+                  : fromBatch
+                  ? 'Set what she drank: that much comes out of the batch and the rest stays in it.'
                   : sameBagsAsLinked && editing
                   ? "Change the amount and the bags' balances follow. Deleting this bottle puts the milk back."
                   : bags.length > 1
@@ -419,18 +463,39 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
                 </button>
               </span>
             </div>
-          ) : bottleFromStash && summary.bottles.length ? (
-            /* Premade bottles made ahead: one tap on the spot it sits in, then set what she drank and Save. */
-            <section className="night-pick" aria-label="Premade bottles" data-testid="night-pick">
-              <span className="night-pick-title">Premade bottles</span>
-              <span className="night-pick-row">
-                {summary.bottles.map((b) => (
-                  <button key={b.id} type="button" className="night-pill" onClick={() => toggleBag(b)} aria-label={`Premade bottle ${b.spot}, ${formatMl(b.remaining_ml, unit)}`}>
-                    <span className="night-pill-num">{b.spot}</span>
-                    <span className="night-pill-vol">{formatMl(b.remaining_ml, unit)}</span>
-                  </button>
-                ))}
-              </span>
+          ) : bottleFromStash && (summary.bottles.length || summary.batches.length) ? (
+            /* Milk made ahead: one tap on the batch (then set what she drank), or on the spot a premade bottle sits in. */
+            <section className="night-pick" aria-label={summary.batches.length ? 'Made ahead' : 'Premade bottles'} data-testid="night-pick">
+              {summary.batches.length ? (
+                <>
+                  <span className="night-pick-title">{summary.batches.length === 1 ? 'From the batch' : 'From a batch'}</span>
+                  {summary.batches.map((b) => (
+                    <button key={b.id} type="button" className="batch-pick" data-testid="batch-pick" onClick={() => toggleBag(b)} aria-label={`Pour from the batch, ${formatMl(b.remaining_ml, unit)} left, ${batchStrength(b)}`}>
+                      <span className="icon-circle tone-feeding" aria-hidden>
+                        <JugIcon />
+                      </span>
+                      <span className="grow batch-pick-main">
+                        <span className="batch-pick-vol">{formatMl(b.remaining_ml, unit)} left</span>
+                        <span className="xs muted">
+                          {batchStrength(b)} · good until {bagStamp(parseDate(b.expires_at), now, { today: '' })}
+                        </span>
+                      </span>
+                      <ChevronRightIcon className="stash-cta-chevron" aria-hidden />
+                    </button>
+                  ))}
+                </>
+              ) : null}
+              {summary.bottles.length ? <span className="night-pick-title">Premade bottles</span> : null}
+              {summary.bottles.length ? (
+                <span className="night-pick-row">
+                  {summary.bottles.map((b) => (
+                    <button key={b.id} type="button" className="night-pill" onClick={() => toggleBag(b)} aria-label={`Premade bottle ${b.spot}, ${formatMl(b.remaining_ml, unit)}`}>
+                      <span className="night-pill-num">{b.spot}</span>
+                      <span className="night-pill-vol">{formatMl(b.remaining_ml, unit)}</span>
+                    </button>
+                  ))}
+                </span>
+              ) : null}
               <button type="button" className="link-btn night-pick-other" onClick={() => setPicking(true)}>
                 Or pick a bag from the stash
               </button>
@@ -452,7 +517,7 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
             </Button>
           )}
           <section className="amount-group" aria-label={`Amount (${volumeLabel(unit)})`}>
-            <ValueField label="Amount" unit={volumeLabel(unit)} name={`Amount in ${volumeLabel(unit)}`} type="number" inputMode="decimal" step={sliderStep} min={0} value={amount} onChange={(e) => typeAmount(e.target.value)} placeholder="optional" />
+            <ValueField label={fromBatch ? 'She drank' : 'Amount'} unit={volumeLabel(unit)} name={`Amount in ${volumeLabel(unit)}`} type="number" inputMode="decimal" step={sliderStep} min={0} value={amount} onChange={(e) => typeAmount(e.target.value)} placeholder={fromBatch ? '0' : 'optional'} />
             <input
               className="amount-slider"
               type="range"
@@ -469,6 +534,19 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
               <span>{sliderMax}</span>
             </div>
           </section>
+          {/* Poured from the batch and not finished: what she left is thrown away, so it leaves the batch without counting as fed. */}
+          {fromBatch ? (
+            tossedShown ? (
+              <div className="batch-tossed" data-testid="batch-tossed">
+                <ValueField label="Left in the bottle" unit={volumeLabel(unit)} name={`Left in the bottle and thrown away, in ${volumeLabel(unit)}`} type="number" inputMode="decimal" step={sliderStep} min={0} value={tossed} onChange={(e) => setTossedText(e.target.value)} placeholder="0" />
+                <span className="xs muted">Poured and not drunk. It is thrown away, so it comes out of the batch too and is not counted as fed.</span>
+              </div>
+            ) : (
+              <button type="button" className="link-btn batch-tossed-link" data-testid="batch-tossed-link" onClick={() => setTossedOpen(true)}>
+                She left some in the bottle
+              </button>
+            )
+          ) : null}
           {tracking ? <CaloriesLine milk={milk} amount={Number(amount) || 0} unit={unit} strength={strength} mix={!editing && !pickedKcal ? tracking.fortify : null} /> : null}
           {timeFirst ? null : timeField}
         </>
@@ -482,7 +560,7 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
         busy={busy}
         error={error}
         // The picked bags must cover the bottle; a bottle on bags it did not come from needs an amount (one still on its own bags may go to zero: the milk goes back).
-        disabled={!body || !units.ready || endsInFuture || lateNote !== null || (plan !== null && plan.shortMl > 0) || (plan !== null && totalTake <= 0 && !sameBagsAsLinked)}
+        disabled={!body || !units.ready || endsInFuture || lateNote !== null || (plan !== null && plan.shortMl > 0) || (plan !== null && totalTake <= 0 && !sameBagsAsLinked) || (fromBatch && !(Number(amount) > 0))}
         note={
           lateNote ? (
             // Why Save waits, where it is always in view: above the button, not under a field that may be scrolled away.

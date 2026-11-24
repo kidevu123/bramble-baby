@@ -9,7 +9,7 @@
  */
 import { addDays, differenceInCalendarDays, startOfDay } from 'date-fns'
 import type { MilkBag } from './api/companion'
-import { isNightBottle } from './milk'
+import { isMadeAhead } from './milk'
 import { parseDate } from './time'
 
 /** Colostrum: the milk of the first days, before it turns into transitional milk (about day 5). */
@@ -57,7 +57,7 @@ export function nicuTrips(bags: MilkBag[], now: Date = new Date()): NicuTrips {
  *  oldest pumped. */
 export function nicuCandidates(bags: MilkBag[], birth: string | null | undefined, now: Date = new Date()): MilkBag[] {
   return bags
-    .filter((b) => b.status === 'stored' && !isNightBottle(b) && parseDate(b.expires_at).getTime() > now.getTime())
+    .filter((b) => b.status === 'stored' && !isMadeAhead(b) && parseDate(b.expires_at).getTime() > now.getTime())
     .sort((a, b) => Number(isColostrum(b.pumped_at, birth)) - Number(isColostrum(a.pumped_at, birth)) || a.pumped_at.localeCompare(b.pumped_at))
 }
 

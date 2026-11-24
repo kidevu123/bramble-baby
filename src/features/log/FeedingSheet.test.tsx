@@ -239,6 +239,61 @@ describe('FeedingSheet: a feed logged after the fact', () => {
   })
 })
 
+describe('FeedingSheet: a bottle poured from a batch', () => {
+  const batch = { ...bag, id: 41, code: 'BCH041', kind: 'batch', kcal_per_oz: 24, volume_ml: 370, remaining_ml: 310, mixed_at: new Date(Date.now() - 3_600_000).toISOString() } as unknown as MilkBag
+
+  beforeEach(() => {
+    localStorage.setItem('bramble.prefs', JSON.stringify({ theme: 'system', units: { volume: 'ml' } }))
+    for (const f of [create, update, remove, setTakes]) f.mockClear()
+    forFeeding = () => new Promise(() => undefined)
+  })
+
+  it('opens with no amount (never the whole batch), takes what she drank, and the rest stays', async () => {
+    mount({ bag: batch })
+    const amount = () => screen.getByLabelText('Amount in mL') as HTMLInputElement
+    const save = () => screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement
+    expect(amount().value).toBe('')
+    expect(save().disabled).toBe(true)
+    // mixed to a strength: fortified milk
+    expect(screen.getByRole('radio', { name: 'Fortified' }).getAttribute('aria-checked')).toBe('true')
+    expect(screen.getByTestId('batch-picked').textContent).toContain('The batch · 310 mL left')
+    fireEvent.change(amount(), { target: { value: '90' } })
+    expect(screen.getByTestId('batch-picked').textContent).toContain('90 mL from the batch')
+    expect(screen.getByTestId('batch-picked').textContent).toContain('220 mL stays')
+    fireEvent.click(save())
+    await settle()
+    const body = create.mock.calls[0][0] as { amount: number; type: string; tags: string[] }
+    expect([body.amount, body.type, body.tags]).toEqual([90, 'fortified breast milk', ['kcal:24']])
+    expect(setTakes.mock.calls[0][1]).toEqual([{ bag: 41, amount_ml: 90 }])
+  })
+
+  it('what she left in the bottle comes out of the batch too, and is not counted as fed', async () => {
+    mount({ bag: batch })
+    fireEvent.change(screen.getByLabelText('Amount in mL'), { target: { value: '70' } })
+    expect(screen.queryByTestId('batch-tossed')).toBeNull()
+    fireEvent.click(screen.getByTestId('batch-tossed-link'))
+    fireEvent.change(screen.getByLabelText('Left in the bottle and thrown away, in mL'), { target: { value: '20' } })
+    expect(screen.getByTestId('batch-picked').textContent).toContain('90 mL from the batch')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await settle()
+    expect((create.mock.calls[0][0] as { amount: number }).amount).toBe(70)
+    expect(setTakes.mock.calls[0][1]).toEqual([{ bag: 41, amount_ml: 90 }])
+  })
+
+  it('an edited bottle opens on what it threw away, and a new amount moves only the difference', async () => {
+    const use = { id: 5, bag: 41, feeding_id: 21, amount_ml: 50, kind: 'bottle' as const, at: '', by_user: null }
+    forFeeding = () => Promise.resolve({ bag: batch, use, takes: [{ bag: batch, use }], total_ml: 50 })
+    mount({ editing: { ...bottle, type: 'fortified breast milk', tags: ['kcal:24'] } as unknown as Feeding })
+    await settle()
+    // saved as 30 mL drunk out of 50 mL poured: 20 mL was thrown away
+    expect((screen.getByLabelText('Left in the bottle and thrown away, in mL') as HTMLInputElement).value).toBe('20')
+    fireEvent.change(screen.getByLabelText('Amount in mL'), { target: { value: '40' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await settle()
+    expect(setTakes.mock.calls[0][1]).toEqual([{ bag: 41, amount_ml: 60 }])
+  })
+})
+
 describe('fillAmount', () => {
   it('fills what the bags hold at the field step, rounded up so the last bag empties', () => {
     expect(fillAmount(100, 'oz')).toBe(3.4)

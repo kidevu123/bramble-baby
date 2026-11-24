@@ -4,18 +4,19 @@
  */
 import type { MilkBag, MilkLocation } from './api/companion'
 import { milkDaypart, type LabelPrefs } from './labels'
-import { isNightBottle } from './milk'
+import { isBatch, isNightBottle } from './milk'
 import { parseDate } from './time'
 
-export type StashKeyItem = MilkLocation | 'bottle' | 'day' | 'night'
+export type StashKeyItem = MilkLocation | 'bottle' | 'batch' | 'day' | 'night'
 
-export const STASH_KEY_ORDER: StashKeyItem[] = ['room', 'fridge', 'freezer', 'bottle', 'day', 'night']
+export const STASH_KEY_ORDER: StashKeyItem[] = ['room', 'fridge', 'freezer', 'bottle', 'batch', 'day', 'night']
 
 export const STASH_KEY_LABEL: Record<StashKeyItem, string> = {
   room: 'Room temp',
   fridge: 'Fridge',
   freezer: 'Freezer',
   bottle: 'Premade bottle',
+  batch: 'Batch',
   day: 'Day milk',
   night: 'Night milk',
 }
@@ -26,6 +27,10 @@ export function stashKeyItems(bags: MilkBag[], labels: Pick<LabelPrefs, 'dayNigh
   for (const bag of bags) {
     if (isNightBottle(bag)) {
       seen.add('bottle')
+      continue
+    }
+    if (isBatch(bag)) {
+      seen.add('batch')
       continue
     }
     seen.add(bag.location)

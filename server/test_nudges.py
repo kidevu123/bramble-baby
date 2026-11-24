@@ -339,6 +339,15 @@ class NudgeTest(unittest.TestCase):
         self.n.run_once(NOW)
         self.assertIn("Premade bottle 2 is ready: 90 mL.", self.rows("nudge:feed", sent=0)[0]["body"])
 
+    def test_feed_nudge_names_the_batch_to_pour_from(self):
+        now = datetime.now(timezone.utc)
+        bag = self.app.milk.create({"child": CHILD, "pumped_at": iso(now - timedelta(hours=2)), "volume_ml": 300, "location": "fridge"}, 7)
+        self.app.milk.make_batch(CHILD, {"takes": [{"bag": bag["id"], "amount_ml": 240}], "kcal_per_oz": 24, "added_ml": 6}, 7)
+        W.feed(6)
+        W.feed(3)
+        self.n.run_once(NOW)
+        self.assertRegex(self.rows("nudge:feed", sent=0)[0]["body"], r"The batch has 246 mL left, good until \d+:\d\d [AP]M\.")
+
     # ---- quiet hours
     def test_quiet_hours_silence_feeds_but_not_the_diaper_check(self):
         night = NOW.replace(hour=23, minute=0)  # 11 PM

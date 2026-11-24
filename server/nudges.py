@@ -692,8 +692,20 @@ class Nudges:
             if expires and expires > now:
                 return f"Premade bottle {ready[0]['spot']} is ready: {format_volume(ready[0]['remaining_ml'], ctx['display']['volume'])}."
         try:
+            # A batch mixed ahead: pour from it (the one that runs out first).
+            mixed = self.store.q(
+                "SELECT remaining_ml, expires_at FROM milk_bags WHERE child=? AND status='stored' AND kind='batch' AND remaining_ml>=1 AND expires_at>? ORDER BY expires_at LIMIT 1",
+                (ctx["cid"], _utc_text(now)),
+            )
+        except Exception:
+            mixed = []
+        if mixed:
+            expires = parse_dt(mixed[0]["expires_at"])
+            if expires and expires > now:
+                return f"The batch has {format_volume(mixed[0]['remaining_ml'], ctx['display']['volume'])} left, good until {clock(expires, self.tz)}."
+        try:
             rows = self.store.q(
-                "SELECT code, remaining_ml, expires_at FROM milk_bags WHERE child=? AND status='stored' AND remaining_ml>=1 AND COALESCE(kind, 'bag')<>'bottle' AND expires_at>? ORDER BY expires_at LIMIT 1",
+                "SELECT code, remaining_ml, expires_at FROM milk_bags WHERE child=? AND status='stored' AND remaining_ml>=1 AND COALESCE(kind, 'bag') NOT IN ('bottle', 'batch') AND expires_at>? ORDER BY expires_at LIMIT 1",
                 (ctx["cid"], _utc_text(now)),
             )
         except Exception:  # milk tables absent in a stripped-down companion
