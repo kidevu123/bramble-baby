@@ -12,6 +12,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.78.0',
+    date: 'Nov 24',
+    items: [
+      'Saving a pumping session with a volume now puts its milk in the stash, whether or not a sticker prints. Before, it only went in when the sticker printed on save, so sessions saved away from the printer (or filled in afterwards) never reached the stash.',
+      'The Stash tab lists pumping sessions whose milk is not in the stash and adds them with one tap. Untick any whose milk is already fed, mixed or thrown away.',
+      'A household that does not want this can turn off “Pumped milk goes into the stash” in Settings › Milk labels & printer.',
+    ],
+  },
+  {
     version: '1.77.1',
     date: 'Nov 24',
     items: [

@@ -108,6 +108,11 @@ export interface ChildSettings {
   visits?: { last?: string | null; this?: string | null; /** What the family wants to ask, printed on the report. */ questions?: string | null } | null
   /** Days of bottles to have banked in the stash (Settings › Pumps); the Stash tab measures progress against it. */
   stashGoalDays?: number | null
+  /**
+   * A new pumping session with a volume goes into the stash when it is saved, whether or not a sticker prints
+   * (Settings › Milk labels & printer). Not set: on once the household's stash has ever held a bag.
+   */
+  stashOnSave?: boolean | null
   /** Settings › Born early: weeks + days of pregnancy at birth, in days (25 wk 3 d = 178), for a baby born before
    *  37 weeks; every age-typical figure then counts from the due date (`src/lib/preterm.ts`). */
   bornAtDays?: number | null

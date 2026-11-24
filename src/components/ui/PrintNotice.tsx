@@ -31,7 +31,9 @@ export function PrintNotice() {
     notice.state === 'sending'
       ? `Printing label · ${vol}${id ? ` · ${id}` : ''}`
       : notice.state === 'failed'
-        ? `Could not print the label for ${vol}`
+        ? notice.kind === 'stash'
+          ? `Saved, but the ${vol} is not in the stash yet`
+          : `Could not print the label for ${vol}`
         : `Label sent to the printer · ${vol} · ${id}`
   const detail = notice.state === 'failed' ? notice.error : job?.detail ?? null
   return (
@@ -40,7 +42,11 @@ export function PrintNotice() {
       <span className="print-notice-text">
         <span className="print-notice-head">{headline}</span>
         {detail ? <span className="print-notice-detail">{detail}</span> : null}
-        {notice.state === 'failed' ? <span className="print-notice-detail">The entry is saved; open it from the timeline and tap Print milk label to try again.</span> : null}
+        {notice.state === 'failed' ? (
+          <span className="print-notice-detail">
+            {notice.kind === 'stash' ? 'The session is saved. Open the Stash tab: it is listed there to add.' : 'The entry is saved; open it from the timeline and tap Print milk label to try again.'}
+          </span>
+        ) : null}
       </span>
       <button type="button" onClick={() => dismissPrintNotice(notice.id)} aria-label="Dismiss">
         OK

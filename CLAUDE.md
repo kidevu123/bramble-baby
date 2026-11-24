@@ -89,10 +89,12 @@ installing and deploying; `README.md` is the public front page (screenshots from
   milk is "unexpired" only by correcting a fact that was wrong: `moved_at`, `pumped_at`, or a fortified bottle's `mixed_at`.
   **Milk is judged at the time of the feed, not at the time it is logged**: the bottle sheet sends the feed's start as `at` with its takes,
   offers what was good at that moment, and the server refuses only new milk whose time had run out before it; never compare a bag with "now" to
-  decide whether a feed could have used it. Bags are created only through `companion.milk.create`, from three places: the label sheet from a pumping session
+  decide whether a feed could have used it. Bags are created only through `companion.milk.create`, from four places: the label sheet from a pumping session
   (registers on the explicit Add to stash step once a volume is typed, or at once when the caller supplies it, idempotent
-  per `pumping_id`), saving a new pumping entry with a volume while auto-print is on (`useAutoPrint`, the same call with
-  `pumping_id`, so the label sheet later finds that bag), and the Stash tab's "Add milk you already have" (`intake` mode:
+  per `pumping_id`), saving a new pumping entry with a volume (`useAutoPrint.run`, the same call with `pumping_id`, so the label
+  sheet later finds that bag: whenever the sticker prints on save **or the household keeps a stash**, `stashOnSaveWanted`; the milk
+  going into the stash never depends on a sticker printing), the Stash tab's "Pumped, not in the stash" for sessions saved without
+  one (`pumpsNotInStash`, the same call), and the Stash tab's "Add milk you already have" (`intake` mode:
   no pumping entry, idempotent per `client_key`). Never create Baby Buddy pumping entries for milk added that way. Expiry always counts from the real
   `pumped_at`, or from `thawed_at` for thawed milk; the server refuses future times; already-expired milk is accepted but
   shown as expired and gets no reminders. `milk_bags` is live: new columns go in `ADDED_COLUMNS` and indexes in

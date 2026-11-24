@@ -76,7 +76,7 @@ function TimerView({ timer, leave }: { timer: Timer; leave: (to: 'back' | 'home'
   const { prefs } = usePrefs()
   const child = children.find((c) => c.id === timer.child) ?? null
   const units = useUnitBoundary(child?.id ?? null)
-  const autoPrint = useAutoPrint()
+  const autoPrint = useAutoPrint(timer.child)
   const { settings } = useChildSettings(child?.id ?? null)
   // The pump this session used: the last session's until one is tapped (a `pump:<name>` tag on the entry).
   const last = useLastPumping(kind === 'pumping' && child ? child.id : null)
@@ -171,6 +171,9 @@ function TimerView({ timer, leave }: { timer: Timer; leave: (to: 'back' | 'home'
           // The sticker prints by itself; the PrintNotice bar follows it wherever the page goes.
           void autoPrint.run(child, saved, volume, { editing: false, bag: null, location: place })
         } else if (volume) {
+          // No sticker prints by itself. A household that keeps a stash gets the milk in it now (waited for, so the
+          // label sheet that opens next finds that bag instead of racing to make its own).
+          if (autoPrint.stashes) await autoPrint.run(child, saved, volume, { editing: false, bag: null, location: place })
           // Straight to the label: Home opens the milk-label sheet for the entry just saved (in this phone's units).
           stashLabelHandoff({ ...units.toDisplay('pumping', saved), location: place })
         }

@@ -105,7 +105,7 @@ export function PumpingSheet({ child, editing, prefill, onClose }: { child: Chil
   // corrects the bag and its label, and deleting the entry does not leave a bag behind with no session.
   const stash = useMilkStash(editing ? child.id : null)
   const entryBag = editing ? (stash.data?.find((b) => b.pumping_id === editing.id) ?? null) : null
-  const autoPrint = useAutoPrint()
+  const autoPrint = useAutoPrint(child.id)
   // Away from home (the printer stays there): the milk went on a travel sticker printed ahead, scanned here.
   // On Save the session's bag takes the sticker's code and nothing prints.
   const [travel, setTravel] = useState<string | null>(null)
@@ -141,8 +141,10 @@ export function PumpingSheet({ child, editing, prefill, onClose }: { child: Chil
   /** Save prints the sticker by itself (printer on the server, switched on in Settings, a new entry with a volume). */
   const printsOnSave = autoPrint.enabled && !editing && volume !== null && bagFromLabel === null && travel === null
   const placeLine = placeNote(place, start, windows)
-  // Without auto-print the bag is made by the label sheet, which takes this choice with it.
-  const placeHint = travel ? undefined : autoPrint.enabled ? undefined : 'Goes into the stash when you print its label.'
+  /** Save puts the milk in the stash without a sticker (the household keeps a stash; no print was asked for or is possible). */
+  const stashesOnSave = autoPrint.stashes && !printsOnSave && !editing && volume !== null && bagFromLabel === null && travel === null
+  // A household that keeps no stash yet: the bag is made by the label sheet, which takes this choice with it.
+  const placeHint = travel ? undefined : autoPrint.stashes ? undefined : 'Goes into the stash when you print its label.'
   // Stable while nothing changed: Home re-renders every 30 s and the label sheet redraws on a new input.
   const labelInput = useMemo(
     () => (label ? { childName: child.first_name, pumpedAt: start, amount: volume, unit: prefs.units.volume, notes, birthDate: child.birth_date } : null),
@@ -303,6 +305,10 @@ export function PumpingSheet({ child, editing, prefill, onClose }: { child: Chil
             {printsOnSave ? (
               <p className="label-auto-note text-pumping" role="status">
                 <TagIcon aria-hidden /> Prints by itself when you save
+              </p>
+            ) : stashesOnSave ? (
+              <p className="label-auto-note text-pumping" role="status" data-testid="stash-on-save">
+                <TagIcon aria-hidden /> Goes into the stash when you save
               </p>
             ) : null}
           </>

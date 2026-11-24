@@ -11,6 +11,7 @@ import { volumeLabel } from '../../lib/units'
 import { BagRow, StashKey } from './BagRow'
 import { NicuTripSheet } from './NicuTripSheet'
 import { BatchSheet } from './BatchSheet'
+import { MissingPumpsSheet } from './MissingPumpsSheet'
 import { NightBottlesSheet } from './NightBottlesSheet'
 import { calorieTracking } from '../../lib/calories'
 import { stashCounts } from './stash-counts'
@@ -25,7 +26,7 @@ import { usePrefs } from '../../hooks/usePrefs'
 import { stashKeyItems } from '../../lib/stash-key'
 import { describeApiError } from '../../lib/api/client'
 import { companion, type MilkBag, type MilkLocation } from '../../lib/api/companion'
-import { bagAmountIn, bagLeft, bagStamp, bagState, bagVolume, batchStrength, describeUse, formatMl, freeSpots, isBatch, isMadeAhead, isNightBottle, isPartlyUsed, LOCATION_LABEL, NIGHT_SPOTS, nightBottleSources, parseQrPayload, sectionPreview, stashItemName, stashSections, summarizeStash, toMl, type StashSectionKey } from '../../lib/milk'
+import { bagAmountIn, bagLeft, bagStamp, bagState, bagVolume, batchStrength, describeUse, formatMl, freeSpots, isBatch, isMadeAhead, isNightBottle, isPartlyUsed, pumpsNotInStash, LOCATION_LABEL, NIGHT_SPOTS, nightBottleSources, parseQrPayload, sectionPreview, stashItemName, stashSections, summarizeStash, toMl, type StashSectionKey } from '../../lib/milk'
 import { goalLine, runwayHeadline, runwayLine, stashRunway } from '../../lib/stash-runway'
 import { ageBasis, inNicuOn } from '../../lib/preterm'
 import { isColostrum, nicuCandidates, nicuTrips } from '../../lib/nicu-stash'
@@ -101,6 +102,11 @@ export function MilkPage() {
   // joins the Expired list, to be discarded).
   const batches = useMemo(() => bags.filter((b) => isBatch(b) && b.status === 'stored' && bagState(b, now) !== 'expired').sort((a, b) => a.expires_at.localeCompare(b.expires_at)), [bags, now])
   const [batching, setBatching] = useState(false)
+  // Pumping sessions whose milk never went into the stash (saved away from the printer, backfilled, an older phone):
+  // offered to a household that keeps a stash, so the milk can be brought in without retyping it.
+  const keepsStash = settings.stashOnSave ?? bags.length > 0
+  const missing = useMemo(() => (stash.isSuccess && keepsStash ? pumpsNotInStash(events.pumping, bags, now, windows) : []), [stash.isSuccess, keepsStash, events.pumping, bags, now, windows])
+  const [backfilling, setBackfilling] = useState(false)
   const canMake = canPour && freeSpots(bags).length > 0
   // A usual bottle for the size field: the middle of the last ten breast-milk bottles (phone unit).
   const typical = useMemo(() => {
@@ -257,6 +263,18 @@ export function MilkPage() {
           <p className="log-error" role="alert">
             {describeApiError(stash.error)}
           </p>
+        ) : null}
+
+        {missing.length ? (
+          <section className="card card-pad missing-pumps" aria-label="Pumped, not in the stash" data-testid="missing-pumps">
+            <span className="strong">
+              {missing.length} pumping {missing.length === 1 ? 'session is' : 'sessions are'} not in the stash · {formatMl(missing.reduce((sum, p) => sum + toMl(p.amount ?? 0, unit), 0), unit)}
+            </span>
+            <span className="small muted">Saved without {missing.length === 1 ? 'its' : 'their'} milk going in. Add what is still there.</span>
+            <Button variant="secondary" block onClick={() => setBackfilling(true)}>
+              Add to the stash
+            </Button>
+          </section>
         ) : null}
 
         {!stash.isLoading && batches.length ? (
@@ -517,6 +535,7 @@ export function MilkPage() {
       </Sheet>
       <NicuTripSheet open={trip} child={child.id} candidates={toTake} birth={child.birth_date} unit={unit} now={now} onClose={() => setTrip(false)} />
       <NightBottlesSheet open={making} child={child.id} bags={bags} unit={unit} now={now} typical={typical} fortify={tracking?.fortify ?? null} onClose={() => setMaking(false)} />
+      <MissingPumpsSheet open={backfilling} child={child.id} sessions={missing} unit={unit} now={now} onClose={() => setBackfilling(false)} />
       <BatchSheet open={batching} child={child.id} name={child.first_name} bags={bags} unit={unit} now={now} dayMl={runway.intakeMlPerDay} fortify={tracking?.fortify ?? null} onClose={() => setBatching(false)} />
       <LogSheet request={request} child={child} names={names} onClose={() => setRequest(null)} />
       <MilkLabelSheet

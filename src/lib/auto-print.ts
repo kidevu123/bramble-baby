@@ -20,6 +20,17 @@ export function autoPrintWanted(opts: { prefs: Pick<LabelPrefs, 'autoPrint'>; pr
 }
 
 /**
+ * The milk of a new pumping entry goes into the stash when the entry is saved. That is a fact about the milk, not
+ * about the sticker: it used to happen only when the sticker printed on save, so a session saved away from the
+ * printer (or with printing switched off) left no milk in the stash. `setting` is the household's choice
+ * (`settings.stashOnSave`); while it has made none, a household whose stash has ever held a bag gets it, and one
+ * that never used the stash is left alone (no bags and no use-by reminders it did not ask for).
+ */
+export function stashOnSaveWanted(opts: { setting: boolean | null | undefined; stashInUse: boolean; editing: boolean; amount: number | null; bagAlready: boolean }): boolean {
+  return (opts.setting ?? opts.stashInUse) && !opts.editing && opts.amount !== null && opts.amount > 0 && !opts.bagAlready
+}
+
+/**
  * A new label when a bag goes into the freezer or comes out of it to thaw (Settings › Milk labels & printer), when
  * the Bramble server has a printer. Moves between the counter and the fridge keep their label: nothing on it changes.
  */

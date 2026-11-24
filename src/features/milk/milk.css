@@ -740,6 +740,12 @@
   font-size: var(--text-lg);
   font-weight: var(--w-head);
 }
+.missing-pumps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border-left: 4px solid var(--purple);
+}
 .batch-short {
   display: flex;
   flex-direction: column;

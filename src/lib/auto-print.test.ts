@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { autoPrintWanted, labelInputFor, labelInputForBag, reprintOnMoveWanted } from './auto-print'
+import { autoPrintWanted, labelInputFor, labelInputForBag, reprintOnMoveWanted, stashOnSaveWanted } from './auto-print'
 
 describe('autoPrintWanted', () => {
   const base = { prefs: { autoPrint: true }, printerConfigured: true, editing: false, amount: 60, bagAlready: false }
@@ -13,6 +13,24 @@ describe('autoPrintWanted', () => {
     expect(autoPrintWanted({ ...base, amount: 0 })).toBe(false)
     expect(autoPrintWanted({ ...base, amount: null })).toBe(false)
     expect(autoPrintWanted({ ...base, bagAlready: true })).toBe(false)
+  })
+})
+
+describe('stashOnSaveWanted', () => {
+  const base = { setting: undefined, stashInUse: true, editing: false, amount: 60, bagAlready: false }
+  it('a household that keeps a stash gets every new session with a volume in it, sticker or not', () => {
+    expect(stashOnSaveWanted(base)).toBe(true)
+    // the household's own choice wins over what its stash looks like, either way
+    expect(stashOnSaveWanted({ ...base, setting: false })).toBe(false)
+    expect(stashOnSaveWanted({ ...base, setting: true, stashInUse: false })).toBe(true)
+    expect(stashOnSaveWanted({ ...base, setting: null })).toBe(true)
+  })
+  it('leaves a household that never used the stash alone, and never acts on an edit, an empty session or a bag that exists', () => {
+    expect(stashOnSaveWanted({ ...base, stashInUse: false })).toBe(false)
+    expect(stashOnSaveWanted({ ...base, editing: true })).toBe(false)
+    expect(stashOnSaveWanted({ ...base, amount: null })).toBe(false)
+    expect(stashOnSaveWanted({ ...base, amount: 0 })).toBe(false)
+    expect(stashOnSaveWanted({ ...base, bagAlready: true })).toBe(false)
   })
 })
 

@@ -18,6 +18,8 @@ export interface PrintNotice {
   job: PrintJob | null
   /** Why it did not go, in the server's words. */
   error: string | null
+  /** 'stash': no sticker was asked for; the session's milk could not be put in the stash (only ever shown as failed). */
+  kind: 'print' | 'stash'
 }
 
 type Listener = (notice: PrintNotice | null) => void
@@ -42,8 +44,8 @@ export function subscribePrintNotice(listener: Listener): () => void {
 }
 
 /** A print has started: the notice shows at once, before the bag exists. */
-export function beginPrintNotice(volumeText: string): number {
-  current = { id: ++seq, at: new Date(), state: 'sending', volumeText, bagCode: null, job: null, error: null }
+export function beginPrintNotice(volumeText: string, kind: PrintNotice['kind'] = 'print'): number {
+  current = { id: ++seq, at: new Date(), state: 'sending', volumeText, bagCode: null, job: null, error: null, kind }
   emit()
   return current.id
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MilkBag } from './api/companion'
-import { batchStrength, isBatch, isMadeAhead, planBatch, lateFeedNote, pastTheirTime, freeSpots, nightBottleSources, planNightBottles, stashItemName, bagAmountIn, bagStamp, sectionPreview, stashSections, bagLeft, bagState, bagVolume, describeUse, expectedExpiry, formatMl, formatTimeLeft, giveBackCopy, intakeProblem, isPartlyUsed, placeNote, newClientKey, nextIntakeDraft, parseQrPayload, planTakes, planUse, pumpedWhen, qrPayload, stashHint, stashOrder, summarizeStash, takesCopy, toMl, takeCopy, windowLabel, type IntakeDraft } from './milk'
+import { pumpsNotInStash, batchStrength, isBatch, isMadeAhead, planBatch, lateFeedNote, pastTheirTime, freeSpots, nightBottleSources, planNightBottles, stashItemName, bagAmountIn, bagStamp, sectionPreview, stashSections, bagLeft, bagState, bagVolume, describeUse, expectedExpiry, formatMl, formatTimeLeft, giveBackCopy, intakeProblem, isPartlyUsed, placeNote, newClientKey, nextIntakeDraft, parseQrPayload, planTakes, planUse, pumpedWhen, qrPayload, stashHint, stashOrder, summarizeStash, takesCopy, toMl, takeCopy, windowLabel, type IntakeDraft } from './milk'
 
 const now = new Date('2026-09-30T12:00:00Z')
 const bag = (over: Partial<MilkBag>): MilkBag => ({
@@ -385,6 +385,27 @@ describe('a batch mixed ahead in one container', () => {
     expect(summary.useFirst?.id).toBe(1)
     expect(summarizeStash([mixed], now).useFirst).toBeNull()
     expect(describeUse({ id: 1, bag: 1, feeding_id: null, amount_ml: 30, kind: 'combined', at: '', by_user: null, into_bag: 4 }, 'ml', mixed)).toBe('30 mL into a batch')
+  })
+})
+
+describe('pumping sessions whose milk is not in the stash', () => {
+  const windows = { roomHours: 4, fridgeDays: 4, freezerMonths: 6 }
+  const p = (id: number, start: string, amount: number | null) => ({ id, start, amount })
+  it('lists sessions with a volume and no bag, newest first, while their milk would still be in its fridge time', () => {
+    const sessions = [
+      p(1, '2026-09-30T06:33:00Z', 180), // this morning
+      p(2, '2026-09-29T22:14:00Z', 120), // last night, already in a bag
+      p(3, '2026-09-29T14:05:00Z', 120), // yesterday
+      p(4, '2026-09-25T09:00:00Z', 150), // five days ago: past its fridge days
+      p(5, '2026-09-30T08:00:00Z', 0), // nothing came out
+      p(6, '2026-09-30T09:00:00Z', null),
+      p(7, '2026-09-28T10:00:00Z', 90), // its bag was used up since: still counted as in the stash
+    ]
+    const bags = [bag({ id: 1, pumping_id: 2 }), bag({ id: 2, pumping_id: 7, status: 'used', remaining_ml: 0 }), bag({ id: 3, pumping_id: null })]
+    expect(pumpsNotInStash(sessions, bags, now, windows).map((x) => x.id)).toEqual([1, 3])
+    expect(pumpsNotInStash(sessions, [...bags, bag({ id: 4, pumping_id: 1 }), bag({ id: 5, pumping_id: 3 })], now, windows)).toEqual([])
+    // the household's own fridge days decide how far back it looks
+    expect(pumpsNotInStash(sessions, bags, now, { ...windows, fridgeDays: 6 }).map((x) => x.id)).toEqual([1, 3, 4])
   })
 })
 

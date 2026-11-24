@@ -277,6 +277,19 @@ export function stashSections(bags: MilkBag[], now: Date = new Date()): StashSec
     })
 }
 
+/**
+ * Pumping sessions with a volume whose milk is in no bag, newest first: saved while nothing put it in the stash (away
+ * from the printer before Bramble kept the stash by itself, on a phone with an older build, or the stash step failed).
+ * A session counts as in the stash once any bag carries its id, used and discarded ones included. Only sessions whose
+ * milk would still be inside its fridge time are listed: older milk is added by hand with where it really is (Add milk).
+ */
+export function pumpsNotInStash<P extends { id: number; start: string; amount: number | null }>(pumping: P[], bags: Pick<MilkBag, 'pumping_id'>[], now: Date, windows: MilkWindows): P[] {
+  const have = new Set(bags.map((b) => b.pumping_id).filter((id) => id !== null && id !== undefined))
+  return pumping
+    .filter((p) => (p.amount ?? 0) > 0 && !have.has(p.id) && parseDate(p.start).getTime() <= now.getTime() && expectedExpiry({ pumpedAt: parseDate(p.start), location: 'fridge', thawedAt: null }, windows).getTime() > now.getTime())
+    .sort((a, b) => b.start.localeCompare(a.start))
+}
+
 // ---- premade bottles: poured ahead of time into numbered fridge spots (stickers 1–5) -------------------------
 
 /** The numbered spots in the fridge (mirrors SPOTS in server/milk.py). */

@@ -3,7 +3,7 @@ import { Sheet } from '../../components/ui/Sheet'
 import { Toggle } from '../../components/ui/Toggle'
 import { useChildren } from '../../hooks/useChildren'
 import { useChildSettings } from '../../hooks/useChildSettings'
-import { usePrinterStatus } from '../../hooks/useMilk'
+import { useMilkStash, usePrinterStatus } from '../../hooks/useMilk'
 import { usePrefs } from '../../hooks/usePrefs'
 import { LabelSettings } from '../log/LabelSettings'
 import { SpotStickers } from './SpotStickers'
@@ -21,7 +21,10 @@ import './label-settings.css'
 export function LabelSettingsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { prefs, update } = usePrefs()
   const { child } = useChildren()
-  const { update: updateShared } = useChildSettings(child?.id ?? null)
+  const { settings, update: updateShared } = useChildSettings(child?.id ?? null)
+  const stash = useMilkStash(child?.id ?? null)
+  // The household's choice, or what applies while it has made none: on once the stash has ever held a bag.
+  const stashOnSave = settings.stashOnSave ?? (stash.data?.length ?? 0) > 0
   const printer = usePrinterStatus()
   const setAutoPrint = (autoPrint: boolean) => update({ labels: { ...prefs.labels, autoPrint } })
   const setReprintOnFreezer = (reprintOnFreezer: boolean) => update({ labels: { ...prefs.labels, reprintOnFreezer } })
@@ -49,6 +52,15 @@ export function LabelSettingsSheet({ open, onClose }: { open: boolean; onClose: 
             </span>
           </div>
           <PrinterSetup />
+          {child ? (
+            <div className="ls-row ls-auto">
+              <span className="grow ls-row-text">
+                Pumped milk goes into the stash
+                <span className="small muted">Saving a pumping session with a volume adds its milk to the stash, whether or not a sticker prints. For the whole household.</span>
+              </span>
+              <Toggle label="Pumped milk goes into the stash" checked={stashOnSave} onChange={(on) => updateShared({ stashOnSave: on })} />
+            </div>
+          ) : null}
           {configured ? (
             <div className="ls-row ls-auto">
               <span className="grow ls-row-text">
