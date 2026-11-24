@@ -63,10 +63,18 @@ export function TimerPage() {
   }, [timers.isSuccess, timer, goBack, location.pathname])
 
   if (!timer) return <Splash message="Finding your timer…" />
-  return <TimerView timer={timer} leave={leave} />
+  return (
+    <TimerView
+      timer={timer}
+      leave={leave}
+      hold={() => {
+        leaving.current = true
+      }}
+    />
+  )
 }
 
-function TimerView({ timer, leave }: { timer: Timer; leave: (to: 'back' | 'home') => void }) {
+function TimerView({ timer, leave, hold }: { timer: Timer; leave: (to: 'back' | 'home') => void; /** Leaving is under way: the page must not go Back by itself when the timer is gone. */ hold: () => void }) {
   const kind = timerKind(timer.name)
   const tone = TONE[kind]
   const now = useNow()
@@ -173,7 +181,11 @@ function TimerView({ timer, leave }: { timer: Timer; leave: (to: 'back' | 'home'
         } else if (volume) {
           // No sticker prints by itself. A household that keeps a stash gets the milk in it now (waited for, so the
           // label sheet that opens next finds that bag instead of racing to make its own).
-          if (autoPrint.stashes) await autoPrint.run(child, saved, volume, { editing: false, bag: null, location: place })
+          // The timer is gone on the server from here on. Leaving is ours to do: without this, the timers refetch
+          // answering during the wait below reads as "it disappeared under us", goes Back, and the label handoff is
+          // left behind to open at some later visit to Home.
+          hold()
+          await autoPrint.run(child, saved, volume, { editing: false, bag: null, location: place })
           // Straight to the label: Home opens the milk-label sheet for the entry just saved (in this phone's units).
           stashLabelHandoff({ ...units.toDisplay('pumping', saved), location: place })
         }

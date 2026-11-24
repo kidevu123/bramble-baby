@@ -68,4 +68,21 @@ describe('useChildSettings.update', () => {
     expect(put).toHaveBeenLastCalledWith(13, { pumps: [{ name: 'Medela', minutes: 20 }, { name: 'Eufy', minutes: 30 }] })
     await waitFor(() => expect(again.current.settings.pumps?.map((p) => p.name)).toEqual(['Medela', 'Eufy']))
   })
+
+  it('a newer change that went through is not undone by an older one still waiting (sweep 2026-11-24)', async () => {
+    get.mockResolvedValue({ stashGoalDays: 3 })
+    put.mockRejectedValueOnce(new Error('502'))
+    const { result } = renderHook(() => useChildSettings(14), { wrapper })
+    await waitFor(() => expect(result.current.isLoaded).toBe(true))
+    act(() => result.current.update({ stashGoalDays: 5, weightGoalGPerDay: 20 })) // does not go out: kept for later
+    await waitFor(() => expect(put).toHaveBeenCalledTimes(1))
+    act(() => result.current.update({ stashGoalDays: 7 })) // goes out
+    await waitFor(() => expect(put).toHaveBeenCalledTimes(2))
+    // the next read sends what is still waiting: the weight goal, and not the goal of 5 days over the 7
+    get.mockResolvedValue({ stashGoalDays: 7 })
+    const { result: again } = renderHook(() => useChildSettings(14), { wrapper })
+    await waitFor(() => expect(put).toHaveBeenCalledTimes(3))
+    expect(put).toHaveBeenLastCalledWith(14, { weightGoalGPerDay: 20 })
+    await waitFor(() => expect(again.current.settings).toMatchObject({ stashGoalDays: 7, weightGoalGPerDay: 20 }))
+  })
 })

@@ -191,7 +191,12 @@ export function recipeFor(milkMl: number, f: FortifySettings, milkKcal = MILK_KC
   const powder = powderOf(f)
   const exact = powderGrams(milkMl, f.kcalPerOz, powder, milkKcal)
   const wholeScoops = Math.round(exact / powder.gPerScoop)
-  const scoops = wholeScoops >= 1 && Math.abs(wholeScoops * powder.gPerScoop - exact) <= exact * 0.05 ? `${wholeScoops} scoop${wholeScoops === 1 ? '' : 's'}` : null
+  // Whole scoops when they come within a few percent, and never when they would pass the strongest the maker allows.
+  const scoopsFit =
+    wholeScoops >= 1 &&
+    Math.abs(wholeScoops * powder.gPerScoop - exact) <= exact * 0.05 &&
+    (powder.maxKcalPerOz === undefined || mixWithPowder(milkMl, wholeScoops * powder.gPerScoop, powder, milkKcal).kcalPerOz <= powder.maxKcalPerOz + 0.05)
+  const scoops = scoopsFit ? `${wholeScoops} scoop${wholeScoops === 1 ? '' : 's'}` : null
   const scaleGrams = Math.round(exact * 10) / 10
   const powderName = f.powder === 'standard' || f.powder === 'custom' ? 'powder' : powder.name
   if (powder.gPerTbsp === null) {

@@ -185,6 +185,17 @@ describe("Enfamil A.R., from Mead Johnson's own sheets", () => {
     expect(Math.abs(mixWithPowder(oz(10), ar.gPerScoop, ar).kcalPerOz - 24)).toBeLessThan(0.1)
     expect(scoopMilkMl(ar24)).toBeCloseTo(291.7, 0)
     expect(scoopMilkMl({ kcalPerOz: 24, with: 'concentrate', powder: 'standard' })).toBeNull()
+    // Sweep 2026-11-24: at the maker's limit a whole scoop is offered only where it does not pass it. One 9 g scoop
+    // in 280 mL makes 24.2, so no scoop is named there; from the scoop's own amount of milk up it is.
+    for (let ml = 200; ml <= 700; ml += 1) {
+      const r = recipeFor(ml, ar24)
+      if (r.with !== 'powder' || !r.scoops) continue
+      expect(mixWithPowder(ml, parseInt(r.scoops, 10) * ar.gPerScoop, ar).kcalPerOz, `${ml} mL`).toBeLessThanOrEqual(24.05)
+    }
+    expect(recipeText(recipeFor(280, ar24))).not.toContain('scoop')
+    expect(recipeText(recipeFor(295, ar24))).toContain('(1 scoop)')
+    // Below the limit a scoop a little over the target is still a scoop within a few percent.
+    expect(recipeText(recipeFor(570, { ...ar24, kcalPerOz: 22 }))).toContain('(1 scoop)')
     // The chart's teaspoons are for standard formula (about 2.3 g a teaspoon). A.R. is lighter, so the same spoons
     // come out under 24 with it: 5 oz and 2 teaspoons is about 23.5.
     expect(mixWithPowder(oz(5), 2 * (ar.gPerTbsp! / 3), ar).kcalPerOz).toBeCloseTo(23.5, 0)

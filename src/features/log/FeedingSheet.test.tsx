@@ -13,6 +13,7 @@ const update = vi.fn((id: number, body: Record<string, unknown>) => Promise.reso
 const remove = vi.fn((_id: number) => Promise.resolve())
 const setTakes = vi.fn((_id: number, _takes: unknown[], _at?: string) => Promise.resolve({ bag: null, use: null, takes: [], total_ml: 0 }))
 let forFeeding: () => Promise<FeedingTakes> = () => new Promise(() => undefined)
+let stashList: MilkBag[] = []
 
 vi.mock('../../hooks/useEvents', async (orig) => {
   const mod = await orig<typeof import('../../hooks/useEvents')>()
@@ -32,7 +33,7 @@ vi.mock('../../lib/api/companion', async (orig) => {
     ...mod,
     companion: {
       ...mod.companion,
-      milk: { ...mod.companion.milk, list: () => Promise.resolve([]), forFeeding: () => forFeeding(), setTakes: (...args: [number, unknown[], string?]) => setTakes(...args) },
+      milk: { ...mod.companion.milk, list: () => Promise.resolve(stashList), forFeeding: () => forFeeding(), setTakes: (...args: [number, unknown[], string?]) => setTakes(...args) },
     },
   }
 })
@@ -183,6 +184,31 @@ describe('FeedingSheet', () => {
     expect(setTakes).toHaveBeenLastCalledWith(21, [])
   })
 
+  it('a new amount on a stash bottle waits while the milk it came from is not known (sweep 2026-11-24)', async () => {
+    // Saved before its bags had loaded (or when they could not be read), the amount changed and the bags did not.
+    forFeeding = () => Promise.reject(new Error('503'))
+    mount({ editing: bottle })
+    await settle()
+    const save = () => screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement
+    expect(save().disabled).toBe(false) // a note or a time can still be changed
+    fireEvent.change(screen.getByLabelText('Amount in mL'), { target: { value: '45' } })
+    expect(save().disabled).toBe(true)
+    expect(screen.getByTestId('takes-unknown').textContent).toContain('The stash could not be read')
+    fireEvent.change(screen.getByLabelText('Amount in mL'), { target: { value: '30' } })
+    expect(save().disabled).toBe(false)
+  })
+
+  it('a fortified bottle that was really a nursing feed leaves its strength behind and keeps who logged it (sweep 2026-11-24)', async () => {
+    forFeeding = () => Promise.resolve({ bag: null, use: null, takes: [], total_ml: 0 })
+    mount({ editing: { ...bottle, type: 'fortified breast milk', tags: ['kcal:24', 'caregiver:sam'] } as unknown as Feeding })
+    await settle()
+    fireEvent.click(screen.getByRole('tab', { name: 'Nursing' }))
+    fireEvent.change(screen.getByLabelText('Left (min)'), { target: { value: '10' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await settle()
+    expect((update.mock.calls[0][1] as { tags: string[] }).tags).toEqual(['caregiver:sam'])
+  })
+
   it('says, without blocking Save, that an amount looks like a slip', async () => {
     mount({ initial: 'bottle' })
     fireEvent.change(screen.getByLabelText('Amount in mL'), { target: { value: '9999' } })
@@ -246,6 +272,81 @@ describe('FeedingSheet: a bottle poured from a batch', () => {
     localStorage.setItem('bramble.prefs', JSON.stringify({ theme: 'system', units: { volume: 'ml' } }))
     for (const f of [create, update, remove, setTakes]) f.mockClear()
     forFeeding = () => new Promise(() => undefined)
+    stashList = []
+    // jsdom has no modal dialogs: the picker's sheet opens as a plain open dialog.
+    HTMLDialogElement.prototype.showModal = function (this: HTMLDialogElement) {
+      this.setAttribute('open', '')
+    }
+    HTMLDialogElement.prototype.close = function (this: HTMLDialogElement) {
+      this.removeAttribute('open')
+    }
+  })
+
+  it('a premade bottle added after the batch is fed whole and the batch gives the rest (sweep 2026-11-24)', async () => {
+    // Picked in that order the batch alone covered the feed: the row said the bottle leaves the stash, and it stayed.
+    const ready = { ...bag, id: 51, code: 'BOT051', kind: 'bottle', spot: 1, volume_ml: 61, remaining_ml: 61, kcal_per_oz: 24 } as unknown as MilkBag
+    stashList = [batch, ready]
+    mount({ bag: batch })
+    await settle()
+    fireEvent.click(screen.getByRole('button', { name: 'Add another bag' }))
+    await settle()
+    fireEvent.click(screen.getByRole('button', { name: /^Premade bottle 1, 61 mL/ }))
+    fireEvent.change(screen.getByLabelText('Amount in mL'), { target: { value: '90' } })
+    expect(screen.getByTestId('stash-pick').textContent).toContain('The whole bottle leaves the stash')
+    expect(screen.getByTestId('batch-picked').textContent).toContain('29 mL from the batch')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await settle()
+    expect(setTakes.mock.calls[0][1]).toEqual([{ bag: 51, amount_ml: 61 }, { bag: 41, amount_ml: 29 }])
+  })
+
+  it('the batch taken out again for a plain bag is a plain bottle, not one at the batch\'s calories (sweep 2026-11-24)', async () => {
+    stashList = [batch, bag]
+    mount({ initial: 'bottle' })
+    await settle()
+    fireEvent.click(screen.getByTestId('batch-pick'))
+    expect(screen.getByRole('radio', { name: 'Fortified' }).getAttribute('aria-checked')).toBe('true')
+    fireEvent.click(screen.getByRole('button', { name: 'Take the batch out of this bottle' }))
+    expect(screen.getByRole('radio', { name: 'Breast milk' }).getAttribute('aria-checked')).toBe('true')
+    fireEvent.click(screen.getByRole('button', { name: 'Or pick a bag from the stash' }))
+    await settle()
+    fireEvent.click(screen.getByRole('button', { name: /^Bag FTALLS/ }))
+    fireEvent.change(screen.getByLabelText('Amount in mL'), { target: { value: '30' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await settle()
+    const body = create.mock.calls[0][0] as { type: string; tags?: string[] }
+    expect([body.type, body.tags]).toEqual(['breast milk', undefined])
+    expect(setTakes.mock.calls[0][1]).toEqual([{ bag: 9, amount_ml: 30 }])
+    // Fortified chosen by hand stays, whatever is picked or taken out afterwards.
+  })
+
+  it('in ounces a quarter ounce left reopens as 0.25, and a new amount keeps it to the millilitre (sweep 2026-11-24)', async () => {
+    localStorage.setItem('bramble.prefs', JSON.stringify({ theme: 'system', units: { volume: 'oz' } }))
+    const use = { id: 5, bag: 41, feeding_id: 21, amount_ml: 96.11, kind: 'bottle' as const, at: '', by_user: null } // 3 oz drunk + 0.25 oz left
+    forFeeding = () => Promise.resolve({ bag: batch, use, takes: [{ bag: batch, use }], total_ml: 96.11 })
+    mount({ editing: { ...bottle, amount: 3, type: 'fortified breast milk', tags: ['kcal:24'] } as unknown as Feeding })
+    await settle()
+    const left = () => screen.getByLabelText('Left in the bottle and thrown away, in oz') as HTMLInputElement
+    expect(left().value).toBe('0.25')
+    fireEvent.change(screen.getByLabelText('Amount in oz'), { target: { value: '2.5' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await settle()
+    const take = (setTakes.mock.calls[0][1] as { bag: number; amount_ml: number }[])[0]
+    expect(take.bag).toBe(41)
+    expect(take.amount_ml).toBeCloseTo(73.93 + 7.39, 1) // 2.5 oz and the same 7.39 mL thrown away, not 0.3 oz of it
+  })
+
+  it('the left-over field stays while it is cleared and typed again on an edited bottle (sweep 2026-11-24)', async () => {
+    const use = { id: 5, bag: 41, feeding_id: 21, amount_ml: 50, kind: 'bottle' as const, at: '', by_user: null }
+    forFeeding = () => Promise.resolve({ bag: batch, use, takes: [{ bag: batch, use }], total_ml: 50 })
+    mount({ editing: { ...bottle, type: 'fortified breast milk', tags: ['kcal:24'] } as unknown as Feeding })
+    await settle()
+    const left = () => screen.getByLabelText('Left in the bottle and thrown away, in mL') as HTMLInputElement
+    fireEvent.change(left(), { target: { value: '' } })
+    expect(left().value).toBe('')
+    fireEvent.change(left(), { target: { value: '5' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await settle()
+    expect(setTakes.mock.calls[0][1]).toEqual([{ bag: 41, amount_ml: 35 }])
   })
 
   it('opens with no amount (never the whole batch), takes what she drank, and the rest stays', async () => {

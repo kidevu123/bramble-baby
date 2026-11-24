@@ -12,6 +12,16 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.78.1',
+    date: 'Nov 24',
+    items: [
+      'A full check of the app, and its fixes. Stickers printed in a row now go to the printer one at a time, each on its own connection, so a slow or stopped printer can no longer lose some while Bramble says they were sent.',
+      'A bottle from a premade bottle and a batch together takes the premade bottle whole and the rest from the batch, whichever was tapped first. Taking the batch out again for a plain bag makes a plain bottle, not a fortified one.',
+      'A premade bottle or batch mixed from thawed and fresh milk keeps only as long as its soonest milk. A premade bottle that comes back into the stash never shares a spot with a newer one.',
+      'Smaller ones: “Left in the bottle” keeps a quarter ounce as 0.25; an amount is not changed on a stash bottle while its milk is still loading; Stop on the pumping timer always opens the label; the return key finds a typed code; a batch is no longer called a bag.',
+    ],
+  },
+  {
     version: '1.78.0',
     date: 'Nov 24',
     items: [

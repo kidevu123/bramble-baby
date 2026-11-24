@@ -144,6 +144,9 @@ CLOCK_SKEW = timedelta(minutes=5)
 CLIENT_KEY_ALPHABET = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
 
 
+LIST_LIMIT = 1000  # rows of one child the stash listing carries
+
+
 class MilkError(ValueError):
     """A rule about the milk itself was broken. The message is plain language and goes to the caregiver as is."""
 
@@ -300,7 +303,13 @@ class MilkStore:
         if status:
             rows = self.store.q("SELECT * FROM milk_bags WHERE child=? AND status=? ORDER BY expires_at, id", (child, status))
         else:
-            rows = self.store.q("SELECT * FROM milk_bags WHERE child=? ORDER BY status='stored' DESC, expires_at, id LIMIT 500", (child,))
+            # Everything stored, soonest deadline first; then what has left the stash, newest first, so the cut drops
+            # the oldest history. (Cut by deadline, the newest used bags fell off the end once a household had 500
+            # rows: their pumping sessions then read as "not in the stash" and were offered again.)
+            rows = self.store.q(
+                "SELECT * FROM milk_bags WHERE child=? ORDER BY status='stored' DESC, CASE WHEN status='stored' THEN expires_at END, COALESCE(used_at, created) DESC, id DESC LIMIT ?",
+                (child, LIST_LIMIT),
+            )
         return self._rows(rows, child)
 
     def get(self, bag_id: int) -> dict | None:
@@ -468,6 +477,8 @@ class MilkStore:
         Undo on a used bag reverses its last use (the bottle that emptied it, or a hand correction to
         zero) and keeps the earlier ones; a bag used before balances existed comes back whole. Undo on
         a discarded bag puts it back with the balance it had."""
+        # Keys that start with "_" are this module's own notes to itself (`_to_nicu`, `_from_volume`), never a request's.
+        data = {k: v for k, v in data.items() if not str(k).startswith("_")}
         with self.store.atomic():
             return self._patch(bag_id, data, user_id, windows)
 
@@ -553,6 +564,8 @@ class MilkStore:
                 out = moved_at or datetime.now(timezone.utc)
                 updates["out_at"] = _iso(out)
                 expires = min(self.parse_iso(bag["expires_at"]), expiry_for(out, "room", thawed, since=out if thawed else None, windows=windows))
+            if bag.get("kind") in MADE_AHEAD and location == "fridge":
+                expires = min(expires, self._milk_keeps({**bag, **{k: updates[k] for k in ("pumped_at", "thawed_at") if k in updates}, "thawed": thawed}, windows))
             if bag.get("mixed_at"):
                 expires = min(expires, self.parse_iso(bag["mixed_at"]) + FORTIFIED_WINDOW)
             updates["expires_at"] = _iso(expires)
@@ -568,8 +581,7 @@ class MilkStore:
             if mixed > datetime.now(timezone.utc) + CLOCK_SKEW or mixed < self.parse_iso(bag["pumped_at"]) - CLOCK_SKEW:
                 raise MilkError("The time it was mixed has to be after its milk was pumped and not in the future.")
             if abs((mixed - self.parse_iso(bag["mixed_at"])).total_seconds()) >= 60:
-                since = self.parse_iso(bag["thawed_at"]) if bag["thawed"] and bag.get("thawed_at") else None
-                keeps = expiry_for(self.parse_iso(bag["pumped_at"]), "fridge", bool(bag["thawed"]), since=since, windows=windows)
+                keeps = self._milk_keeps(bag, windows)
                 updates["mixed_at"] = _iso(mixed)
                 updates["expires_at"] = _iso(min(keeps, mixed + FORTIFIED_WINDOW))
                 said = f"Mixed {mixed.astimezone(self.zone()).strftime('%a %-I:%M %p')} (time set by hand)"
@@ -590,6 +602,8 @@ class MilkStore:
             if "status" not in data and bag["status"] != "discarded":
                 status = "used" if remaining < EMPTY_ML else "stored"
         undo = status == "stored" and bag["status"] == "used" and "remaining_ml" not in data and not data.get("_from_volume")
+        if status == "stored" and not undo and remaining < EMPTY_ML:
+            status = "used"  # nothing is left in it, so it is not in the stash, whatever was asked for
         if status != bag["status"]:
             updates["status"] = status
             if status == "used":
@@ -609,11 +623,16 @@ class MilkStore:
             else:
                 updates["used_at"] = None
                 updates["used_by"] = None
+                if bag.get("kind") == "bottle":
+                    # Its spot may have a new bottle in it by now: two bottles never share one.
+                    updates["spot"] = self._free_spot(bag["child"], bag.get("spot"), bag_id)
         if undo:
             last = self.store.q("SELECT * FROM milk_uses WHERE bag=? ORDER BY id DESC LIMIT 1", (bag_id,))
             # 'prepared' is the reverted outside build's word for the same pour (5ef72ae, its own bottles table).
-            if last and last[0]["kind"] in ("combined", "prepared"):
+            gone = bool(last) and last[0]["kind"] == "combined" and bool(last[0].get("into_bag")) and not self.get(last[0]["into_bag"])
+            if last and last[0]["kind"] in ("combined", "prepared") and not gone:
                 # That milk is in a premade bottle now; putting it back here as well would count it twice.
+                # (When what it was poured into no longer exists at all, nothing else holds it: the undo goes ahead.)
                 into = self.get(last[0]["into_bag"]) if last[0].get("into_bag") else None
                 if into and into.get("kind") == "batch":
                     raise MilkError(f"The last of this bag went into batch {into['code']}. Undo the batch (if nothing was poured from it yet), or feed or discard it.")
@@ -665,6 +684,27 @@ class MilkStore:
         fresh = self.get(bag_id)
         self.sync_reminders(fresh)  # type: ignore[arg-type]
         return fresh
+
+    def _milk_keeps(self, bag: dict, windows: dict | None) -> datetime:
+        """How long the milk in something made ahead keeps in the fridge: the soonest of the bags it was poured
+        from, each by its own clock (fresh from its pump, thawed from its thaw). The item's own row carries only its
+        oldest pump and earliest thaw, and thawed milk by that alone reads thaw + 24 h even when fresh milk poured
+        in with it runs out sooner."""
+        rows = self.store.q("SELECT b.pumped_at, b.thawed, b.thawed_at FROM milk_uses u JOIN milk_bags b ON b.id=u.bag WHERE u.into_bag=? AND u.kind='combined'", (bag["id"],))
+        own_since = self.parse_iso(bag["thawed_at"]) if bag["thawed"] and bag.get("thawed_at") else None
+        keeps = [expiry_for(self.parse_iso(bag["pumped_at"]), "fridge", bool(bag["thawed"]), since=own_since, windows=windows)]
+        for r in rows:
+            since = self.parse_iso(r["thawed_at"]) if r["thawed"] and r.get("thawed_at") else None
+            keeps.append(expiry_for(self.parse_iso(r["pumped_at"]), "fridge", bool(r["thawed"]), since=since, windows=windows))
+        return min(keeps)
+
+    def _free_spot(self, child: int, wanted: int | None, but: int) -> int | None:
+        """The fridge spot for a premade bottle coming back into the stash: its own when nothing else is in it, else
+        the lowest free one, else none (the app lists a bottle without a spot under the spots)."""
+        taken = {r["spot"] for r in self.store.q("SELECT spot FROM milk_bags WHERE child=? AND kind='bottle' AND status='stored' AND spot IS NOT NULL AND id<>?", (child, but))}
+        if wanted and wanted not in taken:
+            return wanted
+        return next((n for n in range(1, SPOTS + 1) if n not in taken), None)
 
     def to_nicu(self, child: int, bag_ids, user_id: int | None) -> list[dict]:
         """Bags taken to the NICU (a baby fed there): each leaves the home stash whole, as one `nicu` use, so the
@@ -858,6 +898,8 @@ class MilkStore:
         updates: dict = {"remaining_ml": remaining, "feeding_id": self._latest_feeding(bag["id"])}
         if bag["status"] == "used" and remaining >= EMPTY_ML:
             updates.update(status="stored", used_at=None, used_by=None)
+            if bag.get("kind") == "bottle":
+                updates["spot"] = self._free_spot(bag["child"], bag.get("spot"), bag["id"])
         sets = ", ".join(f"{k}=?" for k in updates)
         self.store.x(f"UPDATE milk_bags SET {sets} WHERE id=?", [*updates.values(), bag["id"]])
         self.sync_reminders(self.get(bag["id"]))  # type: ignore[arg-type]
@@ -919,7 +961,10 @@ class MilkStore:
                 added = round(_number(b.get("added_ml")), 2)
                 if not 0 <= added <= sum(ml for _, ml in parsed) * 0.5:
                     raise ValueError("bad added_ml")
-            plan.append((spot, parsed, _clean_client_key(b.get("client_key")), "fridge", kcal, added))
+            key = _clean_client_key(b.get("client_key"))
+            if key and any(key == other[2] for other in plan):
+                raise ValueError("a client_key is listed twice")
+            plan.append((spot, parsed, key, "fridge", kcal, added))
         now = datetime.now(timezone.utc)
         with self.store.atomic():
             made: list[dict] = []
@@ -978,7 +1023,11 @@ class MilkStore:
         thawed = any(bag["thawed"] for bag, _ in pours)
         thawed_at = min(thawed_from) if thawed_from else (pumped if thawed else None)
         volume = round(sum(ml for _, ml in pours) + added, 2)
-        expires = expiry_for(pumped, "fridge", thawed, since=thawed_at, windows=windows)
+        # As long as its soonest milk keeps: each bag by its own clock (fresh from its pump, thawed from its thaw).
+        expires = min(
+            expiry_for(self.parse_iso(bag["pumped_at"]), "fridge", bool(bag["thawed"]), since=self.parse_iso(bag["thawed_at"]) if bag["thawed"] and bag.get("thawed_at") else None, windows=windows)
+            for bag, _ in pours
+        )
         if kcal is not None:
             # Fortified: a day from mixing, never longer than its milk keeps.
             expires = min(expires, now + FORTIFIED_WINDOW)
@@ -1213,10 +1262,18 @@ class Printer:
     CHECK_WINDOW = 10.0
     # A print server takes one raw-port connection at a time and refuses the next while it is busy (seen 2026-11-23:
     # twenty travel stickers sent back to back, the second refused because the first label's connection was still
-    # open waiting for the printer's answer). So labels that follow each other go out on the line that is already
-    # open, and a refused connection is tried again for this long before it is reported.
-    BUSY_WAIT = 8.0
+    # open waiting for the printer's answer). So it is one label, one connection, one at a time: before a label
+    # goes out, the label before it stops listening for its answer and closes its connection, and a connection
+    # that is still refused (the print server finishing that job) is tried again for this long before it is reported.
+    # 1.76.1/1.76.2 wrote the labels of a burst into the one connection already open instead; a slow or stopped
+    # printer then had that connection closed under labels it had not taken yet, which lost them with every job
+    # reading "sent" (found in review 2026-11-24, never seen on the real printer).
+    BUSY_WAIT = 20.0
     BUSY_PAUSE = 0.4
+    # Closing after a label: our side says it is done, then whatever the printer's side still sends is read for up
+    # to this long. A close with an unread answer waiting is a reset, and a print server may drop what it has not
+    # yet passed on to the printer when it gets one.
+    CLOSE_DRAIN = 1.0
     # What a job says per backend when the backend has no printer state to report (file, bridge, niimbot, brother).
     SENT_DETAIL = {
         "file": "Saved as a file on the server (file:// printer); nothing was printed.",
@@ -1240,12 +1297,10 @@ class Printer:
         self._checks: list[threading.Thread] = []
         self._public: tuple[float, dict] | None = None  # (monotonic time, answer) of public_status for a bridge
         self._public_lock = threading.Lock()
-        # The Zebra's open line: one connection for the labels of a burst. `_line_turn` counts the labels sent on it,
-        # so the check of an earlier label knows a later one has taken the line over and leaves it open.
+        # One label at a time. `_held` is the Zebra label whose answer is still being listened for: its connection,
+        # an event that tells its check to stop, and one the check sets once the connection is closed.
         self._print_lock = threading.Lock()
-        self._line_lock = threading.Lock()
-        self._line: "ZebraLink | None" = None
-        self._line_turn = 0
+        self._held: "tuple[ZebraLink, threading.Event, threading.Event] | None" = None
 
     # ---- print jobs: what each request did, so the phone can show it and the journal can answer "did it print?"
     def print_label(self, png: bytes, code: str | None = None, background: bool = True) -> dict:
@@ -1259,8 +1314,10 @@ class Printer:
         try:
             # One label at a time: two phones (or twenty stickers) never interleave on the printer's line.
             with self._print_lock:
+                self._release_line()
                 result, link = self._print(png)
-                turn = self._line_turn if link else None
+                held = (link, threading.Event(), threading.Event()) if link else None
+                self._held = held
         except PrinterError as exc:
             log.warning("print failed: backend=%s bag=%s after %dms: %s", self.kind, bag or "-", (time.monotonic() - started) * 1000, exc)
             raise
@@ -1285,13 +1342,11 @@ class Printer:
         log.info("print job %d: backend=%s bag=%s result=%s in %dms", job["id"], self.kind, bag or "-", result.get("printed"), ms)
         if checking:
             if background:
-                t = threading.Thread(target=self._check_zebra, args=(job["id"], link, turn), name=f"zebra-check-{job['id']}", daemon=True)
+                t = threading.Thread(target=self._check_zebra, args=(job["id"], held), name=f"zebra-check-{job['id']}", daemon=True)
                 self._checks = [c for c in self._checks if c.is_alive()] + [t]
                 t.start()
             else:
-                self._check_zebra(job["id"], link, turn)
-        elif link:
-            link.close()
+                self._check_zebra(job["id"], held)
         return {**result, "job": self.job(job["id"])}
 
     def job(self, job_id: int) -> dict | None:
@@ -1309,55 +1364,72 @@ class Printer:
             if job_id in self._jobs:
                 self._jobs[job_id].update(changes)
 
-    def _check_zebra(self, job_id: int, link: "ZebraLink | None", turn: int | None = None) -> None:
+    def _release_line(self) -> None:
+        """Before the next label: the label before it stops listening for its answer and closes its connection.
+
+        Called under `_print_lock`. The check thread does the closing (it is the one reading); if it has not let go
+        after the drain and a few seconds more, the connection is closed here so the port is never held for good."""
+        held, self._held = self._held, None
+        if not held:
+            return
+        link, stop, done = held
+        stop.set()
+        if not done.wait(self.CLOSE_DRAIN + 5.0):
+            link.close()
+
+    def _check_zebra(self, job_id: int, held: "tuple[ZebraLink, threading.Event, threading.Event] | None" = None) -> None:
         """Read the Zebra's ~HS answer on the print socket until it is no longer busy or the window is up.
 
-        `turn` is this label's place on the open line. When a later label goes out on the same line, this check
-        stops and leaves the line to that label: the printer answers for what it holds now, and the line must stay
-        open for the labels still coming."""
+        `held` is this label's connection with its two events. When the next label is waiting to go out, `stop` is
+        set: this check ends there, says so on its job, closes the connection and sets `done`."""
+        link, stop, done = held if held else (None, None, None)
+        stopped = lambda: stop is not None and stop.is_set()  # noqa: E731
+        state, fields = "no_answer", None
         try:
-            _, addr, port = self._zebra_addr()
-        except PrinterError:  # the label went out, so the address parsed; never let the check thread die on it
-            return
-        deadline = time.monotonic() + self.CHECK_WINDOW
-        fields = None
-        state, detail = "no_answer", NO_ANSWER_DETAIL
-        asked = link is not None  # the first ~HS went out together with the label
-        passed_on = lambda: turn is not None and self._line_turn != turn  # noqa: E731
-        try:
+            try:
+                _, addr, port = self._zebra_addr()
+            except PrinterError:  # the label went out, so the address parsed; never let the check thread die on it
+                return
+            deadline = time.monotonic() + self.CHECK_WINDOW
+            asked = link is not None  # the first ~HS went out together with the label
+            answered = False
             while True:
                 wait = max(0.5, deadline - time.monotonic())
+                raw = b""
                 try:
                     if self._zebra_query:
                         raw = self._zebra_query(addr, port, b"~HS", wait)
-                    else:
-                        link = link or ZebraLink(addr, port)
+                    elif link is not None and not stopped():
                         if not asked:
                             link.send(b"~HS")
-                        raw = link.read(wait, stop=passed_on)
+                        raw = link.read(wait, stop=stopped)
                 except OSError as exc:
-                    raw = b""
                     log.warning("print job %d: status check failed: %s", job_id, exc)
-                if passed_on():
-                    state, fields = "sent", None
-                    self._update_job(job_id, state=state, detail=FOLLOWED_DETAIL, checking=False, checked_at=_iso(datetime.now(timezone.utc)))
-                    break
                 asked = False
-                fields = parse_host_status(raw)
+                fields = parse_host_status(raw) if raw else None
+                if fields is None and stopped():
+                    # The next label is waiting for the line. What the printer last said (if anything) stands.
+                    if answered:
+                        self._update_job(job_id, checking=False)
+                    else:
+                        state = "sent"
+                        self._update_job(job_id, state=state, detail=FOLLOWED_DETAIL, checking=False, checked_at=_iso(datetime.now(timezone.utc)))
+                    break
                 state, detail = describe_host_status(fields) if fields else ("no_answer", NO_ANSWER_DETAIL)
-                again = state == "busy" and time.monotonic() < deadline
+                answered = fields is not None
+                again = state == "busy" and time.monotonic() < deadline and not stopped()
                 self._update_job(job_id, state=state, detail=detail, checking=again, checked_at=_iso(datetime.now(timezone.utc)))
                 if not again:
                     break
-                time.sleep(self._check_pause)
+                if stop is not None:
+                    stop.wait(self._check_pause)
+                else:
+                    time.sleep(self._check_pause)
         finally:
             if link:
-                # Closed only by the label that still holds the line; a later label's check closes it in its turn.
-                with self._line_lock:
-                    if not passed_on():
-                        if self._line is link:
-                            self._line = None
-                        link.close()
+                link.finish(self.CLOSE_DRAIN)
+            if done is not None:
+                done.set()
         log.info("print job %d: Zebra answered %s%s", job_id, state, f" ({fields['raw']})" if fields else "")
 
     @property
@@ -1457,13 +1529,16 @@ class Printer:
 
     def print_png(self, png: bytes) -> dict:
         with self._print_lock:
+            self._release_line()
             result, link = self._print(png)
             if link:
-                link.close()
+                link.finish(self.CLOSE_DRAIN)
         return result
 
     def _print(self, png: bytes) -> "tuple[dict, ZebraLink | None]":
-        """One label out; on a Zebra also the still-open print socket, which carries the printer's answer."""
+        """One label out; on a Zebra also the still-open print socket, which carries the printer's answer.
+
+        The caller holds `_print_lock` and has called `_release_line`, so no other connection of ours is open."""
         if not self.configured:
             raise PrinterError(self.status()["detail"])
         if self.kind == "file":
@@ -1500,11 +1575,7 @@ class Printer:
             if self._zebra_send:
                 self._zebra_send(addr, port, zpl)
             else:
-                # The host-status question goes out with the label on the same socket: through a print server
-                # the printer's answer only comes back to the connection that wrote (see CHECK_WINDOW).
-                # ~PS first: a paused printer (after a jam, a head-open or a calibration) resumes on its own
-                # instead of asking the owner to find the feed button.
-                link = self._send_on_line(addr, port, b"~PS" + zpl + b"~HS")
+                link = self._open_line(addr, port)
         except ConnectionRefusedError:
             raise PrinterError(
                 f"Could not reach the Zebra at {host}: its print server refused the connection for {self.BUSY_WAIT:g} seconds. "
@@ -1512,37 +1583,22 @@ class Printer:
             )
         except OSError as exc:
             raise PrinterError(f"Could not reach the Zebra at {host}: {exc}. Is it on and on the network?")
+        if link:
+            try:
+                # The host-status question goes out with the label on the same socket: through a print server
+                # the printer's answer only comes back to the connection that wrote (see CHECK_WINDOW).
+                # ~PS first: a paused printer (after a jam, a head-open or a calibration) resumes on its own
+                # instead of asking the owner to find the feed button.
+                link.send(b"~PS" + zpl + b"~HS")
+            except OSError as exc:
+                # Never sent again by itself: part of this label is already with the printer, and a second copy
+                # behind half a first one prints rubbish.
+                link.close()
+                raise PrinterError(
+                    f"The Zebra at {host} stopped taking the label part-way ({exc}). Check the printer (labels loaded, lid closed, not paused), "
+                    "then print it again; if a label then comes out wrong, switch the printer off and on."
+                )
         return {"ok": True, "printed": f"zebra {host}", "width": image.width, "height": image.height}, link
-
-    def _send_on_line(self, addr: str, port: int, data: bytes) -> "ZebraLink":
-        """The label out on the printer's line: the one already open from the label before, else a new one.
-
-        A print server takes one connection at a time. While the last label's connection is still open (it waits
-        up to CHECK_WINDOW for the printer's answer), the next label goes out on that same connection and the
-        printer queues it, instead of knocking on a second connection that is refused."""
-        with self._line_lock:
-            # The turn passes first: the check of the label before sees it at once, stops reading and leaves the line open.
-            self._line_turn += 1
-            link = self._line
-            if link is not None and link.alive():
-                try:
-                    link.fresh()  # answers still on their way belong to the labels before
-                    link.send(data)
-                except OSError as exc:
-                    log.info("the Zebra's open line went away (%s); opening a new one", exc)
-                    link.close()
-                    link = None
-            else:
-                link = None
-            if link is None:
-                link = self._open_line(addr, port)
-                try:
-                    link.send(data)
-                except OSError:
-                    link.close()
-                    raise
-            self._line = link
-            return link
 
     def _open_line(self, addr: str, port: int) -> "ZebraLink":
         """A new connection to the printer; a refusal (the print server is still busy with a job) is tried again for BUSY_WAIT."""
@@ -1651,13 +1707,11 @@ class Printer:
 
 
 class ZebraLink:
-    """One raw-port connection kept open from the label to the printer's ~HS answer, so a slow reply is not lost.
+    """One raw-port connection for one label: the label out, then the printer's ~HS answer back on the same socket.
 
-    Labels that follow within the answer window go out on the same connection (`Printer._send_on_line`), so one
-    thread may send while another is still reading: reads are under a lock, and a send never changes the socket's
-    timeout under the reader."""
+    One thread uses it at a time: the label is sent, then its check reads until it has the answer or is told to stop."""
 
-    # How long a send may wait on a printer that is taking data slowly (a burst of labels fills its buffer).
+    # How long a send may wait on a printer that is taking data slowly (its buffer is full, or it has stopped).
     SEND_WINDOW = 30.0
 
     def __init__(self, addr: str, port: int):
@@ -1667,10 +1721,9 @@ class ZebraLink:
         self.sock.settimeout(0.5)
         self.buf = b""
         self.closed = False
-        self._reading = threading.Lock()
 
     def send(self, data: bytes) -> None:
-        """All of `data`, waiting through short stalls (the socket's own timeout is 0.5 s, for the reader)."""
+        """All of `data`, waiting through short stalls; socket.timeout when the printer takes none of it for too long."""
         import socket
 
         end = time.monotonic() + self.SEND_WINDOW
@@ -1690,77 +1743,58 @@ class ZebraLink:
         return self.read(wait)
 
     def read(self, wait: float, stop=None) -> bytes:
-        """The first complete three-line ~HS reply within `wait` seconds, else b"". `stop()` true ends the wait early.
-
-        The wait for bytes is outside the lock, so a label going out on this line (`fresh`, `send`) never waits on it."""
+        """The first complete three-line ~HS reply within `wait` seconds, else b"". `stop()` true ends the wait early."""
         import select
         import socket
 
         end = time.monotonic() + wait
-        while time.monotonic() < end and not (stop and stop()):
-            with self._reading:
-                if self.buf.count(b"\x03") >= 3:
-                    break
+        while self.buf.count(b"\x03") < 3 and time.monotonic() < end and not self.closed and not (stop and stop()):
             try:
                 readable, _, _ = select.select([self.sock], [], [], 0.25)
+                if not readable:
+                    continue
+                chunk = self.sock.recv(4096)
+            except socket.timeout:
+                continue
             except (OSError, ValueError):  # closed under us
                 self.closed = True
                 break
-            if not readable:
-                continue
-            with self._reading:
-                try:
-                    chunk = self.sock.recv(4096)
-                except socket.timeout:
-                    continue
-                except OSError:
-                    self.closed = True
-                    break
-                if not chunk:
-                    self.closed = True  # the printer's side hung up: the next label needs a new connection
-                    break
-                self.buf += chunk
-        if stop and stop():
-            return b""  # a later label has the line: what is buffered now is its to read
-        with self._reading:
-            parts = self.buf.split(b"\x03")
-            if len(parts) < 4:
-                return b""
-            self.buf = b"\x03".join(parts[3:])  # a later reply, if one is already queued, is read next time
-            return b"\x03".join(parts[:3]) + b"\x03"
+            if not chunk:
+                self.closed = True  # the printer's side hung up
+                break
+            self.buf += chunk
+        parts = self.buf.split(b"\x03")
+        if len(parts) < 4:
+            return b""
+        self.buf = b"\x03".join(parts[3:])  # a later reply, if one is already queued, is read next time
+        return b"\x03".join(parts[:3]) + b"\x03"
 
-    def fresh(self) -> None:
-        """Forget replies already buffered: they answer for the labels before the one about to go out."""
-        with self._reading:
-            self.buf = b""
+    def finish(self, drain: float) -> None:
+        """Close politely after a label: say we are done sending, read what still comes for up to `drain`, close.
 
-    def alive(self) -> bool:
-        """Still usable for another label: not closed here, and the printer's side has not hung up.
-
-        Everything already waiting is read in first: a hang-up can sit behind an answer that has not been read yet,
-        and a peek at the first byte would see the answer and call a dead line alive (the label would then be
-        written into it and lost without an error)."""
+        A plain close with an answer waiting unread makes the kernel send a reset instead; the label's bytes have
+        all been handed over by then, but a print server that gets a reset may not pass the rest on."""
         import select
         import socket
 
         if self.closed:
-            return False
-        with self._reading:
-            try:
-                while True:
-                    readable, _, _ = select.select([self.sock], [], [], 0)
-                    if not readable:
-                        break
-                    chunk = self.sock.recv(4096)
-                    if chunk == b"":
-                        self.closed = True
-                        break
-                    self.buf += chunk
-            except socket.timeout:
-                pass
-            except (OSError, ValueError):
-                self.closed = True
-        return not self.closed
+            self.close()
+            return
+        try:
+            self.sock.shutdown(socket.SHUT_WR)
+            end = time.monotonic() + drain
+            while time.monotonic() < end:
+                readable, _, _ = select.select([self.sock], [], [], max(0.0, min(0.25, end - time.monotonic())))
+                if not readable:
+                    continue
+                try:
+                    if not self.sock.recv(4096):
+                        break  # the printer's side closed too: a clean end
+                except socket.timeout:
+                    continue
+        except (OSError, ValueError):
+            pass
+        self.close()
 
     def close(self) -> None:
         self.closed = True
@@ -1785,7 +1819,7 @@ def zebra_label(image, darkness: int | None = None) -> bytes:
     return b"".join(head) + body + b"^PQ1^XZ"
 
 
-FOLLOWED_DETAIL = "Sent to the Zebra. Another label went out right after it, so the printer answers for that one."
+FOLLOWED_DETAIL = "Sent to the Zebra. The next label followed before the printer answered for this one."
 NO_ANSWER_DETAIL = "The printer did not answer within a few seconds, which happens through the print server. The label usually prints anyway."
 
 # Plain language for what the Zebra said about itself, by the state it is in. Nothing here claims "printed":

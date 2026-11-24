@@ -184,6 +184,8 @@ describe('the bottle sheet and the stash', () => {
   it('says what a bag gets back when a bottle leaves it', () => {
     expect(giveBackCopy({ code: '6SZTHB' }, { amount_ml: 40 }, 'ml')).toBe('Bag 6SZTHB gets 40 mL back')
     expect(giveBackCopy({ code: '6SZTHB' }, { amount_ml: 40 }, 'oz')).toBe('Bag 6SZTHB gets 1.4 oz back')
+    expect(giveBackCopy({ code: 'L2QE7G', kind: 'batch' }, { amount_ml: 70 }, 'ml')).toBe('The batch gets 70 mL back')
+    expect(giveBackCopy({ code: 'B0TTLE', kind: 'bottle', spot: 2 }, { amount_ml: 60 }, 'ml')).toBe('Premade bottle 2 gets 60 mL back')
   })
 })
 
@@ -325,6 +327,44 @@ describe('premade bottles', () => {
     expect(planTakes([ready], 120, 'ml').shortMl).toBe(30)
     expect(stashItemName(ready)).toBe('Premade bottle 3')
     expect(stashItemName(b(1, 10))).toBe('Bag BAG001')
+  })
+
+  it('a remainder under a millilitre never empties a premade bottle or opens another bag (sweep 2026-11-24)', () => {
+    // 2 oz is 59.15 mL and the bag holds 59 mL on the companion: the 0.15 mL left over is rounding, not milk to find.
+    const ready = bottle(7, 3, 90)
+    const first = b(1, 59)
+    const plan = planTakes([first, ready, b(2, 40)], 2, 'oz')
+    expect(plan.takes.map((t) => t.takeMl)).toEqual([59, 0, 0])
+    expect(plan.shortMl).toBe(0)
+    expect(takesCopy(plan, 'oz')).not.toContain('premade bottle')
+    expect(takesCopy(plan, 'oz')).not.toMatch(/\b0 oz from/)
+    // A real remainder still goes on to the next one, and a bottle picked first is still taken whole.
+    expect(planTakes([first, ready], 70, 'ml').takes.map((t) => t.takeMl)).toEqual([59, 90])
+    expect(planTakes([ready], 0.5, 'ml').takes[0].takeMl).toBe(90)
+  })
+
+  it('the bottle sheet counts only bags that can be picked: no expired bag, bottle or batch (sweep 2026-11-24)', () => {
+    const past = '2026-09-30T00:00:00+00:00'
+    const stash = [b(1, 10), b(2, 20, { expires_at: past }), bottle(7, 1, 60, { expires_at: past }), bag({ id: 8, code: 'BCH008', kind: 'batch', volume_ml: 150, expires_at: past })]
+    const summary = summarizeStash(stash, now)
+    expect(summary.usableBags).toBe(1)
+    expect(stashHint(summary, 'ml', now)).toMatch(/^1 bag · use first: 10 mL/)
+  })
+
+  it('lists the sessions not in the stash newest first whatever offset their times carry (sweep 2026-11-24)', () => {
+    const windows = { roomHours: 4, fridgeDays: 4, freezerMonths: 6 }
+    const sessions = [
+      { id: 1, start: '2026-09-30T06:00:00-04:00', amount: 60 }, // 10:00 UTC
+      { id: 2, start: '2026-09-30T09:30:00+00:00', amount: 60 },
+      { id: 3, start: '2026-09-30T07:30:00-04:00', amount: 60 }, // 11:30 UTC
+    ]
+    expect(pumpsNotInStash(sessions, [], now, windows).map((p) => p.id)).toEqual([3, 1, 2])
+  })
+
+  it('writes one hour and one month in the singular (sweep 2026-11-24)', () => {
+    const one = { roomHours: 1, fridgeDays: 4, freezerMonths: 1 }
+    expect(placeNote('freezer', now, one, now)?.text).toBe('Good for 1 month frozen, counted from the pump.')
+    expect(placeNote('room', new Date(now.getTime() - 2 * 3_600_000), one, now)?.text).toContain('more than 1 hour ago')
   })
 
   it('has its own block on the Stash tab, and the bottle sheet hint counts bags only', () => {

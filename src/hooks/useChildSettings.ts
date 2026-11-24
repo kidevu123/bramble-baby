@@ -97,6 +97,12 @@ export function useChildSettings(child: Id | null) {
       try {
         // Only what changed: the companion merges it over the shared copy.
         await companion.settings.put(id, patch)
+        // An older change to the same keys that never went out is overtaken: sent later, it would undo this one.
+        const waiting = readPending(id)
+        if (waiting) {
+          const rest = Object.fromEntries(Object.entries(waiting).filter(([k]) => !(k in patch))) as Partial<ChildSettings>
+          writePending(id, Object.keys(rest).length ? rest : null)
+        }
       } catch {
         // Offline or the companion restarting: the change stays on this phone and goes out on the next good read.
         writePending(id, { ...(readPending(id) ?? {}), ...patch })

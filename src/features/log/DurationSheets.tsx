@@ -221,7 +221,9 @@ export function PumpingSheet({ child, editing, prefill, onClose }: { child: Chil
       }
       invalidateMilk(child.id)
     }
-    const saved = savedEntry.current ?? (editing ? await pumpingApi.update(editing.id, body()) : await pumpingApi.create(body()))
+    // A second Save (the travel-sticker step failed the first time) writes what the sheet says now onto the entry
+    // already made, rather than making a second one or keeping what was typed before.
+    const saved = savedEntry.current ? await pumpingApi.update(savedEntry.current.id, body()) : editing ? await pumpingApi.update(editing.id, body()) : await pumpingApi.create(body())
     savedEntry.current = saved
     if (travel) {
       // The milk is on a travel sticker: its bag takes the sticker's code (a bag this session already has is

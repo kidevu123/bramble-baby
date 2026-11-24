@@ -6,7 +6,7 @@ import { Button } from '../../components/ui/Button'
 import { useBagForFeeding, useInvalidateMilk, useMilkStash } from '../../hooks/useMilk'
 import { useNow } from '../../hooks/useNow'
 import { companion, type MilkBag } from '../../lib/api/companion'
-import { bagStamp, bagState, batchStrength, formatMl, giveBackCopy, isBatch, isNightBottle, lateFeedNote, LOCATION_LABEL, pastTheirTime, planTakes, roundMl, stashHint, summarizeStash, takesCopy, toMl } from '../../lib/milk'
+import { bagStamp, bagState, batchStrength, bottleName, formatMl, giveBackCopy, isBatch, isNightBottle, lateFeedNote, LOCATION_LABEL, pastTheirTime, planTakes, roundMl, stashHint, summarizeStash, takesCopy, toMl } from '../../lib/milk'
 import { StashPicker } from '../milk/StashPicker'
 import { Segmented } from '../../components/ui/Segmented'
 import { FieldGroup, PillChoice, TimeField } from '../../components/ui/Field'
@@ -69,6 +69,9 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
   const [tossedText, setTossedText] = useState<string | null>(null)
   const [tossedOpen, setTossedOpen] = useState(false)
   const [picking, setPicking] = useState(false)
+  // The sheet set Fortified itself because fortified milk made ahead was picked (not the person): taking that milk
+  // out again puts the bottle back to plain breast milk, instead of saving a plain bag's milk at the batch's calories.
+  const [autoFortified, setAutoFortified] = useState(() => !editing && Boolean(initialBag?.kcal_per_oz))
   /** Opened on a bag or bottle that has run out: a feed from it happened earlier, and its time is asked first. */
   const [timeFirst] = useState(() => Boolean(initialBag && bagState(initialBag) === 'expired'))
   const invalidateMilk = useInvalidateMilk()
@@ -156,12 +159,22 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
   const suggested = (list: MilkBag[]) => roundMl(list.reduce((sum, b) => sum + available(b), 0))
   /** Add a bag to the bottle (or take it out again); an untyped amount follows what the picked bags hold. */
   const toggleBag = (b: MilkBag) => {
-    const next = bags.some((x) => x.id === b.id) ? bags.filter((x) => x.id !== b.id) : [...bags, b]
+    const adding = !bags.some((x) => x.id === b.id)
+    const picked = adding ? [...bags, b] : bags.filter((x) => x.id !== b.id)
+    // A batch is the one thing poured to measure, so it goes last whatever the order of the taps: a premade bottle
+    // (fed whole) and a bag (emptied first) give what they hold, and the batch gives the rest. Picked after a batch,
+    // a premade bottle used to be shown as leaving the stash while the batch alone covered the feed.
+    const next = [...picked.filter((x) => !isBatch(x)), ...picked.filter(isBatch)]
     setChoice(next)
     setMode('bottle')
-    // A premade bottle mixed to a strength is fortified milk, whatever the sheet said before.
-    if (!bags.some((x) => x.id === b.id) && b.kcal_per_oz) setMilk('fortified breast milk')
-    else if (milk === 'formula') setMilk('breast milk')
+    // Milk made ahead to a strength is fortified milk, whatever the sheet said before.
+    if (adding && b.kcal_per_oz) {
+      if (milk !== 'fortified breast milk') setAutoFortified(true)
+      setMilk('fortified breast milk')
+    } else if (autoFortified && !next.some((x) => x.kcal_per_oz)) {
+      setMilk('breast milk')
+      setAutoFortified(false)
+    } else if (milk === 'formula') setMilk('breast milk')
     // A batch is poured from, not emptied: the amount is what she drank, typed. The field takes the cursor at once.
     if (next.some(isBatch)) {
       if (amountAuto) {
@@ -187,7 +200,15 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
   }
   const changeMilk = (t: FeedingType) => {
     setMilk(t)
+    setAutoFortified(false) // chosen by hand: it stays whatever is picked next
     if (t === 'formula') setChoice([])
+  }
+  const removeAll = () => {
+    setChoice([])
+    if (autoFortified) {
+      setMilk('breast milk')
+      setAutoFortified(false)
+    }
   }
   // Retries after a half-done save or delete: the feeding step already happened, so only the stash step runs again.
   const saved = useRef<Feeding | null>(null)
@@ -242,7 +263,10 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
       const method: FeedingMethod = l && r ? 'both breasts' : r ? 'right breast' : 'left breast'
       const end = new Date(start.getTime() + (l + r) * 60_000)
       const sideNote = [l ? `Left ${l}m` : null, r ? `Right ${r}m` : null].filter(Boolean).join(' · ')
-      return { child: child.id, start: toIso(start), end: toIso(end), type: 'breast milk', method, amount: null, notes: [sideNote, notes].filter(Boolean).join('\n') }
+      const nursed: Record<string, unknown> = { child: child.id, start: toIso(start), end: toIso(end), type: 'breast milk', method, amount: null, notes: [sideNote, notes].filter(Boolean).join('\n') }
+      // A fortified bottle that turns out to have been a nursing feed leaves its strength behind (the caregiver tag stays).
+      if (editing && kcalOf(editing.tags) !== null) nursed.tags = withKcalTag(editing.tags, null)
+      return nursed
     }
     const amt = Number(amount)
     const body: Record<string, unknown> = { child: child.id, start: toIso(start), end: toIso(start), type: milk, method: 'bottle', amount: amt > 0 ? amt : null, notes }
@@ -277,10 +301,17 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
   const fromBatch = bags.some(isBatch)
   // What an edited bottle threw away with it: what it took from the stash beyond what she drank (a batch only).
   const linkedTossedMl = editing && linkedBags.some(isBatch) ? Math.max(0, linkedTakes.reduce((sum, t) => sum + t.use.amount_ml, 0) - toMl(Number(initialAmount) || 0, unit)) : 0
-  const linkedTossed = linkedTossedMl >= 0.5 ? String(fillAmount(linkedTossedMl, unit)) : ''
+  // Shown to the hundredth of an ounce (a quarter ounce left is 0.25, not 0.3), and while the field is untouched the
+  // take is planned from the millilitres on record: a rounded copy read back drifted the take 1.5 mL at every edit.
+  const linkedTossed = linkedTossedMl >= 0.5 ? String(unit === 'oz' ? Math.round(convertVolume(linkedTossedMl, 'ml', 'oz') * 100) / 100 : Math.round(linkedTossedMl)) : ''
   const tossed = fromBatch ? tossedText ?? linkedTossed : ''
   const tossedShown = fromBatch && (tossedOpen || tossed !== '')
-  const plan = fromStash && bags.length ? planTakes(bags, (Number(amount) || 0) + (Number(tossed) > 0 ? Number(tossed) : 0), unit, available) : null
+  const tossedMl = !fromBatch ? 0 : tossedText === null ? (linkedTossedMl >= 0.5 ? linkedTossedMl : 0) : Number(tossedText) > 0 ? toMl(Number(tossedText), unit) : 0
+  const plan = fromStash && bags.length ? planTakes(bags, toMl(Number(amount) || 0, unit) + tossedMl, 'ml', available) : null
+  /** An edited bottle whose bags are not known (the stash has not answered, or could not be read). */
+  const takesUnknown = Boolean(editing) && editing!.method === 'bottle' && editing!.type !== 'formula' && !linked.isSuccess
+  /** ...and a new amount would then be saved without the bags it came from following it. */
+  const blindAmount = takesUnknown && fromStash && choice === undefined && amount !== initialAmount
   const amountChanged = !editing || amount !== initialAmount || tossed !== linkedTossed
   /** Saving changes what the stash holds: a new bottle, a new amount, or other bags. */
   const takeChanged = plan !== null && (!sameBagsAsLinked || amountChanged)
@@ -385,13 +416,15 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
                         <span className="grow stash-pick-main">
                           <span className="stash-pick-title">
                             <span className="strong stash-pick-vol">
-                              Premade bottle {b.spot} · {formatMl(take?.availableMl ?? available(b), unit)}
+                              {bottleName(b)} · {formatMl(take?.availableMl ?? available(b), unit)}
                             </span>
-                            <button type="button" className="link-btn" onClick={() => toggleBag(b)} aria-label={`Take premade bottle ${b.spot} out of this feed`}>
+                            <button type="button" className="link-btn" onClick={() => toggleBag(b)} aria-label={`Take ${bottleName(b).replace(/^P/, 'p')} out of this feed`}>
                               Remove
                             </button>
                           </span>
-                          <span className="xs muted">The whole bottle leaves the stash · oldest milk pumped {format(parseDate(b.pumped_at), 'EEE MMM d, h:mm a')}</span>
+                          <span className="xs muted">
+                            {take && take.takeMl <= 0 && plan && plan.wantedMl > 0 ? 'Not taken: the bags above it cover this feed' : 'The whole bottle leaves the stash'} · oldest milk pumped {format(parseDate(b.pumped_at), 'EEE MMM d, h:mm a')}
+                          </span>
                         </span>
                       </li>
                     )
@@ -458,7 +491,7 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
                 <button type="button" className="link-btn" onClick={() => setPicking(true)}>
                   Add another bag
                 </button>
-                <button type="button" className="link-btn" onClick={() => setChoice([])}>
+                <button type="button" className="link-btn" onClick={removeAll}>
                   Remove all
                 </button>
               </span>
@@ -538,7 +571,21 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
           {fromBatch ? (
             tossedShown ? (
               <div className="batch-tossed" data-testid="batch-tossed">
-                <ValueField label="Left in the bottle" unit={volumeLabel(unit)} name={`Left in the bottle and thrown away, in ${volumeLabel(unit)}`} type="number" inputMode="decimal" step={sliderStep} min={0} value={tossed} onChange={(e) => setTossedText(e.target.value)} placeholder="0" />
+                <ValueField
+                  label="Left in the bottle"
+                  unit={volumeLabel(unit)}
+                  name={`Left in the bottle and thrown away, in ${volumeLabel(unit)}`}
+                  type="number"
+                  inputMode="decimal"
+                  step={sliderStep}
+                  min={0}
+                  value={tossed}
+                  onChange={(e) => {
+                    setTossedOpen(true) // the field stays while it is being cleared and retyped
+                    setTossedText(e.target.value)
+                  }}
+                  placeholder="0"
+                />
                 <span className="xs muted">Poured and not drunk. It is thrown away, so it comes out of the batch too and is not counted as fed.</span>
               </div>
             ) : (
@@ -560,9 +607,13 @@ export function FeedingSheet({ child, editing, initial, bag: initialBag = null, 
         busy={busy}
         error={error}
         // The picked bags must cover the bottle; a bottle on bags it did not come from needs an amount (one still on its own bags may go to zero: the milk goes back).
-        disabled={!body || !units.ready || endsInFuture || lateNote !== null || (plan !== null && plan.shortMl > 0) || (plan !== null && totalTake <= 0 && !sameBagsAsLinked) || (fromBatch && !(Number(amount) > 0))}
+        disabled={!body || !units.ready || endsInFuture || lateNote !== null || blindAmount || (plan !== null && plan.shortMl > 0) || (plan !== null && totalTake <= 0 && !sameBagsAsLinked) || (fromBatch && !(Number(amount) > 0))}
         note={
-          lateNote ? (
+          blindAmount ? (
+            <p className="use-plan is-over" role="alert" data-testid="takes-unknown">
+              {linked.isError ? 'The stash could not be read, so a new amount cannot be taken from the milk this bottle was poured from. Try again in a moment.' : 'Checking which milk this bottle was poured from…'}
+            </p>
+          ) : lateNote ? (
             // Why Save waits, where it is always in view: above the button, not under a field that may be scrolled away.
             <p className="use-plan is-over" role="alert" data-testid="late-feed">
               {lateNote}

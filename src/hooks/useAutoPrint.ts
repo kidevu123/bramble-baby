@@ -31,6 +31,8 @@ export function useAutoPrint(childId: Id | null = null) {
   const enabled = prefs.labels.autoPrint && printerConfigured
   const stashSetting = settings.stashOnSave
   const stashInUse = (stash.data?.length ?? 0) > 0
+  /** The stash listing has answered: only then does "nothing in it" mean the household keeps no stash. */
+  const stashKnown = stash.data !== undefined
   /** Saving puts the milk in the stash, sticker or not. */
   const stashes = enabled || (stashSetting ?? stashInUse)
   const unit = prefs.units.volume
@@ -39,7 +41,19 @@ export function useAutoPrint(childId: Id | null = null) {
   const run = useCallback(
     async (child: Child, saved: Pumping, amount: number | null, opts: { editing: boolean; bag: MilkBag | null; location?: MilkLocation }): Promise<void> => {
       const print = autoPrintWanted({ prefs: prefs.labels, printerConfigured, editing: opts.editing, amount, bagAlready: opts.bag !== null })
-      if (!print && !stashOnSaveWanted({ setting: stashSetting, stashInUse, editing: opts.editing, amount, bagAlready: opts.bag !== null })) return
+      if (!print) {
+        let inUse = stashInUse
+        if (stashSetting === undefined && !stashKnown && !opts.editing && (amount ?? 0) > 0 && opts.bag === null) {
+          // The listing has not answered yet (the sheet was open for seconds, or it failed): ask now rather than take
+          // silence for "this household keeps no stash" and leave the milk out of it without a word.
+          try {
+            inUse = (await companion.milk.list(child.id)).length > 0
+          } catch {
+            return // unreachable: the Stash tab offers the session as "not in the stash" once it is back
+          }
+        }
+        if (!stashOnSaveWanted({ setting: stashSetting, stashInUse: inUse, editing: opts.editing, amount, bagAlready: opts.bag !== null })) return
+      }
       const volume = amount as number
       const text = `${unit === 'oz' ? Math.round(volume * 100) / 100 : Math.round(volume)} ${volumeLabel(unit)}`
       // A print is followed from its first moment; the stash step alone is quiet unless it fails.
@@ -65,7 +79,7 @@ export function useAutoPrint(childId: Id | null = null) {
         updatePrintNotice(id, { state: 'failed', error: describeApiError(err) })
       }
     },
-    [prefs.labels, printerConfigured, stashSetting, stashInUse, unit, windows, invalidateMilk],
+    [prefs.labels, printerConfigured, stashSetting, stashInUse, stashKnown, unit, windows, invalidateMilk],
   )
 
   /**

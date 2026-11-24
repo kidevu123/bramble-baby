@@ -112,10 +112,11 @@ export function runwayLine(r: StashRunway, unit: VolumeUnit, name: string): stri
 /** The goal line, or null without a goal set in Settings › Pumps. */
 export function goalLine(r: StashRunway, unit: VolumeUnit, name: string, now: Date = new Date()): string | null {
   if (r.goalDays === null) return null
-  if (r.goalMl === null) return `Goal: ${r.goalDays} days of bottles banked. Once bottles are logged, this shows how close the stash is.`
+  const days = `${r.goalDays} day${r.goalDays === 1 ? '' : 's'}`
+  if (r.goalMl === null) return `Goal: ${days} of bottles banked. Once bottles are logged, this shows how close the stash is.`
   const pct = Math.round((r.goalProgress ?? 0) * 100)
-  if (r.goalProgress !== null && r.goalProgress >= 1) return `Goal reached: ${r.goalDays} days of bottles (${mlIn(r.goalMl, unit)}) are banked.`
-  const head = `Goal: ${r.goalDays} days of bottles (${mlIn(r.goalMl, unit)}) · ${pct}% there`
+  if (r.goalProgress !== null && r.goalProgress >= 1) return `Goal reached: ${days} of bottles (${mlIn(r.goalMl, unit)}) ${r.goalDays === 1 ? 'is' : 'are'} banked.`
+  const head = `Goal: ${days} of bottles (${mlIn(r.goalMl, unit)}) · ${pct}% there`
   if (r.netMlPerDay === null) return `${head}. Log pumping and this says when you get there.`
   if (r.netMlPerDay <= 0) return `${head}. The stash is ${r.netMlPerDay === 0 ? 'holding steady' : `shrinking by ${mlIn(-r.netMlPerDay, unit)} a day`}, so it is not growing towards the goal.`
   const when = r.goalReachedOn!

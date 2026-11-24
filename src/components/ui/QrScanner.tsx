@@ -121,7 +121,22 @@ export function QrScanner({ onDecode, accept, onCancel, hint }: Props) {
         </p>
       ) : null}
       <div className="row">
-        <TextField label="Or type the code" value={manual} onChange={(e) => setManual(e.target.value.toUpperCase())} placeholder="e.g. K7M2QP" maxLength={6} autoCapitalize="characters" />
+        <TextField
+          label="Or type the code"
+          value={manual}
+          onChange={(e) => setManual(e.target.value.toUpperCase())}
+          // The keyboard's return key finds it, like the button beside it.
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && manual.trim().length >= 6) {
+              e.preventDefault()
+              submitManual()
+            }
+          }}
+          enterKeyHint="search"
+          placeholder="e.g. K7M2QP"
+          maxLength={6}
+          autoCapitalize="characters"
+        />
         <Button variant="secondary" onClick={submitManual} disabled={manual.trim().length < 6}>
           Find
         </Button>

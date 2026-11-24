@@ -232,7 +232,11 @@ function FeedSummary({ days, events, label, unit, ageMonths, dayOfLife, hold, no
   const avg = (k: 'count' | 'bottle' | 'nursingMin') => (used.length ? used.reduce((s, i) => s + perDay[i][k], 0) / used.length : 0)
   const { prefs } = usePrefs()
   // Held (the NICU sets the feeds): no amount by weight and no age row, only what was logged.
-  const bw = hold ? null : byWeightView({ weights, name, unit, weightUnit: prefs.units.weight, ageMonths, dayOfLife, bottleMl: convertVolume(avg('bottle'), unit, 'ml'), nursing: used.some((i) => perDay[i].nursingMin > 0), feedsPerDay: avg('count'), days: used.length })
+  // Only today has feeds so far: a day not over yet is neither her feeds a day nor a day's intake to judge, so the
+  // amount a feed is at the usual 8 feeds and the bottles are shown without a verdict (3 bottles by early afternoon
+  // read as "about 135–165 mL a feed" for a 6 lb baby).
+  const onlyToday = used.length > 0 && used.every((i) => days[i].getTime() === startOfDay(now).getTime())
+  const bw = hold ? null : byWeightView({ weights, name, unit, weightUnit: prefs.units.weight, ageMonths, dayOfLife, bottleMl: convertVolume(avg('bottle'), unit, 'ml'), nursing: used.some((i) => perDay[i].nursingMin > 0), feedsPerDay: onlyToday ? 0 : avg('count'), days: onlyToday ? 0 : used.length })
   const byWeight = Boolean(bw && 'band' in bw)
   // Only with calories switched on (Settings › Calories & fortifying), where they lead the card.
   const calorieGoal = tracking?.goal ?? null

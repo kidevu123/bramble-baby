@@ -1342,8 +1342,9 @@ class ServerTest(unittest.TestCase):
                     self.assertEqual((kept["kind"], kept["spot"]), ("bag", None))
                     self.assertIn("batch_key", {r["name"] for r in store.q("PRAGMA table_info(milk_travel_labels)")})
                     self.assertEqual(milk.travel_get("T7RAV2")["status"], "unused")
-                    self.assertEqual([b["code"] for b in milk.list(1)], ["K7M2QP", "D4RK2N", "9XH3TR"])
-                    self.assertEqual([(b["remaining_ml"], b["uses"]) for b in milk.list(1)], [(118.29, []), (45, []), (0, [])])
+                    # what is stored first, then what has left the stash, the latest to leave first
+                    self.assertEqual([b["code"] for b in milk.list(1)], ["K7M2QP", "9XH3TR", "D4RK2N"])
+                    self.assertEqual([(b["remaining_ml"], b["uses"]) for b in milk.list(1)], [(118.29, []), (0, []), (45, [])])
                     # old bags keep working: a reprint for the same pumping entry finds the old bag
                     pumped = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat(timespec="seconds")
                     self.assertEqual(milk.create({"child": 1, "pumped_at": pumped, "volume_ml": 100, "pumping_id": 77}, 7)["code"], "K7M2QP")
@@ -1604,7 +1605,7 @@ class ServerTest(unittest.TestCase):
         bg.wait_for_checks(5)
         self.assertEqual(bg.job(first["id"])["state"], "ready")
 
-    def _one_at_a_time_printer(self, answer_after: float = 0.05):
+    def _one_at_a_time_printer(self, answer_after: float = 0.05, sip: "tuple[int, float] | None" = None):
         """A fake print server like the owner's AP1: it takes ONE raw-port connection and refuses any other while
         that one is open. Returns (port, log, stop): log["jobs"] is the bytes each connection carried."""
         import socket
@@ -1635,7 +1636,9 @@ class ServerTest(unittest.TestCase):
                 conn.settimeout(0.1)
                 while not stopping.is_set():
                     try:
-                        chunk = conn.recv(65536)
+                        chunk = conn.recv(sip[0] if sip else 65536)
+                        if sip:
+                            time.sleep(sip[1])  # a slow print server: a label takes a while to read in
                     except socket.timeout:
                         chunk = None
                     except OSError:
@@ -1687,9 +1690,10 @@ class ServerTest(unittest.TestCase):
         Image.new("L", (400, 240), 255).save(buf, format="PNG")
         return buf.getvalue()
 
-    def test_labels_sent_back_to_back_share_the_printers_one_connection(self):
+    def test_labels_sent_back_to_back_each_get_the_printers_one_connection_in_turn(self):
         """Twenty travel stickers (2026-11-23): the second was refused because the first label's connection was
-        still open, waiting for the printer's answer. Labels that follow each other now go out on that connection."""
+        still open, waiting for the printer's answer. Now the label before lets go of the line first: one label,
+        one connection, one at a time, and every label arrives whole."""
         import socket
 
         import milk as milk_mod
@@ -1698,6 +1702,7 @@ class ServerTest(unittest.TestCase):
         port, log, stop = self._one_at_a_time_printer(answer_after=0.3)
         try:
             p = milk_mod.Printer(f"zebra://127.0.0.1:{port}")
+            p.BUSY_PAUSE = 0.05
             first = p.print_label(png, code="TRAVEL1")
             self.assertTrue(first["ok"])
             # The fake behaves like the real print server: while that connection is open, another is refused.
@@ -1706,24 +1711,88 @@ class ServerTest(unittest.TestCase):
                 socket.create_connection(("127.0.0.1", port), timeout=2).close()
             jobs = [first["job"]["id"]] + [p.print_label(png, code=f"TRAVEL{n}")["job"]["id"] for n in range(2, 6)]
             p.wait_for_checks(12)
-            self._until(lambda: bool(log["jobs"]))
-            self.assertEqual(len(log["jobs"]), 1)  # one connection carried all five
-            self.assertEqual(log["jobs"][0].count(b"^XA"), 5)
-            self.assertEqual(log["jobs"][0].count(b"^XZ"), 5)
+            self._until(lambda: len(log["jobs"]) >= 5)
+            # Five connections, one after the other, each carrying exactly one whole label and its question.
+            self.assertEqual(len(log["jobs"]), 5)
+            for got in log["jobs"]:
+                self.assertEqual((got.count(b"^XA"), got.count(b"^XZ")), (1, 1))
+                self.assertTrue(got.startswith(b"~PS^XA") and got.endswith(b"^PQ1^XZ~HS"), got[-16:])
             states = [p.job(j) for j in jobs]
-            # The printer answers for the last label; the ones before it say another label followed, and none is left "checking".
-            self.assertEqual([j["state"] for j in states], ["sent"] * 4 + ["ready"])
-            self.assertTrue(all("Another label went out right after it" in j["detail"] for j in states[:4]))
+            # The last label has the printer's own answer. One a label followed says so (or has its answer, if the
+            # printer was quicker than the next label); none is left "checking".
+            self.assertEqual(states[-1]["state"], "ready")
+            for j in states[:4]:
+                self.assertIn(j["state"], ("sent", "ready"))
+                if j["state"] == "sent":
+                    self.assertIn("The next label followed", j["detail"])
             self.assertFalse(any(j["checking"] for j in states))
-            self.assertIsNone(p._line)  # the line is given up once the last label is answered
-            # A label after the burst is over opens a connection of its own.
-            p.print_label(png, code="LATER1", background=False)
-            self._until(lambda: len(log["jobs"]) >= 2)
-            self.assertEqual([j.count(b"^XA") for j in log["jobs"]], [5, 1])
         finally:
             stop()
 
-    def test_a_busy_print_server_is_waited_for_and_a_hung_up_line_is_replaced(self):
+    def test_a_printer_that_stops_part_way_never_has_labels_cut_off_or_sent_twice(self):
+        """Review 2026-11-24: on the shared connection of 1.76.1 a label's check closed the line after its ten
+        seconds while later labels were still unsent in it, and a stalled send wrote the whole label again behind
+        half of the first copy. One connection a label, closed only after its own bytes: neither can happen."""
+        import socket
+
+        import milk as milk_mod
+
+        png = self._label_png()
+        # A slow print server: it reads a label in small sips. Every label still arrives whole.
+        port, log, stop = self._one_at_a_time_printer(answer_after=0.05, sip=(2048, 0.01))
+        try:
+            p = milk_mod.Printer(f"zebra://127.0.0.1:{port}")
+            p.BUSY_PAUSE = 0.05
+            p.CHECK_WINDOW = 0.3  # shorter than the printer takes to read one label
+            for n in range(3):
+                self.assertTrue(p.print_label(png, code=f"SLOW{n}")["ok"])
+            p.wait_for_checks(12)
+            self._until(lambda: len(log["jobs"]) >= 3)
+            self.assertEqual([(g.count(b"^XA"), g.count(b"^XZ"), g.endswith(b"~HS")) for g in log["jobs"]], [(1, 1, True)] * 3)
+        finally:
+            stop()
+        # A printer that takes the connection and then no data at all: said as a problem, and not sent again.
+        srv = socket.socket()
+        srv.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 2048)
+        srv.bind(("127.0.0.1", 0))
+        srv.listen(5)
+        held = []
+        accepting = threading.Event()
+
+        def take():
+            srv.settimeout(0.2)
+            while not accepting.is_set():
+                try:
+                    held.append(srv.accept()[0])
+                except OSError:
+                    continue
+
+        t = threading.Thread(target=take, daemon=True)
+        t.start()
+        try:
+            from PIL import Image
+
+            big = io.BytesIO()
+            Image.new("L", (6000, 6000), 0).save(big, format="PNG")  # nine megabytes of ZPL: more than the buffers hold
+            p = milk_mod.Printer(f"zebra://127.0.0.1:{srv.getsockname()[1]}")
+            window = milk_mod.ZebraLink.SEND_WINDOW
+            milk_mod.ZebraLink.SEND_WINDOW = 0.6
+            try:
+                with self.assertRaises(milk_mod.PrinterError) as ctx:
+                    p.print_label(big.getvalue(), code="STUCK1")
+            finally:
+                milk_mod.ZebraLink.SEND_WINDOW = window
+            self.assertIn("stopped taking the label part-way", str(ctx.exception))
+            time.sleep(0.3)
+            self.assertEqual(len(held), 1)  # one connection: the label was not written a second time
+        finally:
+            accepting.set()
+            t.join(2)
+            for c in held:
+                c.close()
+            srv.close()
+
+    def test_a_busy_print_server_is_waited_for_and_said_in_words_when_it_stays_busy(self):
         import socket
 
         import milk as milk_mod
@@ -1754,14 +1823,12 @@ class ServerTest(unittest.TestCase):
                 self.assertIn("one job at a time", str(ctx.exception))
             finally:
                 other.close()
-            # The printer's side answers and hangs up after a label: the next label notices and opens a new
-            # connection, instead of being written into the dead one and lost.
+            # The printer's side answers and hangs up after a label: the next label has a connection of its own anyway.
             p.BUSY_WAIT = 5
             self._until(idle)
             before = len(log["jobs"])
             log["hang_up_after"] = 1
             p.print_label(png, code="HANGUP1")
-            self._until(lambda: len(log["jobs"]) >= before + 1)
             log["hang_up_after"] = None
             self.assertTrue(p.print_label(png, code="HANGUP2", background=False)["ok"])
             p.wait_for_checks(12)
@@ -1770,9 +1837,9 @@ class ServerTest(unittest.TestCase):
         finally:
             stop()
 
-    def test_a_line_the_printer_answered_and_then_hung_up_on_is_not_alive(self):
-        """The hang-up sits behind an answer nobody has read yet. A peek at the first byte saw the answer and called
-        the line alive, so the next label was written into a dead connection and lost without an error."""
+    def test_a_label_connection_is_closed_without_a_reset_even_with_an_answer_unread(self):
+        """A close with the printer's answer waiting unread is a reset on the wire, and a print server that gets one
+        may drop what it has not passed on. `finish` says it is done sending, reads what comes, then closes."""
         import socket
 
         import milk as milk_mod
@@ -1781,11 +1848,25 @@ class ServerTest(unittest.TestCase):
         srv = socket.socket()
         srv.bind(("127.0.0.1", 0))
         srv.listen(1)
+        seen = {}
 
         def printer():
             conn, _ = srv.accept()
-            conn.recv(64)
-            conn.sendall(ready)
+            conn.settimeout(3)
+            got = b""
+            try:
+                conn.sendall(ready)  # an answer the client never reads
+                while True:
+                    chunk = conn.recv(4096)
+                    if not chunk:
+                        seen["end"] = "closed"  # our side ended the stream cleanly
+                        break
+                    got += chunk
+            except ConnectionResetError:
+                seen["end"] = "reset"
+            except OSError as exc:
+                seen["end"] = repr(exc)
+            seen["got"] = got
             conn.close()
 
         t = threading.Thread(target=printer, daemon=True)
@@ -1793,35 +1874,14 @@ class ServerTest(unittest.TestCase):
         link = milk_mod.ZebraLink("127.0.0.1", srv.getsockname()[1])
         try:
             link.send(b"^XA^XZ~HS")
-            t.join(3)
-            time.sleep(0.1)
-            self.assertFalse(link.alive())
-            self.assertEqual(link.read(0.2), ready.rstrip(b"\r\n"))  # the answer itself was kept for whoever reads next
+            time.sleep(0.2)  # the answer is sitting in our socket now
+            link.finish(1.0)
+            t.join(4)
         finally:
             link.close()
             srv.close()
-        # A line that is simply quiet is alive, and stays so after an answer has been read in.
-        srv = socket.socket()
-        srv.bind(("127.0.0.1", 0))
-        srv.listen(1)
-        held = {}
-
-        def quiet():
-            held["conn"], _ = srv.accept()
-            held["conn"].sendall(ready)
-
-        t = threading.Thread(target=quiet, daemon=True)
-        t.start()
-        link = milk_mod.ZebraLink("127.0.0.1", srv.getsockname()[1])
-        try:
-            t.join(3)
-            time.sleep(0.1)
-            self.assertTrue(link.alive())
-            self.assertTrue(link.alive())
-        finally:
-            link.close()
-            held["conn"].close()
-            srv.close()
+        self.assertEqual(seen.get("end"), "closed")
+        self.assertEqual(seen.get("got"), b"^XA^XZ~HS")
 
     def test_zebra_link_keeps_one_connection_and_reads_split_and_queued_replies(self):
         import socket
@@ -2332,6 +2392,99 @@ class ServerTest(unittest.TestCase):
         # A plain bag is not a bottle; a missing one is a 404.
         self.assertEqual(self.call("POST", f"/milk/{bag['id']}/unmake", {})[0], 400)
         self.assertEqual(self.call("POST", "/milk/999999/unmake", {})[0], 404)
+
+    def test_a_mix_of_thawed_and_fresh_milk_keeps_only_as_long_as_its_soonest_milk(self):
+        """Review 2026-11-24: a bottle or batch was dated from its oldest pump and earliest thaw alone, and thawed milk
+        by that reads thaw + 24 h, even when fresh milk poured in with it runs out sooner."""
+        now = datetime.now(timezone.utc)
+        fresh = self._bag(60, pumped_at=(now - timedelta(days=3, hours=12)).isoformat(timespec="seconds"))  # 12 hours left in the fridge
+        frozen = self._bag(60, pumped_at=(now - timedelta(days=20)).isoformat(timespec="seconds"), location="freezer")
+        status, thawed = self.call("PATCH", f"/milk/{frozen['id']}", {"location": "fridge"})  # thawed now: 24 hours
+        self.assertEqual((status, thawed["thawed"]), (200, True))
+        soonest = datetime.fromisoformat(fresh["expires_at"])
+        self.assertLess(soonest, datetime.fromisoformat(thawed["expires_at"]) - timedelta(hours=6))
+        status, made = self.call("POST", "/milk/bottles", {"child": 1, "bottles": [{"spot": 1, "takes": [{"bag": fresh["id"], "amount_ml": 30}, {"bag": thawed["id"], "amount_ml": 30}]}]})
+        self.assertEqual(status, 201)
+        self.assertEqual(datetime.fromisoformat(made[0]["expires_at"]), soonest)
+        # Fortified in one batch, and its mixing time corrected afterwards: still never longer than its soonest milk.
+        status, batch = self.call("POST", "/milk/batch", {"child": 1, "takes": [{"bag": fresh["id"], "amount_ml": 30}, {"bag": thawed["id"], "amount_ml": 30}], "kcal_per_oz": 24, "added_ml": 2})
+        self.assertEqual(status, 201)
+        self.assertEqual(datetime.fromisoformat(batch["expires_at"]), soonest)
+        status, moved = self.call("PATCH", f"/milk/{batch['id']}", {"mixed_at": (now - timedelta(minutes=30)).isoformat(timespec="seconds")})
+        self.assertEqual(status, 200)
+        self.assertEqual(datetime.fromisoformat(moved["expires_at"]), soonest)
+
+    def test_a_premade_bottle_coming_back_never_shares_a_spot(self):
+        """Review 2026-11-24: a fed bottle returned to the stash (its feeding deleted, or Undo) kept its old spot even
+        when a new bottle had been made there, and the app shows one bottle a spot: the other was invisible."""
+        bag = self._bag(600)
+
+        def bottle(spot, key):
+            status, made = self.call("POST", "/milk/bottles", {"child": 1, "bottles": [{"spot": spot, "takes": [{"bag": bag["id"], "amount_ml": 50}], "client_key": key}]})
+            self.assertEqual(status, 201)
+            return made[0]
+
+        first = bottle(2, "spot-share-0000001")
+        self.assertEqual(self.call("PUT", "/milk/feeding/9950", {"takes": [{"bag": first["id"], "amount_ml": 50}]})[0], 200)
+        second = bottle(2, "spot-share-0000002")  # the spot is free again, and reused
+        # The feeding is deleted: the first bottle is back, in a spot of its own.
+        self.assertEqual(self.call("PUT", "/milk/feeding/9950", {"takes": []})[0], 200)
+        back = self.call("GET", f"/milk/{first['id']}")[1]
+        self.assertEqual((back["status"], back["remaining_ml"], back["spot"]), ("stored", 50, 1))
+        self.assertEqual(self.call("GET", f"/milk/{second['id']}")[1]["spot"], 2)
+        # The same through Undo on a used bottle, and with every spot taken it comes back without one.
+        self.assertEqual(self.call("PUT", "/milk/feeding/9951", {"takes": [{"bag": second["id"], "amount_ml": 50}]})[0], 200)
+        for spot, key in ((2, "spot-share-0000003"), (3, "spot-share-0000004"), (4, "spot-share-0000005"), (5, "spot-share-0000006")):
+            bottle(spot, key)
+        status, undone = self.call("PATCH", f"/milk/{second['id']}", {"status": "stored"})
+        self.assertEqual((status, undone["status"], undone["spot"]), (200, "stored", None))
+        spots = [b["spot"] for b in self.call("GET", "/milk?child=1&status=stored")[1] if b["kind"] == "bottle" and b["spot"]]
+        self.assertEqual(sorted(spots), [1, 2, 3, 4, 5])
+
+    def test_requests_the_app_never_sends_do_not_bend_the_stash(self):
+        """Review 2026-11-24, API only: two bottles under one key answered 500; a batch deleted outright left its
+        bags unable to Undo; the module's own "_" notes were read from a request; a bag could be stored with nothing in it."""
+        bag = self._bag(200)
+        status, body = self.call(
+            "POST",
+            "/milk/bottles",
+            {"child": 1, "bottles": [{"spot": s, "takes": [{"bag": bag["id"], "amount_ml": 40}], "client_key": "same-key-00000001"} for s in (1, 2)]},
+        )
+        self.assertEqual(status, 400)
+        self.assertEqual(self.call("GET", f"/milk/{bag['id']}")[1]["remaining_ml"], 200)
+        # A batch removed with DELETE: the bag it emptied can still be undone (nothing else holds that milk now).
+        batch = self.call("POST", "/milk/batch", {"child": 1, "takes": [{"bag": bag["id"], "amount_ml": 200}]})[1]
+        self.assertEqual(self.call("GET", f"/milk/{bag['id']}")[1]["status"], "used")
+        self.assertEqual(self.call("DELETE", f"/milk/{batch['id']}")[0], 204)
+        status, back = self.call("PATCH", f"/milk/{bag['id']}", {"status": "stored"})
+        self.assertEqual((status, back["status"], back["remaining_ml"]), (200, "stored", 200))
+        # "_to_nicu" from outside is not this module's own note: the use is an ordinary one.
+        batch = self.call("POST", "/milk/batch", {"child": 1, "takes": [{"bag": bag["id"], "amount_ml": 100}]})[1]
+        status, used = self.call("PATCH", f"/milk/{batch['id']}", {"status": "used", "_to_nicu": True})
+        self.assertEqual((status, [u["kind"] for u in used["uses"]]), (200, ["elsewhere"]))
+        # Stored with nothing in it does not exist: asked for outright, or by way of discarded.
+        status, empty = self.call("PATCH", f"/milk/{bag['id']}", {"status": "stored", "remaining_ml": 0})
+        self.assertEqual((status, empty["status"], empty["remaining_ml"]), (200, "used", 0))
+        self.assertEqual(self.call("PATCH", f"/milk/{bag['id']}", {"status": "discarded"})[1]["status"], "discarded")
+        status, again = self.call("PATCH", f"/milk/{bag['id']}", {"status": "stored"})
+        self.assertEqual((status, again["status"], again["remaining_ml"]), (200, "used", 0))
+
+    def test_the_stash_listing_keeps_the_newest_history_when_it_is_cut(self):
+        """Review 2026-11-24: the listing was cut by deadline, so past the limit the newest used bags fell off, and
+        their pumping sessions were offered as "not in the stash" for ever."""
+        import milk as milk_mod
+
+        now = datetime.now(timezone.utc)
+        bags = [self._bag(30, pumped_at=(now - timedelta(hours=40 - n)).isoformat(timespec="seconds"), pumping_id=700 + n) for n in range(5)]
+        for n, bag in enumerate(bags[:4]):  # four used, oldest first; the fifth still stored
+            self.assertEqual(self.call("POST", f"/milk/{bag['id']}/use", {"amount_ml": 30, "feeding_id": 800 + n})[0], 200)
+            self.app.store.x("UPDATE milk_bags SET used_at=? WHERE id=?", ((now - timedelta(minutes=40 - n)).isoformat(timespec="seconds"), bag["id"]))
+        limit, milk_mod.LIST_LIMIT = milk_mod.LIST_LIMIT, 3
+        try:
+            listed = self.call("GET", "/milk?child=1")[1]
+        finally:
+            milk_mod.LIST_LIMIT = limit
+        self.assertEqual([b["pumping_id"] for b in listed], [704, 703, 702])  # stored, then the latest two to leave
 
     def test_sent_reminders_older_than_thirty_days_are_pruned_once_a_day(self):
         now = datetime.now(timezone.utc)

@@ -127,7 +127,10 @@ export function planTakes(bags: MilkBag[], amount: number, unit: VolumeUnit, ava
     // A premade bottle a baby fed from is finished: what she did not drink is thrown away, so it is taken whole
     // (the feeding keeps the amount she drank).
     // Only when the bottle is needed at all: bags picked before it may already cover the feed.
-    const takeMl = isNightBottle(bag) ? (left > 0 ? availableMl : 0) : roundTo(Math.min(left, availableMl), 2)
+    // A remainder under a millilitre, once something is in the bottle, is rounding (ounces, or a bag at 59.6 mL):
+    // it never opens another bag, and above all never empties a premade bottle for it.
+    const need = wantedMl - left > 0 && left < EMPTY_ML ? 0 : left
+    const takeMl = isNightBottle(bag) ? (need > 0 ? availableMl : 0) : roundTo(Math.min(need, availableMl), 2)
     left = roundTo(Math.max(0, left - takeMl), 2)
     const leftMl = roundTo(availableMl - takeMl, 2)
     const empties = takeMl > 0 && leftMl < EMPTY_ML
@@ -147,7 +150,7 @@ export function takesCopy(plan: TakesPlan, unit: VolumeUnit): string {
     .filter((t) => t.takeMl > 0)
     .map((t) =>
       isNightBottle(t.bag)
-        ? `premade bottle ${t.bag.spot} (${formatMl(t.takeMl, unit)}) · what she does not finish is thrown away`
+        ? `${bottleName(t.bag).replace(/^P/, 'p')} (${formatMl(t.takeMl, unit)}) · what she does not finish is thrown away`
         : isBatch(t.bag)
           ? t.empties
             ? `the last ${formatMl(t.takeMl, unit)} of the batch · the batch is finished`
@@ -171,8 +174,10 @@ export function takeCopy(bag: Pick<MilkBag, 'remaining_ml' | 'code'>, amount: nu
 }
 
 /** A bottle leaving the bag it took from (moved to another bag, or no bag after all): "Bag 6SZTHB gets 40 mL back". */
-export function giveBackCopy(bag: Pick<MilkBag, 'code'>, use: Pick<MilkUse, 'amount_ml'>, unit: VolumeUnit): string {
-  return `Bag ${bag.code} gets ${formatMl(use.amount_ml, unit)} back`
+export function giveBackCopy(bag: Pick<MilkBag, 'code'> & Partial<Pick<MilkBag, 'kind' | 'spot'>>, use: Pick<MilkUse, 'amount_ml'>, unit: VolumeUnit): string {
+  // Named for what it is: a batch or a premade bottle is not a bag.
+  const name = bag.kind === 'batch' ? 'The batch' : bag.kind === 'bottle' ? `Premade bottle ${bag.spot ?? ''}`.trim() : `Bag ${bag.code}`
+  return `${name} gets ${formatMl(use.amount_ml, unit)} back`
 }
 
 /** When a bag was pumped, the way the bottle sheet says it: "today", "yesterday", "Tue" inside a week, else "Sep 28". */
@@ -204,6 +209,8 @@ export interface StashSummary {
   bottles: MilkBag[]
   /** Batches mixed ahead with milk still in them (stored, not expired), the one that runs out first on top. */
   batches: MilkBag[]
+  /** Plain bags that can still be used (stored, not expired; no premade bottle, no batch). */
+  usableBags: number
   expiringSoon: number
   expired: number
 }
@@ -221,18 +228,21 @@ export function summarizeStash(bags: MilkBag[], now: Date = new Date()): StashSu
     if (state === 'expired') expired++
   }
   const usable = stored.filter((b) => bagState(b, now) !== 'expired').sort((a, b) => a.expires_at.localeCompare(b.expires_at) || a.pumped_at.localeCompare(b.pumped_at))
-  const bottles = usable.filter(isNightBottle).sort((a, b) => (a.spot ?? 0) - (b.spot ?? 0))
+  // Ready in a spot: the number is how it is offered (the pills on the bottle sheet, the grandparents' screen).
+  const bottles = usable.filter((b) => isNightBottle(b) && Boolean(b.spot)).sort((a, b) => (a.spot ?? 0) - (b.spot ?? 0))
   const batches = usable.filter((b) => isBatch(b) && b.remaining_ml >= EMPTY_ML)
-  return { count: stored.length, totalMl: stored.reduce((s, b) => s + b.remaining_ml, 0), byLocation, useFirst: usable.find((b) => !isMadeAhead(b)) ?? null, bottles, batches, expiringSoon, expired }
+  const plain = usable.filter((b) => !isMadeAhead(b))
+  return { count: stored.length, totalMl: stored.reduce((s, b) => s + b.remaining_ml, 0), byLocation, useFirst: plain[0] ?? null, bottles, batches, usableBags: plain.length, expiringSoon, expired }
 }
 
 /**
  * The bottle sheet's "Use milk from the stash" card, under its title: "3 bags · use first: 80 mL from Tue".
  * Null when there is no usable bag (empty stash, or only expired milk): the card then has nothing to say.
  */
-export function stashHint(summary: Pick<StashSummary, 'count' | 'useFirst'> & { bottles?: MilkBag[]; batches?: MilkBag[] }, unit: VolumeUnit, now: Date = new Date()): string | null {
+export function stashHint(summary: Pick<StashSummary, 'usableBags' | 'useFirst'>, unit: VolumeUnit, now: Date = new Date()): string | null {
   if (!summary.useFirst) return null
-  const count = summary.count - (summary.bottles?.length ?? 0) - (summary.batches?.length ?? 0)
+  // The bags that can be picked: an expired bag, a premade bottle or a batch is not one of them.
+  const count = summary.usableBags
   const bags = `${count} bag${count === 1 ? '' : 's'}`
   return `${bags} · use first: ${formatMl(summary.useFirst.remaining_ml, unit)} from ${pumpedWhen(parseDate(summary.useFirst.pumped_at), now)}`
 }
@@ -287,7 +297,7 @@ export function pumpsNotInStash<P extends { id: number; start: string; amount: n
   const have = new Set(bags.map((b) => b.pumping_id).filter((id) => id !== null && id !== undefined))
   return pumping
     .filter((p) => (p.amount ?? 0) > 0 && !have.has(p.id) && parseDate(p.start).getTime() <= now.getTime() && expectedExpiry({ pumpedAt: parseDate(p.start), location: 'fridge', thawedAt: null }, windows).getTime() > now.getTime())
-    .sort((a, b) => b.start.localeCompare(a.start))
+    .sort((a, b) => parseDate(b.start).getTime() - parseDate(a.start).getTime())
 }
 
 // ---- premade bottles: poured ahead of time into numbered fridge spots (stickers 1–5) -------------------------
@@ -308,7 +318,18 @@ export const isBatch = (bag: Pick<MilkBag, 'kind'>): boolean => bag.kind === 'ba
 export const isMadeAhead = (bag: Pick<MilkBag, 'kind'>): boolean => isNightBottle(bag) || isBatch(bag)
 
 /** "Premade bottle 3" for a bottle, "Batch K7M2QP" for a batch, "Bag K7M2QP" for a bag: how a stash item is named in titles and lists. */
-export const stashItemName = (bag: Pick<MilkBag, 'kind' | 'spot' | 'code'>): string => (isNightBottle(bag) ? `Premade bottle ${bag.spot}` : isBatch(bag) ? `Batch ${bag.code}` : `Bag ${bag.code}`)
+export const stashItemName = (bag: Pick<MilkBag, 'kind' | 'spot' | 'code'>): string => (isNightBottle(bag) ? bottleName(bag) : isBatch(bag) ? `Batch ${bag.code}` : `Bag ${bag.code}`)
+
+/** "Premade bottle 3"; one that came back when every spot was taken has no number until it is given a spot. */
+export const bottleName = (bag: Pick<MilkBag, 'spot'>): string => (bag.spot ? `Premade bottle ${bag.spot}` : 'Premade bottle without a spot')
+
+/** "8 bags", "1 premade bottle", "2 batches"; "3 containers" when the list mixes them (the Expired section can). */
+export function countText(bags: Pick<MilkBag, 'kind'>[]): string {
+  const n = bags.length
+  const kinds = new Set(bags.map((b) => (b.kind === 'bottle' ? 'bottle' : b.kind === 'batch' ? 'batch' : 'bag')))
+  const [one, many] = kinds.size > 1 ? ['container', 'containers'] : kinds.has('bottle') ? ['premade bottle', 'premade bottles'] : kinds.has('batch') ? ['batch', 'batches'] : ['bag', 'bags']
+  return `${n} ${n === 1 ? one : many}`
+}
 
 /** What a batch is in one line, for its row and the bottle sheet: "24 kcal/oz" or "plain milk". */
 export const batchStrength = (bag: Pick<MilkBag, 'kcal_per_oz'>): string => (bag.kcal_per_oz ? `${bag.kcal_per_oz} kcal/oz` : 'plain milk')
@@ -328,7 +349,9 @@ export function planBatch(sources: MilkBag[], milkMl: number): { ml: number; sho
     left = roundTo(left - ml, 2)
   }
   const ml = roundTo(takes.reduce((s, t) => s + t.ml, 0), 2)
-  return { ml, short: left >= EMPTY_ML, takes }
+  // Short by more than rounding: 13.5 oz typed against bags that show as 13.5 oz is the whole of them, not a
+  // batch 1 mL short that cannot be made (the same allowance the server gives a pour).
+  return { ml, short: left > OVER_TOLERANCE_ML, takes }
 }
 
 /**
@@ -455,10 +478,10 @@ export const PLACE_OPTIONS: { value: MilkLocation; label: string }[] = [
  * the reminder comes (an hour before, as the companion schedules it), or that the window has already gone.
  */
 export function placeNote(location: MilkLocation, pumpedAt: Date, windows: MilkWindows, now: Date = new Date()): { text: string; late: boolean } | null {
-  if (location === 'freezer') return { text: `Good for ${windows.freezerMonths} months frozen, counted from the pump.`, late: false }
+  if (location === 'freezer') return { text: `Good for ${windows.freezerMonths} month${windows.freezerMonths === 1 ? '' : 's'} frozen, counted from the pump.`, late: false }
   if (location !== 'room') return null
   const by = expectedExpiry({ pumpedAt, location: 'room' }, windows)
-  if (by.getTime() <= now.getTime()) return { text: `Pumped more than ${windows.roomHours} hours ago: too long out for room temperature. Choose Fridge.`, late: true }
+  if (by.getTime() <= now.getTime()) return { text: `Pumped more than ${windows.roomHours} hour${windows.roomHours === 1 ? '' : 's'} ago: too long out for room temperature. Choose Fridge.`, late: true }
   const remind = new Date(by.getTime() - HOUR)
   const when = (d: Date) => format(d, 'h:mm a')
   return { text: `Fridge it or feed it by ${when(by)}. ${remind.getTime() > now.getTime() ? `Bramble reminds you at ${when(remind)}.` : 'Less than an hour left.'}`, late: false }

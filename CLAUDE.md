@@ -79,7 +79,10 @@ installing and deploying; `README.md` is the public front page (screenshots from
   Night bottles (`kind: 'bottle'`, `spot` 1–5) are made only through `companion.milk.makeBottles` (Stash › Make night bottles):
   the milk leaves the bags then (`combined` uses), and a feed from a bottle takes it whole; an unfed bottle is undone only
   through `companion.milk.unmakeBottle` (the pours given back, the bottle removed), and changes spot only through
-  `companion.milk.moveBottle` (`POST /milk/<id>/spot`; a bottle already in that spot swaps into the old one).
+  `companion.milk.moveBottle` (`POST /milk/<id>/spot`; a bottle already in that spot swaps into the old one). Two stored bottles
+  never share a spot: one coming back into the stash (its feed deleted, Undo) keeps its spot only while nothing else is in it,
+  else takes the lowest free one, else none (`_free_spot`; the Stash tab lists it under the spots). Something made ahead keeps
+  only as long as its soonest milk, each bag by its own clock (`_milk_keeps`), never by the oldest pump and earliest thaw alone.
   A batch (`kind: 'batch'`, no spot) is made only through `companion.milk.makeBatch` (Stash › Make a batch): one container mixed ahead,
   and a feed from it takes only what was poured (what she drank plus what she left in the bottle), never the whole; it is undone through
   `unmakeBottle` while nothing was poured, and is never a source for a premade bottle or another batch. Bags taken to the NICU leave only through
@@ -100,6 +103,10 @@ installing and deploying; `README.md` is the public front page (screenshots from
   shown as expired and gets no reminders. `milk_bags` is live: new columns go in `ADDED_COLUMNS` and indexes in
   `LATE_INDEXES` in `server/milk.py`, with a migration test from the old schema. Bags leave the stash only through
   `status: 'used' | 'discarded'`; reminders for a bag carry `tag: milk:<id>`.
+- **On a Zebra it is one label, one connection, one at a time** (`Printer` in `server/milk.py`): before a label goes out the one before
+  it stops listening and closes (`_release_line`, `ZebraLink.finish`), a refused connection is retried, and a label is never written into
+  a connection that carried another, nor sent a second time by itself (both lose stickers without an error). What a print server does on
+  the wire is assumed from one error message and a fake: change this only with what a real printer did.
 - Run server tests with `PYTHONDONTWRITEBYTECODE=1 <venv>/bin/python -m unittest server/test_server.py`;
   `server/__pycache__` is untracked and ignored.
 - **A powder's spoon weight (`gPerTbsp` in `POWDERS`) comes only from the maker's published grams per teaspoon or tablespoon**, or from the

@@ -74,7 +74,7 @@ export function BatchSheet({ open, child, name, bags, unit, now, dayMl, fortify 
       key.current ??= newClientKey()
       const base = { child, windows, client_key: key.current, takes: plan.takes.map((t) => ({ bag: t.bag.id, amount_ml: t.ml })) }
       // What the formula adds to the container: in the batch, not from a bag.
-      return companion.milk.makeBatch(mix && batch ? { ...base, kcal_per_oz: mix.kcalPerOz, added_ml: Math.max(0, Math.round((batch.ml - plan.ml) * 10) / 10) } : base)
+      return companion.milk.makeBatch(mix && batch ? { ...base, kcal_per_oz: mix.kcalPerOz, added_ml: Math.max(0, Math.round((batch.ml - milkMl) * 10) / 10) } : base)
     },
     onSuccess: () => {
       invalidate(child)
@@ -137,7 +137,7 @@ export function BatchSheet({ open, child, name, bags, unit, now, dayMl, fortify 
             </p>
           )}
           {/* The recipe above is for what was typed. Making the batch needs that milk in the stash, to count it down. */}
-          {milkMl > 0 && !covered ? (
+          {milkMl >= 1 && !covered ? (
             <div className="batch-short" role="status" data-testid="batch-short">
               <span className="small text-pumping">
                 {holds >= 1
