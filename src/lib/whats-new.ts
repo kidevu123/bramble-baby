@@ -12,6 +12,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.77.1',
+    date: 'Nov 24',
+    items: [
+      'Make a batch now gives the recipe for whatever amount you type, even when the stash holds less milk than that, or none. Away from home with nothing logged, it still tells you how much formula to add.',
+      'Making the batch (so Bramble can count it down as bottles are poured) waits until that milk is in the stash; one tap sets the batch to what the stash holds.',
+    ],
+  },
+  {
     version: '1.77.0',
     date: 'Nov 24',
     items: [

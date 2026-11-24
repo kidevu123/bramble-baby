@@ -740,6 +740,12 @@
   font-size: var(--text-lg);
   font-weight: var(--w-head);
 }
+.batch-short {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
 .batch-tossed {
   display: flex;
   flex-direction: column;

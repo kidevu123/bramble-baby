@@ -297,7 +297,8 @@ export function MilkPage() {
           </section>
         ) : null}
 
-        {!stash.isLoading && (spotBottles.size || (canPour && !nicu)) ? (
+        {/* A household that fortifies gets Make a batch even with no fridge milk in the stash: the recipe for any amount. */}
+        {!stash.isLoading && (spotBottles.size || ((canPour || Boolean(tracking?.fortify)) && !nicu)) ? (
           <section className="night-bottles" aria-label="Premade bottles" data-testid="night-bottles">
             <header className="stash-section-head">
               <h3>Premade bottles</h3>
@@ -367,7 +368,7 @@ export function MilkPage() {
               </p>
             ) : null}
             {/* Two ways to make milk ahead: bottles in the numbered spots, or one container to pour from. */}
-            {canPour && !rearranging ? (
+            {(canPour || Boolean(tracking?.fortify)) && !rearranging ? (
               <div className="made-ahead-actions">
                 {canMake ? (
                   <Button variant="secondary" block onClick={() => setMaking(true)}>

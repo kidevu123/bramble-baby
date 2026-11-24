@@ -19,7 +19,9 @@ import './milk.css'
 
 /**
  * A batch mixed ahead: milk from the fridge bags poured into ONE container (the milk that has to go first going
- * first), the formula measured once, and the container kept cold. Nothing is split into bottles: each feed pours what
+ * first), the formula measured once, and the container kept cold. The recipe is the point of the sheet, so it is
+ * always for the amount typed, whatever the stash holds: with less milk in the stash than that (or none, away from
+ * home with nothing logged) the measure still shows, and only the making waits until the stash covers the batch. Nothing is split into bottles: each feed pours what
  * she wants from it (the bottle sheet offers the batch), and the rest stays. The milk leaves the bags when the batch
  * is made. Fortified, it keeps 24 hours from now; what is left after that is thrown away, so the sheet starts on about
  * a day of bottles and says so when the batch is bigger than that.
@@ -40,7 +42,8 @@ export function BatchSheet({ open, child, name, bags, unit, now, dayMl, fortify 
     if (!open) return
     const holds = all.reduce((s, b) => s + b.remaining_ml, 0)
     // About a day of bottles when that is known, since a fortified batch keeps a day; never more than the bags hold.
-    setMilkText(shown(dayMl && dayMl > 0 ? Math.min(holds, dayMl) : holds))
+    // With no fridge milk in the stash the sheet is the recipe alone: a day of bottles, or nothing typed yet.
+    setMilkText(holds >= 1 ? shown(dayMl && dayMl > 0 ? Math.min(holds, dayMl) : holds) : dayMl && dayMl > 0 ? shown(dayMl) : '')
     setLeft(new Set())
     setFortified(fortify ? 'fortified' : 'plain')
     key.current = null
@@ -52,8 +55,11 @@ export function BatchSheet({ open, child, name, bags, unit, now, dayMl, fortify 
   const milkMl = toMl(Number(milkText) || 0, unit)
   const plan = planBatch(sources, milkMl)
   const mix = fortified === 'fortified' && fortify ? fortify : null
-  const batch = mix && plan.ml > 0 ? batchFor([plan.ml], mix) : null
+  // The recipe is for what was typed (what is in the container), never cut down to what the stash happens to hold.
+  const batch = mix && milkMl > 0 ? batchFor([milkMl], mix) : null
   const tooSmall = Boolean(batch?.recipe.tooSmall)
+  /** The stash covers the batch, so it can be made (and counted down as bottles are poured). */
+  const covered = plan.takes.length > 0 && !plan.short
   const goodUntil = () => {
     const pumped = Math.min(...plan.takes.map((t) => parseDate(t.bag.pumped_at).getTime()))
     const thawed = plan.takes.filter((t) => t.bag.thawed && t.bag.thawed_at).map((t) => parseDate(t.bag.thawed_at!).getTime())
@@ -61,7 +67,7 @@ export function BatchSheet({ open, child, name, bags, unit, now, dayMl, fortify 
     return mix ? new Date(Math.min(milk.getTime(), now.getTime() + FORTIFIED_KEEP_HOURS * 3_600_000)) : milk
   }
   /** Bigger than she drinks while it keeps: the rest would be poured away. */
-  const overADay = mix !== null && dayMl !== null && dayMl > 0 && plan.ml > dayMl * 1.15
+  const overADay = mix !== null && dayMl !== null && dayMl > 0 && milkMl > dayMl * 1.15
 
   const make = useMutation({
     mutationFn: () => {
@@ -94,12 +100,12 @@ export function BatchSheet({ open, child, name, bags, unit, now, dayMl, fortify 
       title="Make a batch"
       onClose={onClose}
       footer={
-        <Button size="lg" block onClick={() => make.mutate()} loading={make.isPending} disabled={!plan.takes.length || tooSmall}>
-          {plan.takes.length ? `Make the batch · ${formatMl(batch ? batch.ml : plan.ml, unit)}` : 'Make the batch'}
+        <Button size="lg" block onClick={() => make.mutate()} loading={make.isPending} disabled={!covered || tooSmall}>
+          {covered ? `Make the batch · ${formatMl(batch ? batch.ml : plan.ml, unit)}` : 'Make the batch'}
         </Button>
       }
     >
-      {all.length === 0 ? (
+      {all.length === 0 && !fortify ? (
         <p className="small muted">No milk in the fridge to pour from. {frozen ? 'Thaw a bag in the fridge first; frozen milk is not used.' : 'Add milk to the stash first.'}</p>
       ) : (
         <>
@@ -119,23 +125,33 @@ export function BatchSheet({ open, child, name, bags, unit, now, dayMl, fortify 
               />
             </FieldGroup>
           ) : null}
-          {plan.short && plan.takes.length ? (
-            <p className="small text-pumping" role="status" data-testid="batch-short">
-              The bags hold {formatMl(holds, unit)}, so that is the batch.
-            </p>
-          ) : null}
           {batch ? (
-            <BatchSteps keep batch={batch} fortify={mix!} unit={unit} sizeMl={plan.ml} onSize={(ml) => setMilkText(String(unit === 'oz' ? Math.round(convertVolume(ml, 'ml', 'oz') * 10) / 10 : Math.round(ml)))} />
-          ) : plan.takes.length ? (
+            <BatchSteps keep batch={batch} fortify={mix!} unit={unit} sizeMl={milkMl} onSize={(ml) => setMilkText(String(unit === 'oz' ? Math.round(convertVolume(ml, 'ml', 'oz') * 10) / 10 : Math.round(ml)))} />
+          ) : milkMl > 0 ? (
             <p className="small" data-testid="batch-plain">
-              Pour {formatMl(plan.ml, unit)} into one container and keep it cold. Each bottle is poured from it.
+              Pour {formatMl(milkMl, unit)} into one container and keep it cold. Each bottle is poured from it.
             </p>
           ) : (
             <p className="small text-health" role="alert">
-              {milkMl > 0 ? 'The bags left in hold no milk.' : 'Enter how much milk goes in the batch.'}
+              Enter how much milk goes in the batch.
             </p>
           )}
-          {plan.takes.length ? (
+          {/* The recipe above is for what was typed. Making the batch needs that milk in the stash, to count it down. */}
+          {milkMl > 0 && !covered ? (
+            <div className="batch-short" role="status" data-testid="batch-short">
+              <span className="small text-pumping">
+                {holds >= 1
+                  ? `${mix ? 'The recipe is for the' : 'That is'} ${formatMl(milkMl, unit)} you typed. The stash has ${formatMl(holds, unit)} of fridge milk${left.size ? ' in the bags left in' : ''}: add the rest with Add milk so Bramble can keep count of it, or make the batch smaller.`
+                  : `${mix ? 'This is the recipe only.' : 'Nothing to make yet.'} No fridge milk is in the stash${left.size ? ' in the bags left in' : ''}, so there is nothing for Bramble to keep count of. Add the milk with Add milk first, then make the batch.`}
+              </span>
+              {holds >= 1 ? (
+                <button type="button" className="link-btn" onClick={() => setMilkText(shown(holds))}>
+                  Make it {shown(holds)} {volumeLabel(unit)}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+          {covered ? (
             <p className="small" data-testid="batch-until">
               Good until {bagStamp(goodUntil(), now)}.
             </p>
@@ -145,9 +161,11 @@ export function BatchSheet({ open, child, name, bags, unit, now, dayMl, fortify 
               That is more than {name} takes by bottle in a day (about {formatMl(dayMl!, unit)}). A fortified batch keeps {FORTIFIED_KEEP_HOURS} hours; what is left after that is thrown away.
             </p>
           ) : null}
-          <FieldGroup title="Poured from" hint="Soonest to expire first. Tap a bag to leave it out.">
-            <SourceList all={all} left={left} takes={plan.takes} unit={unit} now={now} onToggle={toggle} />
-          </FieldGroup>
+          {all.length ? (
+            <FieldGroup title="Poured from" hint="Soonest to expire first. Tap a bag to leave it out.">
+              <SourceList all={all} left={left} takes={plan.takes} unit={unit} now={now} onToggle={toggle} />
+            </FieldGroup>
+          ) : null}
           {frozen ? <p className="xs muted">Frozen milk is not used: thaw a bag in the fridge first.</p> : null}
           <p className="xs muted">
             {mix
